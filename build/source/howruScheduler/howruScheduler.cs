@@ -30,8 +30,11 @@ public class howruScheduler
     public static bool hasChanges = false;
     public static string[,] declarations;
     public static string[] pluginOutputs;
+    public static int[] prevOutputs;
+    public static string[] statusChanged;
     public static string[] lastRunTimestamp;
     public static string[] nextRunTimestamp;
+    public static string[] lastChangeTimestamp;
     public static int[] pluginRetVals;
     public static StringBuilder logBuilder;
 
@@ -328,6 +331,18 @@ public class howruScheduler
            updateLog();
            return;
         }
+	if (prevOutputs[storeIndex] != -1)
+	{
+		if (exitCode != prevOutputs[storeIndex])
+		{
+		   statusChanged[storeIndex] = "1";
+		}
+		else
+		{
+		   statusChanged[storeIndex] = "0";
+		}
+		prevOutputs[storeIndex] = exitCode;
+	}
         pluginOutputs[storeIndex] = output;
         pluginRetVals[storeIndex] = exitCode;
         DateTime endTime = DateTime.Now;
@@ -404,6 +419,8 @@ public class howruScheduler
                       sw.WriteLine("         \"pluginStatus\":\"" + pluginStatus + "\",");
                       sw.WriteLine("         \"pluginStatusCode\":\"" + retVal.ToString() + "\",");
                       sw.WriteLine("         \"pluginOutput\":\"" + pluginOutput + "\",");
+		      sw.WriteLine("         \"pluginStatusChanged\":\"" + statusChanged[i] + "\",");
+		      sw.WriteLine("         \"lastChange\":\"" + lastChangeTimestamp[i] + "\",");
                       sw.WriteLine("         \"lastRun\":\"" + lastRunTimestamp[i] + "\",");
                       sw.WriteLine("         \"nextRun\":\"" + nextRunTimestamp[i] + "\"");
                       if (i == declarations.GetLength(0)-1)
@@ -442,6 +459,9 @@ public class howruScheduler
     {
        lastRunTimestamp = new string[numOfP+1];
        nextRunTimestamp = new string[numOfP+1];
+       lastChangeTimestamp = new string[numOfP+1];
+       statusChanged = new string[numOfP+1];
+       prevOutputs = new int[numOfP+1]; 
        Console.WriteLine("Initiating scheduler running " + numOfP.ToString() + " plugins");
        logAppender("Initiating scheduler running " + numOfP + " tasks", 0);
        for (int i=0; i < numOfP; i++)
@@ -449,11 +469,14 @@ public class howruScheduler
           int active = StrToIntDef(declarations[i,2], 1);
           if (active == 1)
           {
+             prevOutputs[i] = -1;
+	     statusChanged[i] = "0";
              runPlugin(declarations[i,1], i);
              String timeStamp = DateTime.Now.ToString();
              int nextInterval = StrToIntDef(declarations[i,3], 5);
              String nextRun = DateTime.Now.AddMinutes(nextInterval).ToString();
              lastRunTimestamp[i] = timeStamp;
+             lastChangeTimestamp[i] = timeStamp;
              nextRunTimestamp[i] = nextRun;
              logAppender("Next run of " + declarations[i,1] + " is set to " + nextRun, 0);
              Thread.Sleep(msSleep);
@@ -487,6 +510,10 @@ public class howruScheduler
        String nextRun = DateTime.Now.AddMinutes(nextInterval).ToString();
        lastRunTimestamp[taskID] = timeStamp;
        nextRunTimestamp[taskID] = nextRun;
+       if (statusChanged[taskID] == "1")
+       {
+          lastChangeTimestamp[taskID] = timeStamp;
+       }
        logAppender("Next run of " + declarations[taskID,1] + " is set to " + nextRun, 0);  
     }
 

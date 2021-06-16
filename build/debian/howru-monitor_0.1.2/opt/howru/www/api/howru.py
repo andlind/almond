@@ -7,11 +7,21 @@ app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 data = None
 
+#with open("/opt/howru/www/monitor_data.json", "r") as json_file:
+#    if json_file.mode == "r":
+#       contents = json_file.read() 
+#    else:
+#        file_not_readable = true
+
 def load_data():
     global data
     f = open("../monitor_data.json", "r")
     data = json.loads(f.read())
     f.close()
+
+#f = open("../monitor_data.json", "r")
+#data = json.loads(f.read())
+#f.close()
 
 @app.route('/', methods=['GET'])
 def home():
@@ -22,11 +32,13 @@ def home():
 def documentation():
     full_filename = '/static/howru.png'
     return render_template("documentation.html", user_image = full_filename)
+ 
 
 @app.route('/api/v1/howru/monitoring/json', methods=['GET'])
 def api_json():
    global data
    load_data()
+   #return json.dumps(data)
    return jsonify(data)
 
 @app.route('/api/v1/howru/monitoring/howareyou', methods=['GET'])
@@ -69,7 +81,7 @@ def api_howareyou():
                  'warn' : warn,
                  'crit' : crit,
                  'unknown': unknown
-               }
+               }  
        }
     ]
 
@@ -113,6 +125,19 @@ def api_show_criticals():
     obj = data['monitoring']
     for i in obj:
         if (i['pluginStatusCode'] == "2"):
+            results.append(i)
+
+    return jsonify(results)
+
+@app.route('/api/v1/howru/monitoring/changes', methods=['GET'])
+def api_show_changes():
+    global data
+    load_data()
+    results = []
+    results.append(data['host'])
+    obj = data['monitoring']
+    for i in obj:
+        if (i['pluginStatusChanged'] == "1"):
             results.append(i)
 
     return jsonify(results)
