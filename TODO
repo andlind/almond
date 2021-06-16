@@ -1,0 +1,10 @@
+Scheduler:
+   - Refine reload
+   - Add last_state_change and state_changed parameters to json
+   - Runfiles for all commands and collectdata pulling them together?
+
+Api:
+   - Change conf through API?
+   - Read conf through API?
+   - Port scheduler to python 
+   - Add some exporters, mongodb, grafana, kafka etc
