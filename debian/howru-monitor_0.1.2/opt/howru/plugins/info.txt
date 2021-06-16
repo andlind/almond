@@ -1,0 +1,4 @@
+This is where you place your plugins.
+You could of course symlink your Nagios plugin directory here, 
+or change the configuration to another directory where you store
+your plugin scripts.
