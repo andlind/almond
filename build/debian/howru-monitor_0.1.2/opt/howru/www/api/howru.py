@@ -7,21 +7,11 @@ app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 data = None
 
-#with open("/opt/howru/www/monitor_data.json", "r") as json_file:
-#    if json_file.mode == "r":
-#       contents = json_file.read() 
-#    else:
-#        file_not_readable = true
-
 def load_data():
     global data
     f = open("../monitor_data.json", "r")
     data = json.loads(f.read())
     f.close()
-
-#f = open("../monitor_data.json", "r")
-#data = json.loads(f.read())
-#f.close()
 
 @app.route('/', methods=['GET'])
 def home():
@@ -42,7 +32,6 @@ def search_plugin():
 def api_json():
    global data
    load_data()
-   #return json.dumps(data)
    return jsonify(data)
 
 @app.route('/api/v1/howru/monitoring/howareyou', methods=['GET'])
@@ -163,14 +152,13 @@ def api_show_plugin():
         id = int(request.args['id'])
     else:
         do_start = False
-        info = [
-           {   'monitoring': [
-                { 'info': 'No id or name provided for plugin',
-                  'returnCode': '2'}
-                ]
-            }
-        ]
-    results.append(info)
+        info =  [
+        {   'monitoring': 
+           { 'info': 'No id or name provided for plugin',
+             'returnCode': '2'
+           }
+        }
+        results.append(info)
     if (do_start):
        obj = data['monitoring']
        for i in obj:
