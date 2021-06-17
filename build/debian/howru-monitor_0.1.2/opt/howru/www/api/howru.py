@@ -33,6 +33,10 @@ def documentation():
     full_filename = '/static/howru.png'
     return render_template("documentation.html", user_image = full_filename)
  
+@app.route('/pluginSearch', methods=['GET'])
+def search_plugin():
+    full_filename = '/static/howru.png'
+    return render_template("plugin_query.html", user_image = full_filename)
 
 @app.route('/api/v1/howru/monitoring/json', methods=['GET'])
 def api_json():
@@ -141,5 +145,41 @@ def api_show_changes():
             results.append(i)
 
     return jsonify(results)
+
+@app.route('/api/v1/howru/monitoring/plugin', methods=['GET'])
+def api_show_plugin():
+    global data
+    load_data()
+    do_start = True
+    info = []
+    name = ""
+    id = -1
+    id_count = 0
+    results = []
+    results.append(data['host'])
+    if 'name' in request.args:
+        name = request.args['name']
+    elif 'id' in request.args:
+        id = int(request.args['id'])
+    else:
+        do_start = False
+        info = [
+           {   'monitoring': [
+                { 'info': 'No id or name provided for plugin',
+                  'returnCode': '2'}
+                ]
+            }
+        ]
+    results.append(info)
+    if (do_start):
+       obj = data['monitoring']
+       for i in obj:
+           if ((id_count == id) or (name == i['pluginName'])):
+               results.append(i)
+               break
+           id_count = id_count + 1
+
+    return jsonify(results)
+
 
 app.run(host='0.0.0.0', port=80)
