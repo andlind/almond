@@ -152,12 +152,13 @@ def api_show_plugin():
         id = int(request.args['id'])
     else:
         do_start = False
-        info =  [
-        {   'monitoring': 
-           { 'info': 'No id or name provided for plugin',
-             'returnCode': '2'
+        info = [
+           { 'returnCode' :'2',
+                'monitoring':
+                   {'info': 'No id or name provided for plugin'
+                   }
            }
-        }
+        ]
         results.append(info)
     if (do_start):
        obj = data['monitoring']
