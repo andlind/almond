@@ -6,12 +6,29 @@ import os
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 data = None
+settings = None
 
 def load_data():
     global data
     f = open("../monitor_data.json", "r")
     data = json.loads(f.read())
     f.close()
+
+def load_settings():
+    global settings 
+    f = open("/etc/howru/plugins.conf", "r")
+    try:
+        settings = f.readlines()
+    finally:
+        f.close()
+
+def load_scheduler_settings():
+    global settings
+    f = open("/etc/howru/howru.conf", "r")
+    try:
+        settings = f.readlines()
+    finally:
+        f.close()
 
 @app.route('/', methods=['GET'])
 def home():
@@ -94,6 +111,11 @@ def api_show_oks():
 
     return jsonify(results)
 
+#@app.route('/api/v2/howru/settings/plugins', method=['GET'])
+#def setting_show_plugins():
+    #load_settings()
+#    return "Hello"
+
 @app.route('/api/v1/howru/monitoring/warnings', methods=['GET'])
 def api_show_warnings():
     global data
@@ -170,5 +192,56 @@ def api_show_plugin():
 
     return jsonify(results)
 
+@app.route('/api/v1/howru/settings/plugins', methods=['GET'])
+def api_show_settings():
+    global settings 
+    load_settings()
+    results = []
+    #results = settings
+    for s in settings:
+        if (s[0] != '#'):
+            s_arr = s.split(';')
+            pos = s_arr[0].find(']')
+            p_name = s_arr[0][1:pos]
+            p_des = s_arr[0][pos+2:]
+            p_info = [
+                    { 'pluginName' : p_name,
+                        'settings':
+                        {'description': p_des,
+                         'command': s_arr[1],
+                         'active': s_arr[2],
+                         'interval': s_arr[3].rstrip()
+                        }
+               }
+            ]
+            results.append(p_info)
+
+    return jsonify(results)
+
+@app.route('/api/v1/howru/settings/scheduler', methods=['GET'])
+def api_show_scheduler_settings():
+    global settings
+    load_scheduler_settings()
+    results = []
+
+    #results = settings
+    for s in settings:
+        s.rstrip()
+        s_arr = s.split('=')
+        pos = s_arr[0].find('.')
+        configType = s_arr[0][:pos]
+        configName = s_arr[0][pos+1:]
+        pos = s.find('=')
+        configValue = s[pos+1:].rstrip()
+        if (len(configType) > 2):
+            s_info = [
+                    { 'configType': configType,
+                      'name': configName,
+                    'value': configValue
+                    }
+            ]
+            results.append(s_info)
+
+    return jsonify(results)
 
 app.run(host='0.0.0.0', port=80)
