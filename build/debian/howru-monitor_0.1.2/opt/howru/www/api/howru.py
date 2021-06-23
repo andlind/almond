@@ -7,6 +7,22 @@ app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 data = None
 settings = None
+bindPort = None
+
+def load_conf():
+    global bindPort
+    conf = open("/etc/howru/howru.conf", "r")
+    for line in conf:
+        if (line.find('api') == 0):
+            if (line.find('Port') > 0):
+                pos = line.find('=')
+                port = line[pos+1]
+                if (isinstance(port, int)):
+                   bindPort = port
+                else:
+                    bindPort = 80
+    conf.close()
+    return bindPort
 
 def load_data():
     global data
@@ -110,11 +126,6 @@ def api_show_oks():
             results.append(i)
 
     return jsonify(results)
-
-#@app.route('/api/v2/howru/settings/plugins', method=['GET'])
-#def setting_show_plugins():
-    #load_settings()
-#    return "Hello"
 
 @app.route('/api/v1/howru/monitoring/warnings', methods=['GET'])
 def api_show_warnings():
@@ -244,4 +255,7 @@ def api_show_scheduler_settings():
 
     return jsonify(results)
 
-app.run(host='0.0.0.0', port=80)
+if __name__ == '__main__':
+    use_port = load_conf()
+    print use_port
+    app.run(host='0.0.0.0', port=use_port)
