@@ -53,37 +53,10 @@ int confDirSet = 0;
 int dataDirSet = 0;
 int logDirSet = 0;
 int pluginDirSet = 0;
+
+FILE *fptr;
 //pthread_t thread_id;
 //volatile sig_atomic_t stop;
-
-void sig_handler(int signal){
-    	switch (signal) {
-        	case SIGINT:
-            		printf("Caught SIGINT, exiting now\n");
-            		exit(0);
-		case SIGKILL:
-			printf("Hey, wait - I am getting killed.\n");
-			exit(0);
-		case SIGTERM:
-			printf("Caught signal to quit program.\n");
-            	        return;
-    	}
-//	stop = 1;
-}
-
-int directoryExists(const char *checkDir, size_t length) {
-	printf("Checking directory...");
-	printf("%s\n", checkDir);
-	DIR* dir = opendir(checkDir);
-	if (dir) {
-		closedir(dir);
-		return 0;
-	}
-	else if (ENOENT == errno) {
-		return 1;
-	}
-	else { return 2; }
-}
 
 char *trim(char *s) {
     char *ptr;
@@ -97,12 +70,83 @@ char *trim(char *s) {
 }
 
 void removeChar(char *str, char garbage) {
-	char *src, *dest;
-	for (src = dest = str; *src != '\0'; src++){
-		*dest = *src;
-		if (*dest != garbage) dest++;
+        char *src, *dest;
+        for (src = dest = str; *src != '\0'; src++){
+                *dest = *src;
+                if (*dest != garbage) dest++;
+        }
+        *dest ='\0';
+}
+
+void writeLog(const char *message, int level) {
+	char timeStamp[20];
+        char wmes[300] = "";
+	size_t dest_size = 20;
+        time_t t = time(NULL);
+        struct tm tm = *localtime(&t);
+        
+	snprintf(timeStamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        strcpy(wmes, timeStamp);
+	strcat(wmes, " | ");
+        switch (level) {
+                case 0:
+                        strcat(wmes, "[INFO]\t");
+                        break;
+                case 1:
+                        strcat(wmes, "[WARNING]\t");
+                        break;
+                case 2:
+                        strcat(wmes, "[ERROR]\t");
+                        break;
+                default:
+                        strcat(wmes, "[DEBUG]\t");
+        }
+        strcat(wmes, message);
+        fprintf(fptr, "%s\n", wmes);
+}
+
+void flushLog() {
+	//writeLog("Flush log..", 0);
+	fclose(fptr);
+	sleep(0.10);
+	fptr = fopen("/var/log/howru/howruc.log", "a");
+
+}
+
+void sig_handler(int signal){
+    	switch (signal) {
+        	case SIGINT:
+			writeLog("Caught SIGINT, exiting program.", 0);
+			fclose(fptr);
+            		exit(0);
+		case SIGKILL:
+			writeLog("Caught SIGKILL, exiting progam.", 0);
+			fclose(fptr);
+			exit(0);
+		case SIGTERM:
+			printf("Caught signal to quit program.\n");
+                        writeLog("Caught signal to terminate program.", 0);
+			writeLog("HowRU says goodbye.", 0);
+                        fclose(fptr);
+                        exit(0);
+    	}
+//	stop = 1;
+}
+
+int directoryExists(const char *checkDir, size_t length) {
+	char mes[50];
+	snprintf(mes, 50, "Checking directory %s", checkDir);
+	writeLog(trim(mes), 0);
+
+	DIR* dir = opendir(checkDir);
+	if (dir) {
+		closedir(dir);
+		return 0;
 	}
-	*dest ='\0';
+	else if (ENOENT == errno) {
+		return 1;
+	}
+	else { return 2; }
 }
 
 char *getHostName() {
@@ -121,7 +165,7 @@ char *getHostName() {
 	if ((gai_result = getaddrinfo(host_name, "http", &hints, &info)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai_result));        }
 	for (p = info; p != NULL; p = p->ai_next) {
-		printf("hostname: %s\n", p->ai_canonname);
+		//printf("hostname: %s\n", p->ai_canonname);
 		size_t dest_size = 255;
                 snprintf(ret, dest_size, "%s", p->ai_canonname);
 	}
@@ -144,6 +188,7 @@ int getConfigurationValues() {
 	if (fp == NULL)
    	{
       		perror("Error while opening the file.\n");
+		writeLog("Error opening configuration file", 2);
       		exit(EXIT_FAILURE);
    	}
 
@@ -154,12 +199,12 @@ int getConfigurationValues() {
 		   if (index == 0)
 		   {
 			   strcpy(confName, token);
-			   printf("%s\n", confName);
+			   //printf("%s\n", confName);
 		   }
 		   else
 		   {
 			   strcpy(confValue, token);
-			   printf("%s\n", confValue);
+			   //printf("%s\n", confValue);
 		   }
 		   token = strtok(NULL, "=");
 		   index++;
@@ -174,20 +219,22 @@ int getConfigurationValues() {
 		   else {
 			   int status = mkdir(trim(confValue), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 			   if(status != 0 && errno != EEXIST){
-                               printf("Failed to create directory");
-			       printf("%d\n", errno);
+                               printf("Failed to create directory. Errno: %d\n", errno);
+			       writeLog("Error creating configuration directory.", 2);
                            }
 			   else{
 			       strncpy(confDir, trim(confValue), strlen(confValue));
 			       confDirSet = 1;
 			   }
 		  }
-		  printf("%s\n", confDir);
+		  //printf("%s\n", confDir);
+		  writeLog("Configuration directory is set.", 0);
 	   }
 	   if (strcmp(confName, "scheduler.format") == 0) {
               if (strcmp(trim(confValue), "json") != 0){
-		      printf("%s\n", confValue);
-		      printf("Is not a valid value. Only json supported at this moment.");
+		      printf("%s is not a valid value. Only json supported at this moment.\n", confValue);
+		      writeLog("Unsupported value in configuration scheduler.format", 1);
+		      writeLog("Only json supported in this version of the program.", 0);
 	      }
 	      strcpy(outputFormat, "json");
 	   }
@@ -196,12 +243,15 @@ int getConfigurationValues() {
 	      if (i < 5000)
 		      i = 7000;
 	      initSleep = i;
+	      writeLog("Init sleep for scheduler read.", 0);
 	   }
 	   if (strcmp(confName, "scheduler.sleepMs") == 0) {
+		   char mes[40];
 		   int i = strtol(trim(confValue), NULL, 0);
 		   if (i > 2000)
 			   i = 2000;
-		   printf("Scheduler Sleep time is %d\n", i);
+                   snprintf(mes, 40, "Scheduler sleep time is %d ms.", i);
+		   writeLog(trim(mes), 0);
 		   schedulerSleep = i;
 	   }
 	   if (strcmp(confName, "scheduler.dataDir") == 0) {
@@ -213,8 +263,8 @@ int getConfigurationValues() {
 		   else {
 			   int status = mkdir(trim(confValue), 0755);
 			   if (status != 0 && errno != EEXIST) {
-				   printf("Failed to create directory");
-				   printf("%d\n", errno);
+				   printf("Failed to create directory. Errno: %d\n", errno);
+				   writeLog("Error creating HowRU dataDir.", 2);
 			   }
 			   else {
 				   strncpy(dataDir, trim(confValue), strlen(confValue));
@@ -230,9 +280,9 @@ int getConfigurationValues() {
 		   }
 		   else {
 			   int status = mkdir(trim(confValue), 0755);
-			   if (status != 0) {
-				   printf("Failed to create directory");
-				   printf("%d\n", errno);
+			   if (status != 0 && errno != EEXIST) {
+				   printf("Failed to create directory. Errno: %d\n", errno);
+				   writeLog("Error creating log directory.", 2);
 			   }
 			   else {
 				   strncpy(logDir, trim(confValue), strlen(confValue));
@@ -249,8 +299,8 @@ int getConfigurationValues() {
 		   else {
 			   int status = mkdir(trim(confValue), 0755);
 			   if (status != 0 && errno != EEXIST) {
-				   printf("Failed to create directory");
-				   printf("%d\n", errno);
+				   printf("Failed to create directory. Errno: %d\n", errno);
+				   writeLog("Error creating plugins directory.", 2);
 			   }
 			   else {
 				   strncpy(pluginDir, trim(confValue), strlen(confValue));
@@ -264,12 +314,15 @@ int getConfigurationValues() {
 		   }
 		   else {
 			   printf("ERROR: Plugin declaration file does not exist.");
+			   writeLog("Plugin declaration file does not exist.", 2);
 			   return 1;
 		   }
 	   }
 	   if (strcmp(confName, "data.jsonFile") == 0) {
+		   char info[60];
 		   strncpy(jsonFileName, trim(confValue), strlen(confValue));
-		   printf("Json data will be collected in file: %s\n", jsonFileName);
+		   snprintf(info, 60, "Json data will be collected in file: %s.", jsonFileName);
+		   writeLog(trim(info), 0);
 	   }
  	}
 
@@ -288,12 +341,13 @@ void collectData(int decLen){
 	char* pluginName;
 	FILE *fp;
         clock_t t;
+	char info[225];
 
 	strcpy(fileName, dataDir);
 	strncat(fileName, &ch, 1);
 	strcat(fileName, jsonFileName);
-	printf("Collect data.\n");
-	printf("Data file: %s\n", fileName);
+	snprintf(info, 225, "Collecting data to file: %s", fileName);
+	writeLog(trim(info), 0);
 	t = clock();
 	fp = fopen(fileName, "w");
 	fputs("{\n", fp);
@@ -345,7 +399,9 @@ void collectData(int decLen){
 	t = clock() -t;
 	//double collection_time = ((double)t)/CLOCKS_PER_SEC;
 	//printf("Data collection took %f seconds to execute.\n", collection_time);
-	printf("Data collection took %.0f miliseconds to execute.\n", (double)t);
+	//printf("Data collection took %.0f miliseconds to execute.\n", (double)t);
+	snprintf(info, 225, "Data collection took %.0f miliseconds to execute.", (double)t);
+	writeLog(trim(info), 0);
 }
 
 void runPlugin(int storeIndex)
@@ -357,20 +413,24 @@ void runPlugin(int storeIndex)
 	struct PluginOutput output;
 	clock_t t;
 	char currTime[20];
+	char info[295];
 
 	t = clock();
 	strcpy(command, pluginDir);
 	strncat(command, &ch, 1);
 	strcat(command, declarations[storeIndex].command);
-	printf("%s\n", command);
-        printf("%d\n", storeIndex);
-	printf("Running: %s\n", declarations[storeIndex].command);
+	//printf("%s\n", command);
+        //printf("%d\n", storeIndex);
+	//printf("Running: %s\n", declarations[storeIndex].command);
+	snprintf(info, 295, "Running: %s.", declarations[storeIndex].command);
+	writeLog(trim(info), 0);
 	fp = popen(command, "r");
 	if (fp == NULL) {
 		printf("Failed to run command\n");
+		writeLog("Failed to run command.", 2);
 	}
 	while (fgets(retString, sizeof(retString), fp) != NULL) {
-		printf("%s", retString);
+		// VERBOSE  printf("%s", retString);
 	}
 	output.retCode = pclose(fp);
 	strcpy(output.retString, retString);
@@ -401,13 +461,15 @@ void runPlugin(int storeIndex)
 	}
 	outputs[storeIndex] = output;
 	t = clock() -t;
-	printf("%s executed. Execution took %.0f milliseconds.\n", declarations[storeIndex].name, (double)t);
+	//printf("%s executed. Execution took %.0f milliseconds.\n", declarations[storeIndex].name, (double)t);
+	snprintf(info, 295, "%s executed. Execution took %.0f milliseconds.\n", declarations[storeIndex].name, (double)t);
+        writeLog(trim(info), 0);
 }
 
 void* pluginExeThread(void* data) {
 	long storeIndex = (long)data;
 	pthread_detach(pthread_self());
-	printf("Executing %s in pthread %lu\n", declarations[storeIndex].description, pthread_self());
+	// VERBOSE printf("Executing %s in pthread %lu\n", declarations[storeIndex].description, pthread_self());
 	runPlugin(storeIndex);
 	pthread_exit(NULL);
 }
@@ -421,6 +483,7 @@ int countDeclarations(char *file_name) {
 	if (fp == NULL)
         {
                 perror("Error while opening the file.\n");
+		writeLog("Error opening and counting declarations file.", 2);
                 exit(EXIT_FAILURE);
         }
 	for (c = getc(fp); c != EOF; c = getc(fp)){
@@ -440,6 +503,7 @@ int loadPluginDeclarations(char *pluginDeclarationsFile) {
 	char *token;
 	char *name;
 	char *description;
+	char loginfo[60];
         size_t len = 0;
         ssize_t read;
         FILE *fp;
@@ -450,6 +514,7 @@ int loadPluginDeclarations(char *pluginDeclarationsFile) {
 	if (fp == NULL)
         {
                 perror("Error while opening the file.\n");
+		writeLog("Error opening the plugin declarations file.", 2);
                 exit(EXIT_FAILURE);
         }
 	while ((read = getline(&line, &len, fp)) != -1) {
@@ -459,7 +524,7 @@ int loadPluginDeclarations(char *pluginDeclarationsFile) {
 		               token = strtok_r(line, ";", &saveptr);
 			       if (token == NULL)
 				       break;
-			       printf("%d: %s\n", i, token);
+			       //printf("%d: %s\n", i, token);
 			       switch(i) {
 				       case 1:
                                                name = strtok(token, " ");
@@ -486,7 +551,9 @@ int loadPluginDeclarations(char *pluginDeclarationsFile) {
 		       printf(" %d", item.active);
 		       printf(" %d\n", item.interval);
 		       printf("----\n");*/
-		       printf("Declaration with index %d is created.\n", counter);
+		       //printf("Declaration with index %d is created.\n", counter);
+		       snprintf(loginfo, 60, "Declaration with index %d is created.\n", counter);
+		       writeLog(trim(loginfo), 0);
 		       declarations[counter] = item;
                        counter++;
 		}
@@ -499,13 +566,16 @@ int loadPluginDeclarations(char *pluginDeclarationsFile) {
 
 void initScheduler(int numOfP, int msSleep) {
 	char currTime[20];
+	char logInfo[100];
 	float sleepTime = msSleep/1000;
 	printf("Initiating scheduler\n");
 	for (int i = 0; i < numOfP; i++)
 	{
 		if (declarations[i].active == 1)
 		{
-			printf("%s is active. Id %d\n", declarations[i].name, declarations[i].id);
+			//printf("%s is active. Id %d\n", declarations[i].name, declarations[i].id);
+			snprintf(logInfo, 100, "%s is active. Id %d\n", declarations[i].name, declarations[i].id);
+			writeLog(trim(logInfo), 0);
 			outputs[i].prevRetCode = -1;
 			strcpy(declarations[i].statusChanged, "0");
 			runPlugin(i);
@@ -513,7 +583,7 @@ void initScheduler(int numOfP, int msSleep) {
 			time_t t = time(NULL);
   			struct tm tm = *localtime(&t);
 			snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-			printf("%s\n",currTime);
+			//printf("%s\n",currTime);
 			strcpy(declarations[i].lastRunTimestamp, currTime);
 			strcpy(declarations[i].lastChangeTimestamp, currTime);
 			time_t nextTime = t + (declarations[i].interval *60);
@@ -522,19 +592,22 @@ void initScheduler(int numOfP, int msSleep) {
 			localtime_r(&nextTime, &tNextTime);
 			snprintf(declarations[i].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 			declarations[i].nextRun = nextTime;
-			printf("Sleep time is: %.3f\n", sleepTime);
+			//printf("Sleep time is: %.3f\n", sleepTime);
 			sleep(sleepTime);
 		}
 		else
 		{
-			printf("%s is not active. Id: %d\n", declarations[i].name, declarations[i].id);
+			snprintf(logInfo, 100, "%s is not active. Id: %d\n", declarations[i].name, declarations[i].id);
+			writeLog(trim(logInfo), 0);
 		}
+		flushLog();
 	}
         collectData(numOfP);
 }
 
 void runPluginThreads(int loopVal){
 	char currTime[20];
+	char logInfo[200];
 	pthread_t thread_id;
         int rc;
         int i;
@@ -547,16 +620,20 @@ void runPluginThreads(int loopVal){
         for (i = 0; i < loopVal; i++) {
            long j = i;
 	   if (declarations[i].active == 1) {
-		printf("Current time is: %s\n", currTime);
-		printf("Next run time should be: %s\ns", declarations[i].nextRunTimestamp);
+		//snprintf(logInfo, 200, "Current time is: %s\n", currTime);
+		//writeLog(logInfo, 0);
+		//snprintf(logInfo, 200, "Next run time schedulation is: %s\ns", declarations[i].nextRunTimestamp);
+		//writeLog(logInfo, 0);
 		if (t > declarations[i].nextRun)
 		{
 			rc = pthread_create(&thread_id, NULL, pluginExeThread, (void *)j);
            		if(rc) {
-                		printf("\nError: return code from phtread_create is %d\n", rc);
+                		snprintf(logInfo, 200, "Error: return code from phtread_create is %d\n", rc);
+				writeLog(trim(logInfo), 2);
            		}
            		else {
-                   		printf("\nCreated new thread (%lu) for plugin %s\n", thread_id, declarations[i].name);
+                   		snprintf(logInfo, 200, "Created new thread (%lu) for plugin %s\n", thread_id, declarations[i].name);
+				writeLog(trim(logInfo), 0);
            		}
 		}
             }
@@ -565,70 +642,89 @@ void runPluginThreads(int loopVal){
 }
 
 void scheduleChecks(int numOfT){
+	char logInfo[100];
 	float sleepTime = schedulerSleep/1000;
         const int i = 1;
-	printf("Start timer....");
 
-	printf("Sleep time is: %.3f\n", sleepTime);
+	writeLog("Start timer...", 0);
+	snprintf(logInfo, 100, "Sleep time is: %.3f\n", sleepTime);
+	writeLog(trim(logInfo), 0);
 	// Timer is an eternal loop :P
 	while (i > 0) {
 		runPluginThreads(numOfT);
-		printf("Sleeping for  %.3f seconds.\n", sleepTime);
+		snprintf(logInfo, 100, "Sleeping for  %.3f seconds.\n", sleepTime);
+		writeLog(trim(logInfo), 0);
 		sleep(sleepTime);
 		collectData(numOfT);
+		flushLog();
 	}
 }
 
 int main()
 {
+	fptr = fopen("/var/log/howru/howruc.log", "a");
+	fprintf(fptr, "\n");
 	if (signal(SIGINT, sig_handler) == SIG_ERR) {
 		fputs("An error occurred while setting a signal handler\n", stderr);
+		writeLog("An error occurred while setting the SIGINT signal handler.", 2);
+		fclose(fptr);
 		return EXIT_FAILURE;
 	}
         if (signal(SIGTERM, sig_handler) == SIG_ERR) {
 		fputs("An error occured while setting sigterm signal handler\n", stderr);
+		writeLog("An error occured while setting sigterm signal handler.", 2);
+		fclose(fptr);
 		return EXIT_FAILURE;
 	}
-        
+        writeLog("Starting howru-scheduler...", 0);
+        printf("Starting howru-scheduler...\n");	
 	int retVal = getConfigurationValues();	
 	if (retVal == 0) {
-		printf("Confifuration read ok.");
+		printf("Configuration read ok.\n");
+		writeLog("Configuration read ok.", 0);
 	}
 	else {
-		printf("ERROR: Configuration is not valid.");
+		printf("ERROR: Configuration is not valid.\n");
+		writeLog("Configuration is not valid", 1);
 		return 1;
 	}
 	strncpy(hostName, getHostName(), 255);
 	int decCount = countDeclarations(pluginDeclarationFile);
-	printf("%d\n", decCount);
 	declarations = malloc(sizeof(struct PluginItem) * decCount);
 	if (!declarations) {
 		perror ("Error allocating memory");
+                writeLog("Error allocating memory - struct PluginItem.", 2);
 		abort();
 	}
 	memset(declarations, 0, sizeof(struct PluginItem)*decCount);
 	outputs = malloc(sizeof(struct PluginOutput)*decCount);
 	if (!outputs){
 		perror("Error allocating memory");
+		writeLog("Error allocating memory - struct PluginOutput.", 2);
 		abort();
 	}
 	memset(outputs, 0, sizeof(struct PluginOutput)*decCount);
 	int pluginDeclarationResult = loadPluginDeclarations(pluginDeclarationFile);
 	if (pluginDeclarationResult != 0){
-		printf("ERROR: Problem reading plugin declaration file.");
+		printf("ERROR: Problem reading plugin declaration file.\n");
+		writeLog("Problem reading from plugin declaration file.", 1);
 	}
 	else {
 		printf("Declarations read.\n");
+		writeLog("Plugin declarations file loaded.", 0);
 	}
+	flushLog();
         initScheduler(decCount, initSleep);	
-	for (int i = 0; i < decCount; i++)
+	/*for (int i = 0; i < decCount; i++)
 	{
 		printf("%s", declarations[i].name);
 		printf("%s\n", declarations[i].command);
 		printf("Plugin Ret Code: %d", outputs[i].retCode);
 		printf("Plugin Output: %s\n", outputs[i].retString);
-	}
-        printf("Starting timer to run checks.\n");
+	}*/
+        writeLog("Initiating scheduler to run checks att given intervals.", 0);
+	printf("Scheduler started.\n");
+	flushLog();
         scheduleChecks(decCount);
 
    	return 0;
