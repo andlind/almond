@@ -43,7 +43,7 @@ char pluginDir[50];
 char pluginDeclarationFile[75];
 char hostName[255];
 char outputFormat[10];
-char jsonFileName[50] = "monitor_data.json";
+char jsonFileName[50] = "monitor_data_c.json";
 struct PluginItem *declarations;
 struct PluginOutput *outputs;
 int initSleep;
@@ -253,7 +253,7 @@ int getConfigurationValues() {
 	   if (strcmp(confName, "scheduler.sleepMs") == 0) {
 		   char mes[40];
 		   int i = strtol(trim(confValue), NULL, 0);
-		   if (i > 2000)
+		   if (i < 2000)
 			   i = 2000;
                    snprintf(mes, 40, "Scheduler sleep time is %d ms.", i);
 		   writeLog(trim(mes), 0);
