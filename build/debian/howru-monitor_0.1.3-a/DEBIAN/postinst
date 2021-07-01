@@ -2,8 +2,8 @@
 
 # Set file ownership
 /bin/chown -R root:root /opt/howru
-/bin/chown root:root /lib/system/systemd/howru-api.service
-/bin/chown root:root /lib/system/systemd/howru-scheduler.service
+/bin/chown root:root /lib/systemd/system/howru-api.service
+/bin/chown root:root /lib/systemd/system/howru-scheduler.service
 /bin/chmod 655 /lib/systemd/system/howru-api.service
 /bin/chmod 655 /lib/systemd/system/howru-scheduler.service
 
