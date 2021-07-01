@@ -267,7 +267,7 @@ def api_show_plugin():
 
 @app.route('/api/v1/howru/settings/plugins', methods=['GET'])
 def api_show_settings():
-    global setting
+    global settings
     load_settings()
     results = []
     #results = settings
