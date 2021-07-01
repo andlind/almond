@@ -1,9 +1,8 @@
 Scheduler:
    - Refine reload
-   - Runfiles for all commands and collectdata pulling them together?
 
 Api:
    - Change conf through API?
-   - Port scheduler to python 
    - Add some exporters, mongodb, grafana, kafka etc
    - Docker container example
+   - Ability to display multi files
