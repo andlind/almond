@@ -1,0 +1,13 @@
+[Unit]
+Description=HowRU scheduler Service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/howru/
+ExecStart=/opt/howru/howru-scheduler
+StandardInput=tty-force
+
+[Install]
+WantedBy=multi-user.target
