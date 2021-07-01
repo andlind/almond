@@ -16,7 +16,6 @@
 
 #define MAX_STRING_SIZE 50
 
-
 struct PluginItem {
         char name[50];
         char description[100];
@@ -44,7 +43,7 @@ char pluginDir[50];
 char pluginDeclarationFile[75];
 char hostName[255];
 char outputFormat[10];
-char jsonFileName[50] = "monitor_data_c.json";
+char jsonFileName[50] = "monitor_data.json";
 struct PluginItem *declarations;
 struct PluginOutput *outputs;
 int initSleep;
@@ -106,10 +105,16 @@ void writeLog(const char *message, int level) {
 }
 
 void flushLog() {
-	//writeLog("Flush log..", 0);
+        char logFile[100];
+	char ch = '/';
+
+        strcpy(logFile, logDir);
+        strncat(logFile, &ch, 1);
+        strcat(logFile, "howruc.log");
 	fclose(fptr);
 	sleep(0.10);
-	fptr = fopen("/var/log/howru/howruc.log", "a");
+	//fptr = fopen("/var/log/howru/howruc.log", "a");
+	fptr = fopen(logFile, "a");
 
 }
 
@@ -289,6 +294,31 @@ int getConfigurationValues() {
 				   logDirSet = 1;
 			   }
 		   }
+		   if (strcmp(confValue, "/var/log/howru") != 0) {
+			   char ch =  '/';
+			   char fileName[100];
+			   FILE *logFile;
+			   strcpy(fileName, logDir);
+        		   strncat(fileName, &ch, 1);
+                           strcat(fileName, "howruc.log");
+			   writeLog("Closing logfile...", 0);
+			   fclose(fptr);
+			   sleep(0.2);
+                           logFile = fopen("/var/log/howru/howruc.log", "r");
+			   fptr = fopen(fileName, "a");
+			   if (fptr == NULL) {
+				   fclose(logFile);
+				   fptr = fopen("/var/log/howru/howruc.log", "a");
+				   writeLog("Could not create new logfile.", 1);
+				   writeLog("Reopened logfile '/var/log/howru/howruc.log'.", 0);
+			   }
+			   else {
+				   while ( (ch = fgetc(logFile)) != EOF)
+					   fputc(ch, fptr);
+				   fclose(logFile);
+				   writeLog("Created new logfile.", 0);
+			   }
+		   }
 	   }
 	   if (strcmp(confName, "plugins.directory") == 0) {
 		   if (directoryExists(confValue, 255) == 0) {
@@ -385,7 +415,7 @@ void collectData(int decLen){
 		fprintf(fp, "         \"pluginStatusChanged\":\"%s\",\n", declarations[i].statusChanged);
 		fprintf(fp, "         \"lastChange\":\"%s\",\n", declarations[i].lastChangeTimestamp);
 		fprintf(fp, "         \"lastRun\":\"%s\", \n", declarations[i].lastRunTimestamp);
-		fprintf(fp, "         \"nextRun\":\"%s\",\n", declarations[i].nextRunTimestamp);
+		fprintf(fp, "         \"nextRun\":\"%s\"\n", declarations[i].nextRunTimestamp);
 		if (i == decLen-1) {
 			fputs("      }\n", fp);
 		}
@@ -419,9 +449,6 @@ void runPlugin(int storeIndex)
 	strcpy(command, pluginDir);
 	strncat(command, &ch, 1);
 	strcat(command, declarations[storeIndex].command);
-	//printf("%s\n", command);
-        //printf("%d\n", storeIndex);
-	//printf("Running: %s\n", declarations[storeIndex].command);
 	snprintf(info, 295, "Running: %s.", declarations[storeIndex].command);
 	writeLog(trim(info), 0);
 	fp = popen(command, "r");
@@ -461,7 +488,6 @@ void runPlugin(int storeIndex)
 	}
 	outputs[storeIndex] = output;
 	t = clock() -t;
-	//printf("%s executed. Execution took %.0f milliseconds.\n", declarations[storeIndex].name, (double)t);
 	snprintf(info, 295, "%s executed. Execution took %.0f milliseconds.\n", declarations[storeIndex].name, (double)t);
         writeLog(trim(info), 0);
 }
@@ -544,14 +570,6 @@ int loadPluginDeclarations(char *pluginDeclarationsFile) {
 		       strcpy(item.nextRunTimestamp, "");
 		       strcpy(item.lastChangeTimestamp, "");
 		       strcpy(item.statusChanged, "");
-		       /*printf("%s", item.name);
-		       printf("%d", item.id);
-		       printf("%s", item.description);
-		       printf("%s", item.command);
-		       printf(" %d", item.active);
-		       printf(" %d\n", item.interval);
-		       printf("----\n");*/
-		       //printf("Declaration with index %d is created.\n", counter);
 		       snprintf(loginfo, 60, "Declaration with index %d is created.\n", counter);
 		       writeLog(trim(loginfo), 0);
 		       declarations[counter] = item;
@@ -573,7 +591,6 @@ void initScheduler(int numOfP, int msSleep) {
 	{
 		if (declarations[i].active == 1)
 		{
-			//printf("%s is active. Id %d\n", declarations[i].name, declarations[i].id);
 			snprintf(logInfo, 100, "%s is active. Id %d\n", declarations[i].name, declarations[i].id);
 			writeLog(trim(logInfo), 0);
 			outputs[i].prevRetCode = -1;
@@ -583,7 +600,6 @@ void initScheduler(int numOfP, int msSleep) {
 			time_t t = time(NULL);
   			struct tm tm = *localtime(&t);
 			snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-			//printf("%s\n",currTime);
 			strcpy(declarations[i].lastRunTimestamp, currTime);
 			strcpy(declarations[i].lastChangeTimestamp, currTime);
 			time_t nextTime = t + (declarations[i].interval *60);
@@ -715,13 +731,6 @@ int main()
 	}
 	flushLog();
         initScheduler(decCount, initSleep);	
-	/*for (int i = 0; i < decCount; i++)
-	{
-		printf("%s", declarations[i].name);
-		printf("%s\n", declarations[i].command);
-		printf("Plugin Ret Code: %d", outputs[i].retCode);
-		printf("Plugin Output: %s\n", outputs[i].retString);
-	}*/
         writeLog("Initiating scheduler to run checks att given intervals.", 0);
 	printf("Scheduler started.\n");
 	flushLog();

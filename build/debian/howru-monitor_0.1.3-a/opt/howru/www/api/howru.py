@@ -11,7 +11,7 @@ bindPort = None
 
 def load_conf():
     global bindPort
-    conf = open("/etc/howru/howru.conf", "r")
+    conf = open("/etc/howru/howruc.conf", "r")
     for line in conf:
         if (line.find('api') == 0):
             if (line.find('Port') > 0):
