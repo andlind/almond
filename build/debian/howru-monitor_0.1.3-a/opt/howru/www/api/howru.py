@@ -40,7 +40,7 @@ def load_settings():
 
 def load_scheduler_settings():
     global settings
-    f = open("/etc/howru/howru.conf", "r")
+    f = open("/etc/howru/howruc.conf", "r")
     try:
         settings = f.readlines()
     finally:
