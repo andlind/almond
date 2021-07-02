@@ -1,34 +1,65 @@
 import json
 import flask
 from flask import request, jsonify, render_template
-import os
+import os, os.path
+import glob
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 data = None
 settings = None
 bindPort = None
+multi_server = False
+data_dir="/opt/howru/www"
 
 def load_conf():
-    global bindPort
+    global bindPort, multi_server
     conf = open("/etc/howru/howruc.conf", "r")
     for line in conf:
         if (line.find('api') == 0):
             if (line.find('Port') > 0):
                 pos = line.find('=')
-                port = line[pos+1]
-                if (isinstance(port, int)):
-                   bindPort = port
+                port = line[pos+1:]
+                if (isinstance(int(port), int)):
+                   bindPort = int(port)
                 else:
                     bindPort = 80
+            if (line.find('Server') > 0):
+                pos = line.find('=')
+                multi_s = line[pos+1]
+                if (isinstance(int(multi_s), int)):
+                    if (int(multi_s) > 0):
+                        multi_server = True
+                    else:
+                        multi_server = False
+                else:
+                    multi_server = False
     conf.close()
     return bindPort
 
 def load_data():
-    global data
-    f = open("../monitor_data.json", "r")
-    data = json.loads(f.read())
-    f.close()
+    global data, multi_server
+    if (multi_server):
+       #print("Running in mode multi");
+       count = 0 
+       os.chdir(data_dir)
+       data = {
+                  "server": [
+                      ]
+              }
+
+       for file in glob.glob("*.json"):
+            f = open(file, "r")
+            data_set = json.loads(f.read())
+            data["server"].append(data_set)
+            f.close()
+            count = count + 1
+       os.chdir("/opt/howru/www/api")
+    else:
+       #print("Running in single mode");
+       f = open("../monitor_data.json", "r")
+       data = json.loads(f.read())
+       f.close()
 
 def load_settings():
     global settings 
@@ -40,7 +71,7 @@ def load_settings():
 
 def load_scheduler_settings():
     global settings
-    f = open("/etc/howru/howru.conf", "r")
+    f = open("/etc/howru/howruc.conf", "r")
     try:
         settings = f.readlines()
     finally:
@@ -69,7 +100,7 @@ def api_json():
 
 @app.route('/api/v1/howru/monitoring/howareyou', methods=['GET'])
 def api_howareyou():
-    global data
+    global data, multi_server
     load_data()
     ok = 0
     warn = 0
@@ -78,104 +109,192 @@ def api_howareyou():
     unknown = 0
     res = "I am not sure"
 
-    obj = data['monitoring']
-    for status in obj:
-        if (status['pluginStatusCode'] == "0"):
-           ok = ok + 1
-        elif (status['pluginStatusCode'] == "1"):
-           warn = warn + 1
-        elif (status['pluginStatusCode'] == "2"):
-            crit = crit +1
-        else:
-            unknown = unknown +1
-    if (crit > 0):
-        res = "I'm not fine!"
-    else:
-        if (warn > 0):
-            res = "I'm so so"
-        else:
-            res = "I'm "
-            if (unknown > 0):
-                res = res + " not completly sure to be honest."
-            else:
-                res = res + " fine, thanks for asking!"
+    if (multi_server):
+        print("Not yet implemented")
+        results = {
+            "server": [
+                      ]
+            }
+        for serv in data['server']:
+           name_o = serv['host']
+           name =  name_o['name']
+           obj = serv['monitoring']
+           for status in obj:
+               if (status['pluginStatusCode'] == "0"):
+                   ok = ok + 1
+               elif (status['pluginStatusCode'] == "1"):
+                   warn = warn + 1
+               elif (status['pluginStatusCode'] == "2"):
+                   crit = crit +1
+               else:
+                   unknown = unknown +1
+           if (crit > 0):
+               res = "I'm not fine!"
+           else:
+               if (warn > 0):
+                   res = "I'm so so"
+               else:
+                   res = "I'm "
+                   if (unknown > 0):
+                       res = res + " not completly sure to be honest."
+                   else:
+                       res = res + " fine, thanks for asking!"
 
-    results = [
-       { 'answer' : res,
-           'monitor_results':
-               {'ok': ok,
-                 'warn' : warn,
-                 'crit' : crit,
-                 'unknown': unknown
-               }  
-       }
-    ]
+           server = [
+                {  'name' : name,
+                   'answer' : res,
+                   'monitor_results':
+                      {'ok': ok,
+                       'warn' : warn,
+                       'crit' : crit,
+                       'unknown': unknown
+                   }
+               }
+           ]
+           
+           results["server"].append(server);
+           ok = 0
+           warn = 0
+           crit = 0
+    else:
+        obj = data['monitoring']
+        for status in obj:
+            if (status['pluginStatusCode'] == "0"):
+                ok = ok + 1
+            elif (status['pluginStatusCode'] == "1"):
+                warn = warn + 1
+            elif (status['pluginStatusCode'] == "2"):
+                crit = crit +1
+            else:
+                unknown = unknown +1
+        if (crit > 0):
+            res = "I'm not fine!"
+        else:
+            if (warn > 0):
+                res = "I'm so so"
+            else:
+                res = "I'm "
+                if (unknown > 0):
+                    res = res + " not completly sure to be honest."
+                else:
+                    res = res + " fine, thanks for asking!"
+
+        results = [
+            { 'answer' : res,
+            'monitor_results':
+                   {'ok': ok,
+                     'warn' : warn,
+                    'crit' : crit,
+                    'unknown': unknown
+                }  
+            }
+        ]
 
     return jsonify(results)
 
 @app.route('/api/v1/howru/monitoring/ok', methods=['GET'])
 def api_show_oks():
-    global data
+    global data, multi_server
     load_data()
     results = []
 
-    results.append(data['host'])
-    obj = data['monitoring']
-    for i in obj:
-        if (i['pluginStatusCode'] == "0"):
-            results.append(i)
+    if (multi_server):
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusCode'] == "0"):
+                   res_set.append(i)
+            results.append(res_set);
+    else:
+        results.append(data['host'])
+        obj = data['monitoring']
+        for i in obj:
+            if (i['pluginStatusCode'] == "0"):
+                results.append(i)
 
     return jsonify(results)
 
-#@app.route('/api/v2/howru/settings/plugins', method=['GET'])
-#def setting_show_plugins():
-    #load_settings()
-#    return "Hello"
-
 @app.route('/api/v1/howru/monitoring/warnings', methods=['GET'])
 def api_show_warnings():
-    global data
+    global data, multi_server
     load_data()
     results = []
 
-    results.append(data['host'])
-    obj = data['monitoring']
-    for i in obj:
-        if (i['pluginStatusCode'] == "1"):
-            results.append(i)
+    if (multi_server):
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusCode'] == "1"):
+                   res_set.append(i)
+            results.append(res_set);
+    else:
+        results.append(data['host'])
+        obj = data['monitoring']
+        for i in obj:
+            if (i['pluginStatusCode'] == "1"):
+                results.append(i)
 
     return jsonify(results)
 
 @app.route('/api/v1/howru/monitoring/criticals', methods=['GET'])
 def api_show_criticals():
-    global data
+    global data, multi_server
     load_data()
     results = []
 
-    results.append(data['host'])
-    obj = data['monitoring']
-    for i in obj:
-        if (i['pluginStatusCode'] == "2"):
-            results.append(i)
+    if (multi_server):
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusCode'] == "2"):
+                   res_set.append(i)
+            results.append(res_set);
+    else:
+       results.append(data['host'])
+       obj = data['monitoring']
+       for i in obj:
+           if (i['pluginStatusCode'] == "2"):
+               results.append(i)
 
     return jsonify(results)
 
 @app.route('/api/v1/howru/monitoring/changes', methods=['GET'])
 def api_show_changes():
-    global data
+    global data, multi_server
     load_data()
     results = []
-    results.append(data['host'])
-    obj = data['monitoring']
-    for i in obj:
-        if (i['pluginStatusChanged'] == "1"):
-            results.append(i)
+
+    if (multi_server):
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusChanged'] == "1"):
+                   res_set.append(i)
+            results.append(res_set);
+    else:
+       results.append(data['host'])
+       obj = data['monitoring']
+       for i in obj:
+           if (i['pluginStatusChanged'] == "1"):
+               results.append(i)
 
     return jsonify(results)
 
 @app.route('/api/v1/howru/monitoring/plugin', methods=['GET'])
 def api_show_plugin():
-    global data
+    global data, multi_server
     load_data()
     do_start = True
     info = []
@@ -183,6 +302,14 @@ def api_show_plugin():
     id = -1
     id_count = 0
     results = []
+
+    if (multi_server):
+        print("Not implemented yet")
+        results = {
+                'info': 'Search in multimode not yet implemented'
+                }
+        return jsonify(results)
+
     results.append(data['host'])
     if 'name' in request.args:
         name = request.args['name']
@@ -210,7 +337,7 @@ def api_show_plugin():
 
 @app.route('/api/v1/howru/settings/plugins', methods=['GET'])
 def api_show_settings():
-    global settings 
+    global settings
     load_settings()
     results = []
     #results = settings
@@ -253,7 +380,7 @@ def api_show_scheduler_settings():
             s_info = [
                     { 'configType': configType,
                       'name': configName,
-                    'value': configValue
+                      'value': configValue
                     }
             ]
             results.append(s_info)

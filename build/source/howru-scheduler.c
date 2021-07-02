@@ -461,7 +461,6 @@ void runPlugin(int storeIndex)
 	}
 	output.retCode = pclose(fp);
 	strcpy(output.retString, retString);
-	outputs[storeIndex] = output;
 	if (outputs[storeIndex].prevRetCode != -1){
 		size_t dest_size = 20;
                 time_t t = time(NULL);
