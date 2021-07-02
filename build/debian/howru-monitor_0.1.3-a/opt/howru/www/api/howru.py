@@ -28,7 +28,7 @@ def load_conf():
                 pos = line.find('=')
                 multi_s = line[pos+1]
                 if (isinstance(int(multi_s), int)):
-                    if (multi_s > 0):
+                    if (int(multi_s) > 0):
                         multi_server = True
                     else:
                         multi_server = False
@@ -40,6 +40,7 @@ def load_conf():
 def load_data():
     global data, multi_server
     if (multi_server):
+       #print("Running in mode multi");
        count = 0 
        os.chdir(data_dir)
        data = {
@@ -55,6 +56,7 @@ def load_data():
             count = count + 1
        os.chdir("/opt/howru/www/api")
     else:
+       #print("Running in single mode");
        f = open("../monitor_data.json", "r")
        data = json.loads(f.read())
        f.close()
@@ -267,7 +269,7 @@ def api_show_plugin():
 
 @app.route('/api/v1/howru/settings/plugins', methods=['GET'])
 def api_show_settings():
-    global settings
+    global setting
     load_settings()
     results = []
     #results = settings
