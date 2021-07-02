@@ -111,16 +111,51 @@ def api_howareyou():
 
     if (multi_server):
         print("Not yet implemented")
-        results = [
-            { 'answer' : res,
-            'monitor_results':
-                   {'ok': 0,
-                     'warn' : 0,
-                    'crit' : 0,
-                    'unknown': 0
-                }
+        results = {
+            "server": [
+                      ]
             }
-        ]
+        for serv in data['server']:
+           name_o = serv['host']
+           name =  name_o['name']
+           obj = serv['monitoring']
+           for status in obj:
+               if (status['pluginStatusCode'] == "0"):
+                   ok = ok + 1
+               elif (status['pluginStatusCode'] == "1"):
+                   warn = warn + 1
+               elif (status['pluginStatusCode'] == "2"):
+                   crit = crit +1
+               else:
+                   unknown = unknown +1
+           if (crit > 0):
+               res = "I'm not fine!"
+           else:
+               if (warn > 0):
+                   res = "I'm so so"
+               else:
+                   res = "I'm "
+                   if (unknown > 0):
+                       res = res + " not completly sure to be honest."
+                   else:
+                       res = res + " fine, thanks for asking!"
+
+           server = [
+                {  'name' : name,
+                   'answer' : res,
+                   'monitor_results':
+                      {'ok': ok,
+                       'warn' : warn,
+                       'crit' : crit,
+                       'unknown': unknown
+                   }
+               }
+           ]
+           
+           results["server"].append(server);
+           ok = 0
+           warn = 0
+           crit = 0
     else:
         obj = data['monitoring']
         for status in obj:
@@ -164,8 +199,15 @@ def api_show_oks():
     results = []
 
     if (multi_server):
-        #results.append(data['server'])
-        print "Not yet implemented"
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusCode'] == "0"):
+                   res_set.append(i)
+            results.append(res_set);
     else:
         results.append(data['host'])
         obj = data['monitoring']
@@ -182,7 +224,15 @@ def api_show_warnings():
     results = []
 
     if (multi_server):
-        print("Not yet implemented")
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusCode'] == "1"):
+                   res_set.append(i)
+            results.append(res_set);
     else:
         results.append(data['host'])
         obj = data['monitoring']
@@ -199,7 +249,15 @@ def api_show_criticals():
     results = []
 
     if (multi_server):
-        print ("Not implemente yet")
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusCode'] == "2"):
+                   res_set.append(i)
+            results.append(res_set);
     else:
        results.append(data['host'])
        obj = data['monitoring']
@@ -216,14 +274,21 @@ def api_show_changes():
     results = []
 
     if (multi_server):
-        print("Not implemented yet")
-        return results
-
-    results.append(data['host'])
-    obj = data['monitoring']
-    for i in obj:
-        if (i['pluginStatusChanged'] == "1"):
-            results.append(i)
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            res_set.append(s['host'])
+            obj = s['monitoring']
+            for i in obj:
+               if (i['pluginStatusChanged'] == "1"):
+                   res_set.append(i)
+            results.append(res_set);
+    else:
+       results.append(data['host'])
+       obj = data['monitoring']
+       for i in obj:
+           if (i['pluginStatusChanged'] == "1"):
+               results.append(i)
 
     return jsonify(results)
 
@@ -240,7 +305,10 @@ def api_show_plugin():
 
     if (multi_server):
         print("Not implemented yet")
-        return results
+        results = {
+                'info': 'Search in multimode not yet implemented'
+                }
+        return jsonify(results)
 
     results.append(data['host'])
     if 'name' in request.args:
@@ -269,7 +337,7 @@ def api_show_plugin():
 
 @app.route('/api/v1/howru/settings/plugins', methods=['GET'])
 def api_show_settings():
-    global setting
+    global settings
     load_settings()
     results = []
     #results = settings
@@ -312,7 +380,7 @@ def api_show_scheduler_settings():
             s_info = [
                     { 'configType': configType,
                       'name': configName,
-                    'value': configValue
+                      'value': configValue
                     }
             ]
             results.append(s_info)
