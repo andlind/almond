@@ -444,6 +444,7 @@ void runPlugin(int storeIndex)
 	clock_t t;
 	char currTime[20];
 	char info[295];
+        int rc = 0;
 
 	t = clock();
 	strcpy(command, pluginDir);
@@ -459,7 +460,18 @@ void runPlugin(int storeIndex)
 	while (fgets(retString, sizeof(retString), fp) != NULL) {
 		// VERBOSE  printf("%s", retString);
 	}
-	output.retCode = pclose(fp);
+        rc = pclose(fp);
+        if (rc > 0)
+        {
+                if (rc == 256)
+                        output.retCode = 1;
+                else if (rc == 512)
+                        output.retCode = 2;
+                else
+                        output.retCode = rc;
+        }
+        else       
+		output.retCode = rc;
 	strcpy(output.retString, retString);
 	if (outputs[storeIndex].prevRetCode != -1){
 		size_t dest_size = 20;

@@ -2,7 +2,7 @@ Scheduler:
    - Refine reload
 
 Api:
+   - Ability to display multi files
    - Change conf through API?
    - Add some exporters, mongodb, grafana, kafka etc
    - Docker container example
-   - Ability to display multi files
