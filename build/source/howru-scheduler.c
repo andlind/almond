@@ -469,8 +469,9 @@ void runPlugin(int storeIndex)
                         output.retCode = 2;
                 else
                         output.retCode = rc;
-        }       
-	//output.retCode = pclose(fp);
+        }
+        else       
+		output.retCode = rc;
 	strcpy(output.retString, retString);
 	if (outputs[storeIndex].prevRetCode != -1){
 		size_t dest_size = 20;
