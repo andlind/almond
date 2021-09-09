@@ -10,6 +10,8 @@ data = None
 settings = None
 bindPort = None
 multi_server = False
+server_list_loaded = 0
+server_list = []
 data_dir="/opt/howru/www"
 
 def load_conf():
@@ -80,15 +82,17 @@ def load_scheduler_settings():
 @app.route('/', methods=['GET'])
 def home():
     global data
-    server_list = []
+    global server_list
+    global server_list_loaded
     full_filename = '/static/howru.png'
     if (multi_server):
-        load_data()
-        s_data = data["server"]
-        for host in s_data:
-            server_name = host["host"]["name"]
-            print server_name
-            server_list.append(server_name)
+        if (server_list_loaded == 0):
+            load_data()
+            s_data = data["server"]
+            for host in s_data:
+                server_name = host["host"]["name"]
+                server_list.append(server_name)
+            server_list_loaded = 1
         return render_template("index_m.html", len = len (server_list), server_list = server_list, user_image = full_filename)
     else:
         return render_template("index.html", user_image = full_filename)
@@ -344,6 +348,49 @@ def api_show_plugin():
                break
            id_count = id_count + 1
 
+    return jsonify(results)
+
+@app.route('/api/v1/howru/monitoring/servers', methods=['GET'])
+def api_show_server():
+    global data
+    global server_list
+    id = -1
+    results = []
+    load_data()
+
+    if 'id' in request.args:
+        id = int(request.args['id'])
+    if (id == -1 ):
+        if 'host' in request.args:
+            # Search host
+            server_name = request.args['host']
+            s_data = data["server"]
+            for host in s_data:
+                if (server_name == host["host"]["name"]):
+                    server_data = host
+                    results.append(server_data)
+        else:
+            results = [
+                    { 'returnCode' : '2',
+                        'servers':
+                            {
+                             'info': 'No server id provided'
+                            }
+                    }
+            ]
+    else:
+        # results by id
+        server_name = server_list[id]
+        s_data = data["server"]
+        count = 0
+        for host in s_data:
+            if (count == id):
+                server_name = host["host"]["name"]
+                server_data = host
+            count = count + 1
+        results.append(server_data)
+
+    
     return jsonify(results)
 
 @app.route('/api/v1/howru/settings/plugins', methods=['GET'])
