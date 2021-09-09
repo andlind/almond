@@ -79,8 +79,19 @@ def load_scheduler_settings():
 
 @app.route('/', methods=['GET'])
 def home():
+    global data
+    server_list = []
     full_filename = '/static/howru.png'
-    return render_template("index.html", user_image = full_filename)
+    if (multi_server):
+        load_data()
+        s_data = data["server"]
+        for host in s_data:
+            server_name = host["host"]["name"]
+            print server_name
+            server_list.append(server_name)
+        return render_template("index_m.html", len = len (server_list), server_list = server_list, user_image = full_filename)
+    else:
+        return render_template("index.html", user_image = full_filename)
 
 @app.route('/docs', methods=['GET'])
 def documentation():
