@@ -3,6 +3,8 @@ Scheduler:
 
 Api:
    - Ability to display multi files
+     -  server_list as global
+     -  html api page per server
    - Change conf through API?
    - Add some exporters, mongodb, grafana, kafka etc
    - Docker container example
