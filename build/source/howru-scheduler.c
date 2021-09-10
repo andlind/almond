@@ -52,6 +52,7 @@ int confDirSet = 0;
 int dataDirSet = 0;
 int logDirSet = 0;
 int pluginDirSet = 0;
+int logPluginOutput = 0;
 
 FILE *fptr;
 //pthread_t thread_id;
@@ -320,6 +321,16 @@ int getConfigurationValues() {
 			   }
 		   }
 	   }
+	   if (strcmp(confName, "scheduler.logPluginOutput") == 0) {
+	   	if (atoi(confValue) == 0) {
+			writeLog("Plugin outputs will not be written in the log file", 0);
+		}
+		else {
+			writeLog("Plugin outputs will be written to the log file", 0);
+			logPluginOutput = 1;
+		}
+	   }
+
 	   if (strcmp(confName, "plugins.directory") == 0) {
 		   if (directoryExists(confValue, 255) == 0) {
 			   size_t dest_size = sizeof(confValue);
@@ -444,7 +455,7 @@ void runPlugin(int storeIndex)
 	clock_t t;
 	char currTime[20];
 	char info[295];
-        int rc = 0;
+	int rc = 0;
 
 	t = clock();
 	strcpy(command, pluginDir);
@@ -460,18 +471,18 @@ void runPlugin(int storeIndex)
 	while (fgets(retString, sizeof(retString), fp) != NULL) {
 		// VERBOSE  printf("%s", retString);
 	}
-        rc = pclose(fp);
-        if (rc > 0)
-        {
-                if (rc == 256)
-                        output.retCode = 1;
-                else if (rc == 512)
-                        output.retCode = 2;
-                else
-                        output.retCode = rc;
-        }
-        else       
-		output.retCode = rc;
+	rc = pclose(fp);
+	if (rc > 0)
+	{
+		if (rc == 256)
+			output.retCode = 1;
+		else if (rc == 512)
+			output.retCode = 2;
+		else
+			output.retCode = rc;
+	}
+	else
+	        output.retCode = rc;
 	strcpy(output.retString, retString);
 	if (outputs[storeIndex].prevRetCode != -1){
 		size_t dest_size = 20;
@@ -501,6 +512,11 @@ void runPlugin(int storeIndex)
 	t = clock() -t;
 	snprintf(info, 295, "%s executed. Execution took %.0f milliseconds.\n", declarations[storeIndex].name, (double)t);
         writeLog(trim(info), 0);
+	if (logPluginOutput == 1) {
+		char o_info[1150];
+		snprintf(o_info, 1150, "%s : %s", declarations[storeIndex].name, retString);
+		writeLog(trim(o_info), 0);
+	}
 }
 
 void* pluginExeThread(void* data) {
