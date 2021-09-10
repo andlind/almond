@@ -1,8 +1,0 @@
-Scheduler:
-   - Refine reload
-   - Log results to file
-
-Api:
-   - Change conf through API?
-   - Add some exporters, mongodb, grafana, kafka etc
-   - Docker container example
