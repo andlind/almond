@@ -1,0 +1,6 @@
+Package: howru-alerter
+Version: 0.1.1-a
+Maintainer: Andreas Lindell
+Architecture: all
+Depends: sendmail
+Description: A local nrpe-like scheduler running monitoring plugins presenting an API
