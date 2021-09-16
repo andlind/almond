@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 #include <json.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -29,9 +30,11 @@ time_t groupFileAge;
 time_t serverFileAge;
 
 int logDirSet = 0;
-int servers_to_check = 0;
-int groups_to_check = 0;
-int t_intervall = 1000;
+int verbose = 0;
+unsigned int servers_to_check = 0;
+unsigned int groups_to_check = 0;
+unsigned int resendAlertTime = 3600;
+unsigned int t_intervall = 1;
 struct Group *groups;
 struct Server *servers;
 
@@ -112,12 +115,31 @@ void flush_log(int open) {
 
         strcpy(logFile, logDir);
         strncat(logFile, &ch, 1);
-        strcat(logFile, "alerting.log");
+        strcat(logFile, "alerter.log");
         fclose(fptr);
 	if (open == 0) {
         	sleep(0.10);
         	fptr = fopen(logFile, "a");
 	}
+}
+
+void sig_handler(int signal){
+        switch (signal) {
+                case SIGINT:
+                        writeLog("Caught SIGINT, exiting program.", 0);
+                        fclose(fptr);
+                        exit(0);
+                case SIGKILL:
+                        writeLog("Caught SIGKILL, exiting progam.", 0);
+                        fclose(fptr);
+                        exit(0);
+                case SIGTERM:
+                        printf("Caught signal to quit program.\n");
+                        writeLog("Caught signal to terminate program.", 0);
+                        writeLog("HowRU says goodbye.", 0);
+                        fclose(fptr);
+                        exit(0);
+        }
 }
 
 int count_rows_in_file(char *file_name) {
@@ -243,7 +265,7 @@ int loadConfig() {
                            	FILE *logFile;
                            	strcpy(fileName, logDir);
                            	strncat(fileName, &ch, 1);
-                           	strcat(fileName, "alerting.log");
+                           	strcat(fileName, "alerter.log");
                            	writeLog("Closing logfile...", 0);
                            	fclose(fptr);
                            	sleep(0.2);
@@ -251,9 +273,9 @@ int loadConfig() {
                            	fptr = fopen(fileName, "a");
                            	if (fptr == NULL) {
                                 	fclose(logFile);
-                                   	fptr = fopen("/var/log/howru/alerting.log", "a");
+                                   	fptr = fopen("/var/log/howru/alerter.log", "a");
                                    	writeLog("Could not create new logfile.", 1);
-                                   	writeLog("Reopened logfile '/var/log/howru/alerting.log'.", 0);
+                                   	writeLog("Reopened logfile '/var/log/howru/alerter.log'.", 0);
                            	}
                            	else {
                                 	while ( (ch = fgetc(logFile)) != EOF)
@@ -286,9 +308,9 @@ int loadConfig() {
 		if (strcmp(confName, "alerter.timeout") == 0) {
                 	char mes[40];
                    	int i = strtol(trim(confValue), NULL, 0);
-                   	if (i < 1000)
-                        	i = 1000;
-                   	snprintf(mes, 40, "Scheduler sleep time is %d ms.", i);
+                   	if (i < 1)
+                        	i = 1;
+                   	snprintf(mes, 40, "Scheduler sleep time is %d seconds.", i);
                    	writeLog(trim(mes), 0);
                    	t_intervall= i;
 		}	
@@ -298,8 +320,21 @@ int loadConfig() {
 			snprintf(mes, 120, "Alert command is: %s", alert_command);
 			writeLog(trim(mes), 0);
 		}
+		if (strcmp(confName, "alerter.resendAlert") == 0) {
+			char mes[50];
+			resendAlertTime = atoi(trim(confValue));
+			snprintf(mes, 50, "Resend alert time (in secs): %d", resendAlertTime);
+			writeLog(trim(mes), 0);
+		}
+		if (strcmp(confName, "alerter.verboseLog") == 0) {
+			verbose = atoi(trim(confValue));
+			if (verbose > 0) {
+				writeLog("Log is VERBOSE, will report all API calls made.", 0);
+			}
+		}
 
 	}
+	flush_log(0);
 	if (logDirSet == 0)
 		return 1;
 	else
@@ -311,6 +346,7 @@ int loadGroups() {
         size_t len = 0;
         ssize_t read;
         FILE *fp;
+	int active, es;
         int index = 0;
 	struct Group group;
 	int rows = 0;
@@ -345,18 +381,18 @@ int loadGroups() {
 			char * token = strtok(line, ";");
                 	while (token != NULL) {
 				switch (index) {
-					case 0: printf("Name : %s\n", token); 
+					case 0:  
 						strcpy(group.name, trim(token));
 						break;
-					case 1: printf("Active: %s\n", token);
-						int active = atoi(trim(token));
+					case 1:  
+						active = atoi(trim(token));
 					        group.active = active;	
 						break;
-					case 2: printf("Escalation: %s\n", token);
-                                                int es = atoi(trim(token));
+					case 2: 
+                                                es = atoi(trim(token));
                                                 group.escalation = es;
                                                 break;
-					case 3: printf("Email: %s\n", token); 
+					case 3: 
 						strcpy(group.email, trim(token));
 						break;
 				}
@@ -382,6 +418,7 @@ int loadServers() {
         size_t len = 0;
         ssize_t read;
         FILE *fp;
+	int port, active;
         int index = 0;
         struct Server server;
         int rows = 0;
@@ -416,18 +453,18 @@ int loadServers() {
                         char * token = strtok(line, ";");
                         while (token != NULL) {
                                 switch (index) {
-                                        case 0: printf("Name : %s\n", token);
+                                        case 0: 
                                                 strcpy(server.name, trim(token));
                                                 break;
-                                        case 1: printf("Port: %s\n", token); 
-                                                int port = atoi(trim(token));
+                                        case 1:  
+                                                port = atoi(trim(token));
                                                 server.port = port;
 						break;
-					case 2: printf("Active: %s\n", token);
-                                                int active = atoi(trim(token));
+					case 2: 
+                                                active = atoi(trim(token));
                                                 server.active = active;
 						break;
-                                        case 3: printf("Group: %s\n", token);
+                                        case 3: 
 						memmove(token, token+1, strlen(token));
                                                 strcpy(server.group, trim(token));
                                                 break;
@@ -436,6 +473,7 @@ int loadServers() {
                                 index++;
                                 if (index == 4) index = 0;
                         }
+			server.last_alert = 0;
                         servers[counter] = server;
                         snprintf(loginfo, 150, "Server with name '%s' created with id %d.\n",servers[counter].name, counter);
                         writeLog(trim(loginfo), 0);
@@ -586,9 +624,10 @@ int check_escalate(int index) {
 	return 0;
 }
 
-void send_alert(int index) {
+void send_alert(int index, int escalation) {
 	FILE * fPtr;
    	FILE * fTemp;
+	char log_message[700];
 	char body[300];
 	char subject[120];
 	char url[200];
@@ -604,13 +643,25 @@ void send_alert(int index) {
 	memmove(mail_to, mail_to+1, strlen(mail_to));
 	snprintf(subject, 120, "%s - HowRU Escalation", servers[index].name);
 	trim(subject);
-	snprintf(url, 200, "Check this url: %s:%d%s", servers[index].name, servers[index].port, "/api/v1/howru/monitoring/criticals");
+	switch (escalation) {
+		case 1:
+			 snprintf(url, 200, "Check this url: %s:%d%s", servers[index].name, servers[index].port, "/api/v1/howru/monitoring/warnings");
+			 break;
+		case 2:
+			 snprintf(url, 200, "Check this url: %s:%d%s", servers[index].name, servers[index].port, "/api/v1/howru/monitoring/criticals");
+			 break;
+		default:
+			  snprintf(url, 200, "Check this url: %s:%d%s", servers[index].name, servers[index].port, "/api/v1/howru/monitoring/json");
+
+	}
 	strcpy(body, url);
         fPtr = fopen(trim(alert_command), "r");
 	fTemp = fopen("/opt/howru/run.sh", "w");
 	if (fPtr == NULL || fTemp == NULL) {
         	printf("\nUnable to open file.\n");
         	printf("Please check whether file exists and you have read/write privilege.\n");
+		snprintf(log_message, 200, "Unable to open alert command file. Check if file exists and that you have read/write privilege."); 
+		writeLog(trim(log_message), 1);
         	exit(EXIT_SUCCESS);
     	}
 	while ((fgets(buffer, BUFFER_SIZE, fPtr)) != NULL) {
@@ -624,11 +675,15 @@ void send_alert(int index) {
 	chmod("/opt/howru/run.sh", S_IRWXU);
 	system("/opt/howru/run.sh");
 	remove("/opt/howru/run.sh");
+	snprintf(log_message, 700, "Alert message sent to %s regarding %s", mail_to, servers[index].name);
+	writeLog(trim(log_message), 0);
+	servers[index].last_alert = time(0);
 }
 
 int check_server(char *server, int port, int index) {
 	CURL *curl_handle;
 	CURLcode res;
+	char mes[100];
 	char str_port[6] = ":";
 	char command[150] = "";
 	int retVal = 0;
@@ -674,38 +729,50 @@ int check_server(char *server, int port, int index) {
 		if (retVal != 0) {
 			switch (retVal) {
 				case 1:
-					printf("WARNING! %s has result code %d\n", server, retVal);
+					snprintf(mes, 100, "WARNING! %s has result code %d.", server, retVal);
+					writeLog(mes, 0);
 					if (check_escalate(index) > 0) {
-						printf("ESCALATE\n");
-						send_alert(index);
+						if (time(NULL) > (servers[index].last_alert + resendAlertTime)) {
+							send_alert(index, 1);
+						}
 					}
 					break;
 				case 2:
-					printf("ALERT! %s has code %d\n", server, retVal);
+					snprintf(mes, 100, "ALERT! %s has code %d.", server, retVal);
+					writeLog(mes, 0);
 					if (check_escalate(index) > 1) {
-						printf("ESCALATE\n");
-						send_alert(index);
+						if (time(NULL) > (servers[index].last_alert + resendAlertTime)) {
+                                                        send_alert(index, 2);
+                                                }
 					}
 					break;
 				case 3:
-					printf("UNKNOWN! %s has unknown command results.\n", server);
+					snprintf(mes, 100, "UNKNOWN! %s has unknown command results.", server);
+					writeLog(mes, 0);
 					if (check_escalate(index) > 2) {
-						printf("ESCALATE\n");
-						send_alert(index);
+						if (time(NULL) > (servers[index].last_alert + resendAlertTime)) {
+                                                        send_alert(index, 3);
+                                                }
 					}
 					break;
 				default:
-					printf("PARSE ERROR: Could not parse json object from %s\n", server);
+					snprintf(mes, 100, "PARSE ERROR: Could not parse json object from %s.", server);
+					writeLog(mes, 1);
 			}
+		}
+		else {
+			if (verbose > 0) {
+				snprintf(mes, 100, "%s has return code 0.", server);
+				writeLog(mes, 0);
+			}
+
 		}
 	}
 	return 0;
 }
 
 void do_run(){
-	// TODO t_intervall should be minutes
 	int index = 0;
-        //char logInfo[100];
         const int i = 1;
 
         writeLog("Start checking for alerts...", 0);
@@ -714,18 +781,19 @@ void do_run(){
 		if (servers[index].active == 1) {
 			check_server(servers[index].name, servers[index].port, index);
                 	flush_log(0);
-			setTimeout(t_intervall);
+			setTimeout(1000);
 		}
 		index++;
 		if (index == servers_to_check) {
 			if (file_is_modified(serverFile, serverFileAge) != 0) {
 				// reload server configs
-				printf("Server file is modified...reload required\n");
+				writeLog("Server file is modified. Will try to reload servers.", 0);
 				serverFileAge = time(0);
 				int retVal = loadServers();
         			if (retVal == 0) {
                 			printf("Servers reloaded from server configuration file.\n");
                 			writeLog("Servers reloaded from server configuration file",0);
+					flush_log(0);
         			}
         			else {
                 			printf("ERROR: Could not reload servers from configutraion file.\nQuitting.\n");
@@ -737,12 +805,13 @@ void do_run(){
 			}
 			if (file_is_modified(groupFile, groupFileAge) != 0) {
 				// reload group configs
-				printf("Group file is modified...reload required\n");
+				writeLog("Group file is modified. Will try to reload groups.", 0);
 				groupFileAge = time(0);
 				int retVal = loadGroups();
                                 if (retVal == 0) {
                                         printf("Groups reloaded from groups configuration file.\n");
                                         writeLog("Groups reloaded from groups configuration file",0);
+					flush_log(0);
                                 }
                                 else {
                                         printf("ERROR: Could not reload groups from configutration file.\nQuitting.\n");
@@ -753,6 +822,7 @@ void do_run(){
 
 			}
 			index = 0;
+			setTimeout(t_intervall * 60000);
 		}
         }
 }
@@ -760,10 +830,24 @@ void do_run(){
 int main() {
 	fptr = fopen("/var/log/howru/alerter.log", "a");
         fprintf(fptr, "\n");
+	if (signal(SIGINT, sig_handler) == SIG_ERR) {
+                fputs("An error occurred while setting a signal handler\n", stderr);
+                writeLog("An error occurred while setting the SIGINT signal handler.", 2);
+                fclose(fptr);
+                return EXIT_FAILURE;
+        }
+        if (signal(SIGTERM, sig_handler) == SIG_ERR) {
+                fputs("An error occured while setting sigterm signal handler\n", stderr);
+                writeLog("An error occured while setting sigterm signal handler.", 2);
+                fclose(fptr);
+                return EXIT_FAILURE;
+        }
+
 	int retVal = loadConfig();
         if (retVal == 0) {
                 printf("Configuration read ok.\n");
                 writeLog("Configuration read ok.", 0);
+		flush_log(0);
         }
         else {
                 printf("ERROR: Configuration is not valid.\n");
@@ -771,22 +855,21 @@ int main() {
 		flush_log(1);
                 return 2;
         }
-	flush_log(0);
 	retVal = loadGroups();
 	if (retVal == 0) {
 		printf("Groups loaded from group configuration file.\n");
                 writeLog("Groups loaded from group configuration file", 0);
-
 	}
 	else {
 		printf("ERROR: Could not load groups from configuration file.\n");
                 writeLog("Could not load groups from configuration file", 1);
-                flush_log(0);
 	}
+	flush_log(0);
 	retVal = loadServers();
 	if (retVal == 0) {
 		printf("Servers loaded from server configuration file.\n");
 		writeLog("Servers loaded from server configuration file",0);
+		flush_log(0);
 	}
 	else {
 		printf("ERROR: Could not load servers from configutraion file.\nQuitting.\n");
@@ -794,9 +877,6 @@ int main() {
 		flush_log(1);
 		return 2;
 	}
-	printf("-------\n");
-	printf("Alert command is: %s", alert_command);
-	printf("_------_\n");
         do_run();	
 	return 0;
 }
