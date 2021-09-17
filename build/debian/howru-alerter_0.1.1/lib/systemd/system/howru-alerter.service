@@ -1,0 +1,13 @@
+[Unit]
+Description=HowRU alerter Service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/howru/
+ExecStart=/opt/howru/howru-alerter
+StandardInput=tty-force
+
+[Install]
+WantedBy=multi-user.target
