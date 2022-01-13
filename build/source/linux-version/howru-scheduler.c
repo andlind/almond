@@ -504,6 +504,7 @@ void runPlugin(int storeIndex)
                 localtime_r(&nextTime, &tNextTime);
                 snprintf(declarations[storeIndex].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 		declarations[storeIndex].nextRun = nextTime;
+                output.prevRetCode = output.RetCode;
 	}
 	else {
 	        output.prevRetCode = 0; 
