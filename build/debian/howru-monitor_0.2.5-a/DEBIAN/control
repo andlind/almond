@@ -2,5 +2,5 @@ Package: howru-monitor
 Version: 0.2.5-a
 Maintainer: Andreas Lindell
 Architecture: all
-Depends: python, python-flask
+Depends: python3, python3-flask
 Description: A local nrpe-like scheduler running monitoring plugins presenting an API
