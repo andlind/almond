@@ -1,0 +1,15 @@
+require 'rubygems'
+require 'puppetlabs_spec_helper/rake_tasks'
+require 'ci/reporter/rake/rspec'
+require 'puppet-lint/tasks/puppet-lint'
+
+PuppetLint::RakeTask.new :lint do |config|
+  config.disable_checks = ['140chars', '80chars', 'variable_is_lowercase', 'selector_inside_resource','single_quote_string_with_variables', 'variable_scope']
+  config.with_filename = true
+  config.fail_on_warnings = false
+  config.log_format = '%{filename}:%{line} - %{message}'
+  config.with_context = true
+  config.fix = false
+  config.show_ignored = false
+  config.relative = true
+end
