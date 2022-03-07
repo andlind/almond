@@ -52,5 +52,5 @@ cp howru-alerter.service %{buildroot}/lib/systemd/system/
 
 %changelog
 * Thu Sep 16 2021 Startup
-<andreas.lindell@svenskaspel.se>
+<andreas.lindell@hotmail.com>
 - HowRU rpmbuid set up
