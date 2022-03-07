@@ -52,5 +52,5 @@ cp -r system/* %{buildroot}/lib/systemd/system/
 
 %changelog
 * Fri Sep 10 2021 Startup
-<andreas.lindell@svenskaspel.se>
+<andreas.lindell@hotmail.com>
 - HowRU rpmbuid set up
