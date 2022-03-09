@@ -1,5 +1,5 @@
 %define name howru-scheduler
-%define version 0.2.5
+%define version 0.2.6
 
 Summary:	HowRU monitoring scheduler and api
 Name:		%{name}	
@@ -54,3 +54,6 @@ cp -r system/* %{buildroot}/lib/systemd/system/
 * Fri Sep 10 2021 Startup
 <andreas.lindell@hotmail.com>
 - HowRU rpmbuid set up
+* Wed Feb 09 2022 Multimode
+<andreas.lindell@hotmail.com>
+- Multimode added
