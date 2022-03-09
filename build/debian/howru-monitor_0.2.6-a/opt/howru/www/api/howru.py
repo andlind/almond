@@ -1,5 +1,5 @@
 import json
-import flask
+import flask 
 from flask import request, jsonify, render_template
 import os, os.path
 import glob
@@ -105,7 +105,10 @@ def documentation():
 @app.route('/pluginSearch', methods=['GET'])
 def search_plugin():
     full_filename = '/static/howru.png'
-    return render_template("plugin_query.html", user_image = full_filename)
+    if (multi_server):
+        return render_template("plugin_query_mm.html", user_image = full_filename)
+    else:
+        return render_template("plugin_query.html", user_image = full_filename)
 
 @app.route('/api/v1/howru/monitoring/json', methods=['GET'])
 def api_json():
@@ -125,7 +128,6 @@ def api_howareyou():
     res = "I am not sure"
 
     if (multi_server):
-        print("Not yet implemented")
         results = {
             "server": [
                       ]
@@ -314,15 +316,54 @@ def api_show_plugin():
     do_start = True
     info = []
     name = ""
+    server = ""
+    server_found = 0
     id = -1
     id_count = 0
     results = []
 
     if (multi_server):
-        print("Not implemented yet")
-        results = {
-                'info': 'Search in multimode not yet implemented'
+        if 'server' in request.args:
+            server = request.args['server']
+        if 'name' in request.args:
+            name = request.args['name']
+        elif 'id' in request.args:
+            id = int(request.args['id'])
+ 
+        for x in data['server']:
+            this_server = x['host']['name']
+            if (this_server == server):
+                print ("server found")
+                server_found = 1
+                s_name = {
+                    'name': this_server
+                    }
+                results.append(s_name)
+                if ((len(name) < 1) and (id < 0)):
+                    do_start = False
+                    info = [
+                        { 'returnCode' :'2',
+                            'monitoring':
+                                {'info': 'No id or name provided for plugin'
+                            }
+                        }
+                    ]
+                    results.append(info)
+                    return jsonify(results)
+                monitor_obj = x['monitoring']
+                for i in monitor_obj:
+                    if ((id_count == id) or (name == i['pluginName'])):
+                        results.append(i)
+                        break
+                    id_count = id_count + 1
+        if (server_found == 0):
+            s_j = "server_search: " + server
+            results.append(s_j)
+            info = {
+                    'info': 'Server not found in api'
                 }
+            results.append(info)
+            return jsonify(results)
         return jsonify(results)
 
     results.append(data['host'])
