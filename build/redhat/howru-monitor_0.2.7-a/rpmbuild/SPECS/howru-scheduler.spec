@@ -51,9 +51,12 @@ cp -r system/* %{buildroot}/lib/systemd/system/
 %doc
 
 %changelog
-* Fri Sep 10 2021 Startup
+* Tue May 31 2022 Serverfile
 <andreas.lindell@hotmail.com>
-- HowRU rpmbuid set up
+- Adding server file feature
 * Wed Feb 09 2022 Multimode
 <andreas.lindell@hotmail.com>
 - Multimode added
+* Fri Sep 10 2021 Startup
+<andreas.lindell@hotmail.com>
+- HowRU rpmbuid set up
