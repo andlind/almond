@@ -15,6 +15,35 @@
                 Nrpe invokes commands on the client where it runs when called upon from the scheduler on the Nagios server. The Nagios server receive the result on the socket and show data in its GUI.<br>
                 HowRU on the other side, is not a client server piece of software. It has its own scheduler, runs plugins based on its configuration and stores the results in json which can be accessed from an API.
                 </p>
+                <p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">1.1 Installation practise</p>
+                <p style="font-family: Verdana; font-size: 12px">
+                There are currently packages for Ubuntu (Debian) and RedHat to install HowRU, which you can download from <a href="https://github.com/andlind/howru">github</a>. You should preferably put them in your repository of choice, since the installation have dependencies to python and nagios plugins.
+                </p>
+                <p style="font-family: Verdana; font-size: 12px">You can of course install the service without putting it in a repository, for instance on Ubuntu you type the following (as root) to install the application:</p>
+                <code>
+                dpkg -i howru-monitor_0.2.7.deb 
+                </code>
+		<br>
+		<code>
+		apt-get -f install
+                </code>
+		<p style="font-family: Verdana; font-size: 12px"><b>Note!</b>If you don´t have Nagios already in use, make sureyou also install your distros nagios-plugis package to be able to use standard plugins.</p>
+                <p style="font-family: Verdana; font-size: 12px">You have now installed and started the HowRU services. However, you might want to check and customize the settings before moving on. The recommendation is therefore to stop the services before continuing:</p>
+                <code>
+                systemctl stop howru-scheduler.service
+		</code>
+		<br>
+		<code>
+                systemctl stop howru-api.service
+                </code> 
+		<p style="font-family: Verdana; font-size: 12px">After stopping the service, check the configuration file for changes and edit the plugins file for your needs. These files are shortly described here below.<br>Finally start the services again and enjoy your API.</p>
+		<code>
+		systemctl start howru-scheduler.service
+		</code>
+		<br>
+		<code>
+		systemctl start howru-api.service
+		</code>
                 <p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">2. HowRU Scheduler</p>
                 <p style="font-family: Verdana; font-size: 12px">There are currently two versions of the HowRU scheduler, both in developement stages. One version is written in C# and runs with mono on Linux systems. The reason is crossplattform compatability, where you would make the scheduler run on Windows as well. The other version is a native scheduler for Linux, written in C.</p>
                 <p style="font-family: Verdana; font-size: 12px">The scheduler in started manually with the command:
@@ -22,7 +51,7 @@
                 <xmp>
                 mono /opt/howru/howruScheduler.exe
                 </xmp>
-                or if running the native Linux-version
+		<p style="font-family: Verdana; font-size: 12px">or if running the native Linux-version</p>
                 <xmp>
                 /opt/howru/howru-scheduler
                 </xmp>
@@ -39,7 +68,7 @@
                 <p style="font-family: Verdana; font-size: 12px; font-weight: bold">2.1 HowRU Scheduler configuration file (howruc.conf)</p>
                 <table style="border: 1px solid black">
                 <tr>
-                <td style="font-family: Verdana; font-size: 12px">Configuration</td><td style="font-family: Verdana; font-size: 12px">Default value</td><td style="font-family: Verdana; font-size: 12px">Description</td>/<tr>
+                <td style="font-family: Verdana; font-size: 12px">Configuration</td><td style="font-family: Verdana; font-size: 12px">Default value</td><td style="font-family: Verdana; font-size: 12px">Description</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">api.bindPort=</td><td style="font-family: Verdana; font-size: 12px">80</td><td style="font-family: Verdana; font-size: 12px">Port used by the api</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">api.multiServer=</td><td style="font-family: Verdana; font-size: 12px">0</td><td style="font-family: Verdana; font-size: 12px">Changing the value to 1 will allow the api to read output from multiple servers</td></tr>
                  <tr><td style="font-family: Verdana; font-size: 12px">api.enableFile=</td><td style="font-family: Verdana; font-size: 12px">0</td><td style="font-family: Verdana; font-size: 12px">Changing the value to 1 will allow the api to read from a specific file specified by <i>whichjson</i>.</td></tr>
@@ -87,5 +116,40 @@
 		<xmp>
 		systemctl start howru-api.service
 		</xmp>
+		<p style="font-family: Verdana; font-size: 12px">The following API:s will be available:</p>
+		<table style="border: 1px solid black">
+                <tr>
+		<td style="font-family: Verdana; font-size: 12px; text-decoration: underline">API call</td><td style="font-family: Verdana; font-size: 12px; text-decoration: underline">Description</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/howareyou</td><td style="font-family: Verdana; font-size: 12px">Short compilation of server state.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/criticals</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in critical state.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/warnings</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in warning state.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/ok</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in state ok.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/changes</td><td style="font-family: Verdana; font-size: 12px">samma</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/json</td><td style="font-family: Verdana; font-size: 12px">samma</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/plugin?id=<i>plugin_id</i></td><td style="font-family: Verdana; font-size: 12px">samma</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/monitoring/plugin?name=<i>plugin_name</i></td><td style="font-family: Verdana; font-size: 12px">samma</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/settings/plugin</td><td style="font-family: Verdana; font-size: 12px">samma</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/v1/howru/settings/scheduler</td><td style="font-family: Verdana; font-size: 12px">samma</td></tr>
+		</table>
+		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">4. Tips and recommendations</p>
+		<p style="font-family: Verdana; font-size: 12px">If you run the HowRU API on port 80 (default) you get a very simplistic web GUI where you can explore and test the API.<br>
+		If you wish to run the API on another port you can always curl to get API responses in json-format, for instance:</p>
+		<xmp>
+		curl url.to.my.server:port/api/v1/howru/monitoring/howareyou
+		</xmp>
+		<p style="font-family: Verdana; font-size: 12px">If running HowRU scheduler in a Docker container, you either need to EXPOSE the port used by the API or you can use the multiServer or enableFile options running the API service on the server hosting the container.</p>
+		<p style="font-family: Verdana; font-size: 12px">Running the API on the server hosting containers is the preferred way to use HowRU. In this case you need to make sure your container(s) have access to the local directory where the API reads data. If using <i>multiServer</i> the API will expose all files written to the data directory.</p>
+		<p style="font-family: Verdana; font-size: 12px"><b>Note!</b> Make sure your containers don´  tuse the same name in the <i>data.jsonFile</i> setting!</p>
+		<p style="font-family: Verdana; font-size: 12px">Setting the <i>api.enableFile</i>option will make it possible to run API against one of many data files. <br>Imagine you have three containers writing data files to the API data directory. Let´s say the names are<i>container1.json</i>,<i>container2.json</i> and <i>container3.json</i> respectively. Running the API on the server hosting the containers in i>api.multiServer</i> mode would let you get the results from all containers, for instance running:</p>
+		<code>
+		curl url_to_hostserver:port/api/v1/howru/json
+		</code>
+		<p style="font-family: Verdana; font-size: 12px">Running <i>api.enableFile</i> would also make it possible to get API results from the containers individually, eg:</p>
+		<code>
+		curl url_to_hostserer:port:/api/v1/howru/monitoring/howareyou?whichjson=container2
+		</code>
+                <p style="font-family: Verdana; font-size: 12px">There are also some additional tools to HowRU, not included in the installation package but available at <a href="https://github.com/andlind/howru">GitHub</a>, including an alerter which can run standalone and a Nagios plugin if you want to use the HowRU scheduler to send data to an existing Nagios system.</p>
+		<p style="font-family: Verdana; font-size: 12px">Do not hesitate to make <a href="mailto: Andreas_li@hotmail.com">contact</a> if you have any questions!</p>
+
         </body>
 </html>
