@@ -150,14 +150,14 @@ def search_plugin():
     else:
         return render_template("plugin_query.html", user_image = full_filename)
 
-@app.route('/api/v1/howru/monitoring/json', methods=['GET'])
+@app.route('/howru/monitoring/json', methods=['GET'])
 def api_json():
    global data 
    set_file_name()
    load_data()
    return jsonify(data)
 
-@app.route('/api/v1/howru/monitoring/howareyou', methods=['GET'])
+@app.route('/howru/monitoring/howareyou', methods=['GET'])
 def api_howareyou():
     global data, multi_server
     set_file_name()
@@ -251,7 +251,7 @@ def api_howareyou():
 
     return jsonify(results)
 
-@app.route('/api/v1/howru/monitoring/ok', methods=['GET'])
+@app.route('/howru/monitoring/ok', methods=['GET'])
 def api_show_oks():
     global data, multi_server
     set_file_name()
@@ -278,7 +278,7 @@ def api_show_oks():
 
     return jsonify(results)
 
-@app.route('/api/v1/howru/monitoring/warnings', methods=['GET'])
+@app.route('/howru/monitoring/warnings', methods=['GET'])
 def api_show_warnings():
     global data, multi_server 
     set_file_name()
@@ -304,7 +304,7 @@ def api_show_warnings():
 
     return jsonify(results)
 
-@app.route('/api/v1/howru/monitoring/criticals', methods=['GET'])
+@app.route('/howru/monitoring/criticals', methods=['GET'])
 def api_show_criticals():
     global data, multi_server
     set_file_name()
@@ -330,7 +330,7 @@ def api_show_criticals():
 
     return jsonify(results)
 
-@app.route('/api/v1/howru/monitoring/changes', methods=['GET'])
+@app.route('/howru/monitoring/changes', methods=['GET'])
 def api_show_changes():
     global data, multi_server
     set_file_name()
@@ -356,7 +356,7 @@ def api_show_changes():
 
     return jsonify(results)
 
-@app.route('/api/v1/howru/monitoring/plugin', methods=['GET'])
+@app.route('/howru/monitoring/plugin', methods=['GET'])
 def api_show_plugin():
     global data, multi_server
     set_file_name()
@@ -439,7 +439,7 @@ def api_show_plugin():
 
     return jsonify(results)
 
-@app.route('/api/v1/howru/monitoring/servers', methods=['GET'])
+@app.route('/howru/monitoring/servers', methods=['GET'])
 def api_show_server():
     global data
     global server_list
@@ -483,7 +483,7 @@ def api_show_server():
     
     return jsonify(results)
 
-@app.route('/api/v1/howru/settings/plugins', methods=['GET'])
+@app.route('/howru/settings/plugins', methods=['GET'])
 def api_show_settings():
     global settings
     load_settings()
@@ -509,7 +509,7 @@ def api_show_settings():
 
     return jsonify(results)
 
-@app.route('/api/v1/howru/settings/scheduler', methods=['GET'])
+@app.route('/howru/settings/scheduler', methods=['GET'])
 def api_show_scheduler_settings():
     global settings
     load_scheduler_settings()
