@@ -135,18 +135,18 @@
 		<p style="font-family: Verdana; font-size: 12px">If you run the HowRU API on port 80 (default) you get a very simplistic web GUI where you can explore and test the API.<br>
 		If you wish to run the API on another port you can always curl to get API responses in json-format, for instance:</p>
 		<xmp>
-		curl url.to.my.server:port/api/v1/howru/monitoring/howareyou
+		curl url.to.my.server:port/howru/monitoring/howareyou
 		</xmp>
 		<p style="font-family: Verdana; font-size: 12px">If running HowRU scheduler in a Docker container, you either need to EXPOSE the port used by the API or you can use the multiServer or enableFile options running the API service on the server hosting the container.</p>
 		<p style="font-family: Verdana; font-size: 12px">Running the API on the server hosting containers is the preferred way to use HowRU. In this case you need to make sure your container(s) have access to the local directory where the API reads data. If using <i>multiServer</i> the API will expose all files written to the data directory.</p>
 		<p style="font-family: Verdana; font-size: 12px"><b>Note!</b> Make sure your containers don´  tuse the same name in the <i>data.jsonFile</i> setting!</p>
 		<p style="font-family: Verdana; font-size: 12px">Setting the <i>api.enableFile</i>option will make it possible to run API against one of many data files. <br>Imagine you have three containers writing data files to the API data directory. Let´s say the names are<i>container1.json</i>,<i>container2.json</i> and <i>container3.json</i> respectively. Running the API on the server hosting the containers in i>api.multiServer</i> mode would let you get the results from all containers, for instance running:</p>
 		<code>
-		curl url_to_hostserver:port/api/v1/howru/json
+		curl url_to_hostserver:port/howru/json
 		</code>
 		<p style="font-family: Verdana; font-size: 12px">Running <i>api.enableFile</i> would also make it possible to get API results from the containers individually, eg:</p>
 		<code>
-		curl url_to_hostserer:port:/api/v1/howru/monitoring/howareyou?whichjson=container2
+		curl url_to_hostserer:port:/howru/monitoring/howareyou?whichjson=container2
 		</code>
                 <p style="font-family: Verdana; font-size: 12px">There are also some additional tools to HowRU, not included in the installation package but available at <a href="https://github.com/andlind/howru">GitHub</a>, including an alerter which can run standalone and a Nagios plugin if you want to use the HowRU scheduler to send data to an existing Nagios system.</p>
 		<p style="font-family: Verdana; font-size: 12px">Do not hesitate to make <a href="mailto: Andreas_li@hotmail.com">contact</a> if you have any questions!</p>
