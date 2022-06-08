@@ -453,6 +453,7 @@ def api_show_plugin():
 def api_show_server():
     global data
     global server_list
+    global server_list_loaded
     id = -1
     results = []
     set_file_name()
@@ -480,6 +481,13 @@ def api_show_server():
             ]
     else:
         # results by id
+        # BUG: server_list loaded in home, must be loaded here if not
+        if (server_list_loaded == 0):
+            s_data = data["server"]
+            for host in s_data:
+                server_name = host["host"]["name"]
+                server_list.append(server_name)
+            server_list_loaded = 1
         server_name = server_list[id]
         s_data = data["server"]
         count = 0
@@ -489,7 +497,6 @@ def api_show_server():
                 server_data = host
             count = count + 1
         results.append(server_data)
-
     
     return jsonify(results)
 
