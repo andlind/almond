@@ -189,19 +189,24 @@ def api_howareyou():
                    unknown = unknown +1
            if (crit > 0):
                res = "I'm not fine!"
+               ret_code = 2
            else:
                if (warn > 0):
                    res = "I'm so so"
+                   ret_code = 1
                else:
                    res = "I'm "
                    if (unknown > 0):
                        res = res + " not completly sure to be honest."
+                       ret_code = 3
                    else:
                        res = res + " fine, thanks for asking!"
+                       ret_code = 0
 
            server = [
                 {  'name' : name,
                    'answer' : res,
+                   'return_code' : ret_code,
                    'monitor_results':
                       {'ok': ok,
                        'warn' : warn,
@@ -228,18 +233,23 @@ def api_howareyou():
                 unknown = unknown +1
         if (crit > 0):
             res = "I'm not fine!"
+            ret_code = 2
         else:
             if (warn > 0):
                 res = "I'm so so"
+                ret_code = 1
             else:
                 res = "I'm "
                 if (unknown > 0):
                     res = res + " not completly sure to be honest."
+                    ret_code = 3
                 else:
                     res = res + " fine, thanks for asking!"
+                    ret_code = 0
 
         results = [
             { 'answer' : res,
+                'return_code' : ret_code,    
             'monitor_results':
                    {'ok': ok,
                      'warn' : warn,
