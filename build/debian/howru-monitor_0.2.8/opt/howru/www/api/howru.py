@@ -18,7 +18,7 @@ file_name = ''
 data_file = "/opt/howru/www/monitor_data.json"
 
 def load_conf():
-    global bindPort, multi_server, enable_file, data_file
+    global bindPort, multi_server, enable_file, data_file, data_dir
     conf = open("/etc/howru/howruc.conf", "r")
     for line in conf:
         if (line.find('data') == 0):
