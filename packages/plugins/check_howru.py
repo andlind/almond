@@ -17,40 +17,89 @@ def parse_json(jsonObject, api):
         return_message = "UNKNOWN: Could not load json. Wrong parameters?"
         return_code = 3
     if (api == 'criticals' or api == 'ok' or api == 'warnings'):
-        server_name = json_object[0]['name']
-        length = len(json_object)
-        if (length > 1):
+        num_servers = 1
+        try:
+            server_name = json_object[0]['name']
+        except:
+            num_servers = 2
+        if (num_servers > 1):
+            return_message = ""
             count = 0
-            if (api == 'ok'):
-                return_message = "OK: " + str(length-1) + " checks are ok on " + server_name
-                return_code = 0
-            else:
-                return_code = 2
-                return_message = "CRITICAL: " + str(length-1) + " checks on " + server_name + " is not ok ( "
-                for data in json_object:
-                    count = count +1
-                    if (count > 1):
-                        return_message = return_message + data['name'] + " "
-                return_message = return_message + ")"
+            for x in json_object:
+                server_name = x[0]['name']
+                length = len(x)
+                if (length > 1):
+                    count = 0
+                    if (api == 'ok'):
+                        return_message = "OK: " + str(length-1) + " checks are ok on " + server_name
+                        return_code = 0
+                    else:
+                        return_code = 2
+                        if (len(return_message) < 1):
+                            return_message = "CRITICAL: " + str(length-1) + " checks on " + server_name + " is not ok. ( "
+                        else:
+                            return_message = return_message + " | " +  str(length-1) + " checks on " + server_name + " is not ok. ( "
+                        for data in x:
+                            count = count + 1
+                            if (count > 1):
+                                return_message = return_message + data['name'] + " "
+                        return_message = return_message + ")"
         else:
-            if (api == 'ok'):
-                return_code = 2
-                return_message = "CRITICAL: No positive monitoring objects found on server " + server_name
+            server_name = json_object[0]['name']
+            length = len(json_object)
+            if (length > 1):
+                count = 0
+                if (api == 'ok'):
+                    return_message = "OK: " + str(length-1) + " checks are ok on " + server_name
+                    return_code = 0
+                else:
+                    return_code = 2
+                    return_message = "CRITICAL: " + str(length-1) + " checks on " + server_name + " is not ok ( "
+                    for data in json_object:
+                        count = count +1
+                        if (count > 1):
+                            return_message = return_message + data['name'] + " "
+                    return_message = return_message + ")"
             else:
-                return_code = 0
-                return_message = "OK: No " + api + " found on server " + server_name
+                if (api == 'ok'):
+                    return_code = 2
+                    return_message = "CRITICAL: No positive monitoring objects found on server " + server_name
+                else:
+                    return_code = 0
+                    return_message = "OK: No " + api + " found on server " + server_name
     elif (api == 'howareyou'):
-        return_code = int(json_object[0]['return_code'])
-        if (return_code == 0):
-            return_message = "OK: " + json_object[0]['answer']
-        elif (return_code == 1):
-            return_message = "WARNING: " + json_object[0]['answer'] + " " + str(json_object[0]['monitor_results']['warn']) + " warning(s)." 
-        elif (return_code == 2):
-            return_message = "CRITICAL: " + json_object[0]['answer'] + " " + str(json_object[0]['monitor_results']['crit']) + " critical alert(s)."
+        try:
+            num_servers = len(json_object['server'])
+        except TypeError:
+            num_servers = 0
+        if (num_servers > 0):
+            return_code = 0
+            result_info = ""
+            for data in json_object['server']:
+                result_code = int(data[0]['return_code'])
+                if (result_code > return_code):
+                    return_code = result_code
+                if (result_code > 0):
+                    result_info = result_info + data[0]['name'] + " (has " + str(data[0]['monitor_results']['crit']) + " criticals and " + str(data[0]['monitor_results']['warn']) + " warnings) "
+            if (return_code == 0):
+                return_message = "OK: All " + str(num_servers) + " servers are fine."
+            if (return_code == 1):
+                return_message = "WARNING: " + result_info
+            if (return_code > 1):
+                return_message = "CRITICAL: " + result_info
+        else:
+            return_code = int(json_object[0]['return_code'])
+            if (return_code == 0):
+                return_message = "OK: " + json_object[0]['answer']
+            elif (return_code == 1):
+                return_message = "WARNING: " + json_object[0]['answer'] + " " + str(json_object[0]['monitor_results']['warn']) + " warning(s)." 
+            elif (return_code == 2):
+                return_message = "CRITICAL: " + json_object[0]['answer'] + " " + str(json_object[0]['monitor_results']['crit']) + " critical alert(s)."
     elif (api == 'changes'):
         return_code = 3
         return_message = "INFO: This api call is not implemented yet for this service check."
     elif (api == 'plugin'):
+        # Here is work to be done. Not working in multimode
         server_name = json_object[0]['name']
         if (len(json_object) == 1):
             return_code = 3
