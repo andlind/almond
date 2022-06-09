@@ -58,6 +58,7 @@ int pluginDirSet = 0;
 int logPluginOutput = 0;
 int pluginResultToFile = 0;
 int decCount = 0;
+int saveOnExit = 0;
 time_t tLastUpdate, tnextUpdate;
 
 FILE *fptr;
@@ -85,15 +86,15 @@ void removeChar(char *str, char garbage) {
 }
 
 void writeLog(const char *message, int level) {
-	char timeStamp[20];
+        char timeStamp[20];
         char wmes[300] = "";
-	size_t dest_size = 20;
+        size_t dest_size = 20;
         time_t t = time(NULL);
         struct tm tm = *localtime(&t);
-        
-	snprintf(timeStamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+        snprintf(timeStamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
         strcpy(wmes, timeStamp);
-	strcat(wmes, " | ");
+        strcat(wmes, " | ");
         switch (level) {
                 case 0:
                         strcat(wmes, "[INFO]\t");
@@ -111,6 +112,22 @@ void writeLog(const char *message, int level) {
         fprintf(fptr, "%s\n", wmes);
 }
 
+int directoryExists(const char *checkDir, size_t length) {
+        char mes[50];
+        snprintf(mes, 50, "Checking directory %s", checkDir);
+        writeLog(trim(mes), 0);
+
+        DIR* dir = opendir(checkDir);
+        if (dir) {
+                closedir(dir);
+                return 0;
+        }
+        else if (ENOENT == errno) {
+                return 1;
+        }
+        else { return 2; }
+}
+
 void flushLog() {
         char logFile[100];
 	char ch = '/';
@@ -125,18 +142,62 @@ void flushLog() {
 
 }
 
+void closejsonfile() {
+	const char *bFolderName = "backup";
+	char dataFileName[100];
+	char backupDirectory[100];
+	char newFileName[150];
+	char ch = '/';
+	char dot = '.';
+        
+	strcpy(dataFileName, dataDir);
+        strncat(dataFileName, &ch, 1);
+        strcat(dataFileName, jsonFileName);
+
+
+	if (saveOnExit == 0) {
+		remove(dataFileName);
+	}
+	else {
+		char date[12];
+		time_t now = time(NULL);
+		struct tm *t = localtime(&now);
+                strftime(date, sizeof(date)-1, "%Y%m%d%H_", t);
+		strcpy(backupDirectory, dataDir);
+                strncat(backupDirectory, &ch, 1);
+		strncat(backupDirectory, bFolderName, strlen(bFolderName));
+		if (directoryExists(backupDirectory, 100) != 0) {
+			int status = mkdir(trim(backupDirectory), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+			if (status != 0 && errno != EEXIST) {
+				printf("Failed to create backup directory. Errno: %d\n", errno);
+				return;
+			}
+		}
+		strcpy(newFileName, backupDirectory);
+		strncat(newFileName, &ch, 1);
+		strncat(newFileName, jsonFileName, strlen(jsonFileName));
+		strncat(newFileName, &dot, 1);
+		strncat(newFileName, date, strlen(date));
+		rename(dataFileName, newFileName);
+	}	
+}
+
 void sig_handler(int signal){
+	//TODO: Threads to join before exit? Or just a grace sleep...
     	switch (signal) {
         	case SIGINT:
 			writeLog("Caught SIGINT, exiting program.", 0);
+			closejsonfile();
 			fclose(fptr);
             		exit(0);
 		case SIGKILL:
 			writeLog("Caught SIGKILL, exiting progam.", 0);
+			closejsonfile();
 			fclose(fptr);
 			exit(0);
 		case SIGTERM:
 			printf("Caught signal to quit program.\n");
+			closejsonfile();
                         writeLog("Caught signal to terminate program.", 0);
 			writeLog("HowRU says goodbye.", 0);
                         fclose(fptr);
@@ -150,22 +211,6 @@ int fileExists(const char *checkFile) {
 		return 0;
 	else
 		return 1;
-}
-
-int directoryExists(const char *checkDir, size_t length) {
-	char mes[50];
-	snprintf(mes, 50, "Checking directory %s", checkDir);
-	writeLog(trim(mes), 0);
-
-	DIR* dir = opendir(checkDir);
-	if (dir) {
-		closedir(dir);
-		return 0;
-	}
-	else if (ENOENT == errno) {
-		return 1;
-	}
-	else { return 2; }
 }
 
 char *getHostName() {
@@ -403,6 +448,15 @@ int getConfigurationValues() {
 		   strncpy(jsonFileName, trim(confValue), strlen(confValue));
 		   snprintf(info, 100, "Json data will be collected in file: %s.", jsonFileName);
 		   writeLog(trim(info), 0);
+	   }
+	   if (strcmp(confName, "data.saveOnExit") == 0) {
+		if (atoi(confValue) == 0) {
+			writeLog("Json data will be deleted on shutdown.", 0);
+		}
+		else {
+			writeLog("Data file will be saved in data directory after shutdown.", 0);
+			saveOnExit = 1;
+		}
 	   }
  	}
 
