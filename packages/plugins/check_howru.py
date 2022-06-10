@@ -1,13 +1,22 @@
 #!/usr/bin/python
 
+# TODO:
+# Latency check on plugin data
+# File to use whichjson in file mode
+
 import sys
 import os
 import json
 import argparse
+import datetime
 import urllib.request
 import urllib.parse
 
-def parse_json(jsonObject, api):
+def calculateTimeDiff(now, then):
+    duration = now - then
+    return duration.total_seconds()
+
+def parse_json(jsonObject, api, ac):
     global return_code
     global return_message
     global check_name
@@ -16,6 +25,8 @@ def parse_json(jsonObject, api):
     except json.decoder.JSONDecodeError:
         return_message = "UNKNOWN: Could not load json. Wrong parameters?"
         return_code = 3
+    current_time = datetime.datetime.now()
+    non_active_checks = 0
     if (api == 'criticals' or api == 'ok' or api == 'warnings'):
         num_servers = 1
         try:
@@ -24,6 +35,10 @@ def parse_json(jsonObject, api):
             num_servers = 2
         if (num_servers > 1):
             return_message = ""
+            result_message = ""
+            all_results = ""
+            result_code = 0
+            return_code = 0
             count = 0
             for x in json_object:
                 server_name = x[0]['name']
@@ -31,10 +46,33 @@ def parse_json(jsonObject, api):
                 if (length > 1):
                     count = 0
                     if (api == 'ok'):
-                        return_message = "OK: " + str(length-1) + " checks are ok on " + server_name
-                        return_code = 0
+                        if (ac < 30):
+                            result_message = "OK: " + str(length-1) + " checks are ok on " + server_name + "\n"
+                            result_code = 0
+                        else:
+                            # check latency
+                            result_message = str(length-1) + " checks are ok on " + server_name
+                            for data in x:
+                                count = count + 1
+                                if (count > 1): 
+                                    try:
+                                        date_time_obj = datetime.datetime.strptime(data['lastRun'], '%Y-%m-%d %H:%M:%S')
+                                    except ValueError:
+                                        date_time_obj = datetime.datetime.now()
+                                        #print (data['name'] + " is not active.\n")
+                                        non_active_checks = non_active_checks + 1  
+                                    if (calculateTimeDiff(current_time, date_time_obj) > ac):
+                                        result_code = 1
+                                        result_message = result_message + " (" + data['name'] + " has latency.) "
+                            if (return_code == 0):
+                                result_message = "OK: " + result_message + "\n"
+                            else:
+                                result_message = "WARNING: " + result_message + "\n"
                     else:
-                        return_code = 2
+                        if (api == 'criticals'):
+                            return_code = 2
+                        else:
+                            return_code = 1
                         if (len(return_message) < 1):
                             return_message = "CRITICAL: " + str(length-1) + " checks on " + server_name + " is not ok. ( "
                         else:
@@ -44,6 +82,27 @@ def parse_json(jsonObject, api):
                             if (count > 1):
                                 return_message = return_message + data['name'] + " "
                         return_message = return_message + ")"
+                        if (ac > 30):
+                           latency_message = " - "
+                           latency_found = 0
+                           count = 0
+                           for data in x:
+                               count = count + 1
+                               if (count > 1):
+                                   try:
+                                       date_time_obj = datetime.datetime.strptime(data['lastRun'], '%Y-%m-%d %H:%M:%S')
+                                   except ValueError:
+                                       date_time_obj = datetime.datetime.now()
+                                   if (calculateTimeDiff(current_time, date_time_obj) > ac):
+                                       latency_found  = 1
+                                       latency_message = latency_message + " (" + data['name'] + " has latency.) "
+                           if (latency_found != 0):
+                               return_message = return_message + latency_message 
+                all_results = all_results + result_message
+                if (result_code > return_code):
+                    return_code = result_code
+            if (len(all_results) > 5):
+                return_message = all_results.strip()
         else:
             server_name = json_object[0]['name']
             length = len(json_object)
@@ -67,6 +126,7 @@ def parse_json(jsonObject, api):
                 else:
                     return_code = 0
                     return_message = "OK: No " + api + " found on server " + server_name
+
     elif (api == 'howareyou'):
         try:
             num_servers = len(json_object['server'])
@@ -95,9 +155,11 @@ def parse_json(jsonObject, api):
                 return_message = "WARNING: " + json_object[0]['answer'] + " " + str(json_object[0]['monitor_results']['warn']) + " warning(s)." 
             elif (return_code == 2):
                 return_message = "CRITICAL: " + json_object[0]['answer'] + " " + str(json_object[0]['monitor_results']['crit']) + " critical alert(s)."
+
     elif (api == 'changes'):
         return_code = 3
         return_message = "INFO: This api call is not implemented yet for this service check."
+
     elif (api == 'plugin'):
         # Here is work to be done. Not working in multimode
         server_name = json_object[0]['name']
@@ -115,7 +177,9 @@ def parse_json(jsonObject, api):
             return_message = "CRITICAL: " + output
         else:
             return_code = "UNKNOWN: " + output
+
     elif (api == 'json'):
+        # use this to parse the oldest timestamp?
         return_code = 0
         return_message = "OK! HowRU is running"
     else:
@@ -140,6 +204,11 @@ def main():
     check_name = args.name
     file_name = args.file
     accepted_latency = args.latencyaccepted
+    
+    if accepted_latency is None:
+        latency = 0
+    else:
+        latency = accepted_latency
 
     url = 'http://' + api_server + '/howru/monitoring/' + api_call
     
@@ -163,7 +232,7 @@ def main():
 
     if (return_code == 0):
     	jblob = f.read().decode('utf-8')
-    	parse_json(jblob, api_call)
+    	parse_json(jblob, api_call, latency) 
 
     print (return_message)
     sys.exit(return_code)
