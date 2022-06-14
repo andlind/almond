@@ -3,6 +3,7 @@ import flask
 from flask import request, jsonify, render_template
 import os, os.path
 import glob
+import random
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -16,6 +17,10 @@ server_list = []
 data_dir="/opt/howru/www"
 file_name = ''
 data_file = "/opt/howru/www/monitor_data.json"
+
+ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I think I never felt better!", "I feel good, I knew that I would", "I feel happy from head to feet"]
+warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
+crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
 def load_conf():
     global bindPort, multi_server, enable_file, data_file, data_dir
@@ -118,6 +123,20 @@ def set_file_name():
     else:
         file_name = json_file + ".json"
 
+def rand_quote(severity):
+    ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I think I never felt better!", "I feel good, I knew that I would", "I feel happy from head to feet"]
+    warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
+    crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
+    unknown_quotes = ["I'm not completly sure to be honest", "Some things are unknown to me", "I'm not really certain", "I don´t actually no", "Not sure, maybe good - maybe not!"]
+    if (severity == 0):
+        return random.choice(ok_quotes)
+    if (severity == 1):
+        return random.choice(warn_quotes)
+    if (severity == 2):
+        return random.choice(crit_quotes)
+    else:
+        return random.choice(unknown_quotes)
+
 @app.route('/', methods=['GET'])
 def home():
     global data
@@ -168,58 +187,89 @@ def api_howareyou():
     results = []
     unknown = 0
     res = "I am not sure"
-
+    
     if (multi_server):
         results = {
             "server": [
                       ]
             }
-        for serv in data['server']:
-           name_o = serv['host']
-           name =  name_o['name']
-           obj = serv['monitoring']
-           for status in obj:
-               if (status['pluginStatusCode'] == "0"):
-                   ok = ok + 1
-               elif (status['pluginStatusCode'] == "1"):
-                   warn = warn + 1
-               elif (status['pluginStatusCode'] == "2"):
-                   crit = crit +1
-               else:
-                   unknown = unknown +1
-           if (crit > 0):
-               res = "I'm not fine!"
-               ret_code = 2
-           else:
-               if (warn > 0):
-                   res = "I'm so so"
-                   ret_code = 1
-               else:
-                   res = "I'm "
-                   if (unknown > 0):
-                       res = res + " not completly sure to be honest."
-                       ret_code = 3
+        if (len(file_name) > 2):
+            name_o = data['host']
+            name = name_o['name']
+            obj = data['monitoring']
+            for status in obj:
+                if (status['pluginStatusCode'] == "0"):
+                    ok = ok + 1
+                elif (status['pluginStatusCode'] == "1"):
+                    warn = warn + 1
+                elif (status['pluginStatusCode'] == "2"):
+                    crit = crit + 1
+                else:
+                    unknown = unknown + 1
+            if (crit > 0):
+                ret_code = 2
+            else:
+                if (warn > 0):
+                    ret_code = 1
+                else:
+                    if (unknown > 0):
+                        ret_code = 3
+                    else:
+                        ret_code = 0
+            res = rand_quote(ret_code)
+            server = {  'name' : name,
+                        'answer' : res,
+                        'return_code' : ret_code,
+                        'monitor_results':
+                           {'ok': ok,
+                            'warn' : warn,
+                            'crit' : crit,
+                            'unknown': unknown
+                        }
+                    }
+            results["server"].append(server)
+        else:
+            for serv in data['server']:
+               name_o = serv['host']
+               name =  name_o['name']
+               obj = serv['monitoring']
+               for status in obj:
+                   if (status['pluginStatusCode'] == "0"):
+                       ok = ok + 1
+                   elif (status['pluginStatusCode'] == "1"):
+                       warn = warn + 1
+                   elif (status['pluginStatusCode'] == "2"):
+                       crit = crit +1
                    else:
-                       res = res + " fine, thanks for asking!"
-                       ret_code = 0
-
-           server = [
-                {  'name' : name,
-                   'answer' : res,
-                   'return_code' : ret_code,
-                   'monitor_results':
-                      {'ok': ok,
-                       'warn' : warn,
-                       'crit' : crit,
-                       'unknown': unknown
+                       unknown = unknown +1
+               if (crit > 0):
+                   ret_code = 2
+               else:
+                   if (warn > 0):
+                       ret_code = 1
+                   else:
+                       if (unknown > 0):
+                           ret_code = 3
+                       else:
+                           ret_code = 0
+               res = rand_quote(ret_code)
+               server = [
+                    {  'name' : name,
+                       'answer' : res,
+                       'return_code' : ret_code,
+                       'monitor_results':
+                           {'ok': ok,
+                            'warn' : warn,
+                            'crit' : crit,
+                            'unknown': unknown
+                       }
                    }
-               }
-           ]
-           
-           results["server"].append(server);
-           ok = 0
-           warn = 0
-           crit = 0
+               ]
+
+               results["server"].append(server);
+               ok = 0
+               warn = 0
+               crit = 0
     else:
         obj = data['monitoring']
         for status in obj:
@@ -232,21 +282,16 @@ def api_howareyou():
             else:
                 unknown = unknown +1
         if (crit > 0):
-            res = "I'm not fine!"
             ret_code = 2
         else:
             if (warn > 0):
-                res = "I'm so so"
                 ret_code = 1
             else:
-                res = "I'm "
                 if (unknown > 0):
-                    res = res + " not completly sure to be honest."
                     ret_code = 3
                 else:
-                    res = res + " fine, thanks for asking!"
                     ret_code = 0
-
+        res = rand_quote(ret_code)
         results = [
             { 'answer' : res,
                 'return_code' : ret_code,    
@@ -266,10 +311,16 @@ def api_show_oks():
     global data, multi_server
     set_file_name()
     load_data()
+    multi_set = 0
 
     results = []
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+            multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
@@ -293,9 +344,15 @@ def api_show_warnings():
     global data, multi_server 
     set_file_name()
     load_data()
+    multi_set = 0
     results = []
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+             multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
@@ -319,9 +376,15 @@ def api_show_criticals():
     global data, multi_server
     set_file_name()
     load_data()
+    multi_set = 0
     results = []
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+            multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
@@ -345,9 +408,15 @@ def api_show_changes():
     global data, multi_server
     set_file_name()
     load_data()
+    multi_set = 0
     results = []
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+            multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
@@ -391,7 +460,6 @@ def api_show_plugin():
         for x in data['server']:
             this_server = x['host']['name']
             if (this_server == server):
-                print ("server found")
                 server_found = 1
                 s_name = {
                     'name': this_server
@@ -415,6 +483,7 @@ def api_show_plugin():
                         break
                     id_count = id_count + 1
         if (server_found == 0):
+            print (data)
             s_j = "server_search: " + server
             results.append(s_j)
             info = {
@@ -483,7 +552,18 @@ def api_show_server():
         # results by id
         # BUG: server_list loaded in home, must be loaded here if not
         if (server_list_loaded == 0):
-            s_data = data["server"]
+            try:
+                s_data = data["server"]
+            except:
+                results = [
+                        { 'returnCode' : '3',
+                            'servers':
+                               { 
+                                'info': 'Server api not enabled in single mode'
+                               }
+                        }
+                ]
+                return jsonify(results)
             for host in s_data:
                 server_name = host["host"]["name"]
                 server_list.append(server_name)
