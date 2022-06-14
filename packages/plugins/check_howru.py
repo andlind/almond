@@ -50,7 +50,6 @@ def parse_json(jsonObject, api, ac):
                             result_message = "OK: " + str(length-1) + " checks are ok on " + server_name + "\n"
                             result_code = 0
                         else:
-                            # check latency
                             result_message = str(length-1) + " checks are ok on " + server_name
                             for data in x:
                                 count = count + 1
@@ -106,19 +105,51 @@ def parse_json(jsonObject, api, ac):
         else:
             server_name = json_object[0]['name']
             length = len(json_object)
+            result_code = 0
             if (length > 1):
                 count = 0
                 if (api == 'ok'):
-                    return_message = "OK: " + str(length-1) + " checks are ok on " + server_name
-                    return_code = 0
+                    if (ac > 30):
+                        result_message = str(length-1) + " checks are ok on " + server_name
+                        for data in json_object:
+                            count = count + 1
+                            if (count > 1):
+                                try:
+                                    date_time_obj = datetime.datetime.strptime(data['lastRun'], '%Y-%m-%d %H:%M:%S')
+                                except ValueError:
+                                    date_time_obj = datetime.datetime.now()
+                                    non_active_checks = non_active_checks + 1  
+                                if (calculateTimeDiff(current_time, date_time_obj) > ac):
+                                    result_code = 1
+                                    result_message = result_message + " (" + data['name'] + " has latency.) "
+                        if (result_code == 0):
+                            return_message = "OK " + result_message
+                            return_code = result_code
+                        else:
+                            return_message = "WARNING: " + result_message
+                            return_code = result_code
+                    else:
+                        return_message = "OK: " + str(length-1) + " checks are ok on " + server_name
+                        return_code = 0
                 else:
+                    result_message = ""
                     return_code = 2
                     return_message = "CRITICAL: " + str(length-1) + " checks on " + server_name + " is not ok ( "
                     for data in json_object:
                         count = count +1
                         if (count > 1):
                             return_message = return_message + data['name'] + " "
-                    return_message = return_message + ")"
+                            if (ac > 30):
+                                try:
+                                    date_time_obj = datetime.datetime.strptime(data['lastRun'], '%Y-%m-%d %H:%M:%S')
+                                except ValueError:
+                                    date_time_obj = datetime.datetime.now()
+                                    non_active_checks = non_active_checks + 1
+                                if (calculateTimeDiff(current_time, date_time_obj) > ac):
+                                    if (len(result_message) < 2):
+                                        result_message = " | "
+                                    result_message = result_message + " (" + data['name'] + " has latency.) "
+                    return_message = return_message + ") " + result_message
             else:
                 if (api == 'ok'):
                     return_code = 2
@@ -157,26 +188,37 @@ def parse_json(jsonObject, api, ac):
                 return_message = "CRITICAL: " + json_object[0]['answer'] + " " + str(json_object[0]['monitor_results']['crit']) + " critical alert(s)."
 
     elif (api == 'changes'):
+        # here you want to check changes in given intervall
         return_code = 3
         return_message = "INFO: This api call is not implemented yet for this service check."
 
     elif (api == 'plugin'):
         # Here is work to be done. Not working in multimode
-        server_name = json_object[0]['name']
-        if (len(json_object) == 1):
+        is_multi_server = False
+        try:
+            server_name = json_object[0]['name']
+        except:
+             is_multi_server = True
+        if (is_multi_server):
+            print (json_object)
+            return_message = "Under construction"
             return_code = 3
-            return_message = "UNKNOWN: '" + check_name + "' not found."
-            return
-        output = json_object[1]['pluginOutput']
-        return_code = int(json_object[1]['pluginStatusCode'])
-        if (return_code == 0):
-            return_message = "OK: " + output
-        elif (return_code == 1):
-            return_message = "WARNING: " + output
-        elif (return_code == 2):
-            return_message = "CRITICAL: " + output
         else:
-            return_code = "UNKNOWN: " + output
+            #print (server_name)
+            if (len(json_object) == 1):
+                return_code = 3
+                return_message = "UNKNOWN: '" + check_name + "' not found."
+                return
+            output = json_object[1]['pluginOutput']
+            return_code = int(json_object[1]['pluginStatusCode'])
+            if (return_code == 0):
+                return_message = "OK: " + output
+            elif (return_code == 1):
+                return_message = "WARNING: " + output
+            elif (return_code == 2):
+                return_message = "CRITICAL: " + output
+            else:
+                return_code = "UNKNOWN: " + output
 
     elif (api == 'json'):
         # use this to parse the oldest timestamp?
@@ -191,12 +233,13 @@ def main():
     global return_message
     global check_name
     parser = argparse.ArgumentParser(description='Check howru.')
-    parser.add_argument('-s', '--server', type=str, required=True, help='Server to query')
-    parser.add_argument('-a', '--api', type=str, required=True, help='Api to call')
-    parser.add_argument('-i', '--id', type=int, required=False, help='Index for check to collect, put 0 if you pass by name', default=0)
-    parser.add_argument('-n', '--name', type=str, required=False, help='Name of service to check', default='None')
-    parser.add_argument('-f', '--file', type=str, required=False, help='File from where to read howru outputs', default='monitor_data')
-    parser.add_argument('-l', '--latencyaccepted', type=int, required=False, help='Latency accepted between Nagios and HowRU')
+    parser.add_argument('-s', '--server', type=str, required=True, help='Server to query (required)')
+    parser.add_argument('-a', '--api', type=str, required=True, help='Api to call (required)')
+    parser.add_argument('-i', '--id', type=int, required=False, help='Plugin index for check to collect, put 0 if you pass by name (used by plugin api only)', default=0)
+    parser.add_argument('-n', '--name', type=str, required=False, help='Name of service to check (used by plugin api only)', default='None')
+    parser.add_argument('-f', '--file', type=str, required=False, help='File from where to read howru outputs (optional)', default='')
+    parser.add_argument('-l', '--latencyaccepted', type=int, required=False, help='Latency accepted between Nagios and HowRU (optional)')
+    parser.add_argument('-d', '--sid', type=int, required=False, help='Server id (optional)')
     args = parser.parse_args()
     api_server = args.server
     api_call = args.api
@@ -222,7 +265,14 @@ def main():
             url = url + "?name=" + check_name
     else:
         url = url + "?id=" + str(check_id)
+   
+    if (len(file_name) > 2):
+        if (url.find('?') < 0):
+            url = url + "?whichjson=" + file_name
+        else:
+            url = url + "&whichjson=" + file_name
 
+    #print (url)
     return_code = 0
     try:
     	f = urllib.request.urlopen(url)
