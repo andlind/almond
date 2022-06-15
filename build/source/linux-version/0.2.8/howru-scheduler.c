@@ -42,7 +42,7 @@ char storeDir[50];
 char logDir[50];
 char pluginDir[50];
 char pluginDeclarationFile[75];
-char hostName[255];
+char hostName[255] = "None";
 char outputFormat[10];
 char jsonFileName[50] = "monitor_data_c.json";
 struct PluginItem *declarations;
@@ -414,6 +414,12 @@ int getConfigurationValues() {
 			   writeLog("Plugin results will be stored in csv file.", 0);
 			   pluginResultToFile = 1;
 		   }
+	   }
+	   if (strcmp(confName, "scheduler.hostName") == 0) {
+	   	  char info[300];
+		  strncpy(hostName, trim(confValue), strlen(confValue));
+		  snprintf(info, 300, "Scheduler will name this host: %s", hostName);
+		  writeLog(trim(info), 0);
 	   }
 	   if (strcmp(confName, "plugins.directory") == 0) {
 		   if (directoryExists(confValue, 255) == 0) {
@@ -966,7 +972,9 @@ int main()
 		writeLog("Configuration is not valid", 1);
 		return 1;
 	}
-	strncpy(hostName, getHostName(), 255);
+	if (strcmp(hostName, "None") == 0) { 
+		strncpy(hostName, getHostName(), 255);
+	}
 	decCount = countDeclarations(pluginDeclarationFile);
 	declarations = malloc(sizeof(struct PluginItem) * decCount);
 	if (!declarations) {
