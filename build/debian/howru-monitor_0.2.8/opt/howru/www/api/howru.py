@@ -145,7 +145,10 @@ def home():
     global data
     global server_list
     global server_list_loaded
+    global data_file
+    print (data_file)
     full_filename = '/static/howru.png'
+    os.chdir(data_dir)
     if (multi_server):
         if (server_list_loaded == 0):
             set_file_name()
@@ -157,7 +160,11 @@ def home():
             server_list_loaded = 1
         return render_template("index_m.html", len = len (server_list), server_list = server_list, user_image = full_filename)
     else:
-        return render_template("index.html", user_image = full_filename)
+        if (os.path.exists(data_file)):
+            return render_template("index.html", user_image = full_filename)
+        else:
+            return render_template("index_w.html", user_image = full_filename)
+    os.chdir('/opt/howru/www/api')
 
 @app.route('/docs', methods=['GET'])
 def documentation():
