@@ -59,6 +59,7 @@ int logPluginOutput = 0;
 int pluginResultToFile = 0;
 int decCount = 0;
 int saveOnExit = 0;
+int dockerLog = 0;
 time_t tLastUpdate, tnextUpdate;
 
 FILE *fptr;
@@ -110,6 +111,9 @@ void writeLog(const char *message, int level) {
         }
         strcat(wmes, message);
         fprintf(fptr, "%s\n", wmes);
+	if (dockerLog > 0) {
+		printf("%s\n", wmes);
+	}
 }
 
 int directoryExists(const char *checkDir, size_t length) {
@@ -354,6 +358,10 @@ int getConfigurationValues() {
                            }
                    }
            }
+	   if (strcmp(confName, "scheduler.logToStdout") == 0) {
+ 		   printf("Found logToStdout");
+ 		   dockerLog = atoi(confValue);
+ 	   }
 	   if (strcmp(confName, "scheduler.logDir") == 0) {
 		   if (directoryExists(confValue, 255) == 0) {
 			   size_t dest_size = sizeof(confValue);

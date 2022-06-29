@@ -4,7 +4,7 @@
 Summary:	HowRU monitoring scheduler and api
 Name:		%{name}	
 Version: 	%{version}
-Release:	2%{?dist}
+Release:	3%{?dist}
 Summary:	HowRU scheduler
 
 Group:	        Applications/System 	
@@ -51,6 +51,9 @@ cp -r system/* %{buildroot}/lib/systemd/system/
 %doc
 
 %changelog
+* Wed Jun 29 2022 Docker logs option
+<andreas.lindell@hotmail.com>
+- Option to log to stdout
 * Wed Jun 22 2022 Api server flag added
 <andreas.lindell@hotmail.com>
 - Option to use servername argument with api
