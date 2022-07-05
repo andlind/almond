@@ -3,6 +3,7 @@ import flask
 from flask import request, jsonify, render_template
 import os, os.path
 import glob
+import random
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -13,9 +14,14 @@ multi_server = False
 enable_file = False
 server_list_loaded = 0
 server_list = []
+file_found = 1
 data_dir="/opt/howru/www"
 file_name = ''
 data_file = "/opt/howru/www/monitor_data.json"
+
+ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I think I never felt better!", "I feel good, I knew that I would", "I feel happy from head to feet"]
+warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
+crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
 def load_conf():
     global bindPort, multi_server, enable_file, data_file, data_dir
@@ -60,7 +66,7 @@ def load_conf():
     return bindPort
 
 def load_data():
-    global data, data_dir, multi_server, enable_file, file_name, data_file
+    global data, data_dir, multi_server, enable_file, file_name, data_file, file_found
     os.chdir(data_dir)
     if (enable_file == True):
         if (len(file_name) > 5):
@@ -69,9 +75,11 @@ def load_data():
                 f = open(file_name, "r")
                 data = json.loads(f.read())
                 f.close()
+                file_found = 1
                 return
             else:
                 print ("Could not find serverfile ", file_name)
+                file_found = 0
     if (multi_server):
        #print("Running in mode multi");
        count = 0 
@@ -118,12 +126,29 @@ def set_file_name():
     else:
         file_name = json_file + ".json"
 
+def rand_quote(severity):
+    ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I think I never felt better!", "I feel good, I knew that I would", "I feel happy from head to feet"]
+    warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
+    crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
+    unknown_quotes = ["I'm not completly sure to be honest", "Some things are unknown to me", "I'm not really certain", "I don´t actually no", "Not sure, maybe good - maybe not!"]
+    if (severity == 0):
+        return random.choice(ok_quotes)
+    if (severity == 1):
+        return random.choice(warn_quotes)
+    if (severity == 2):
+        return random.choice(crit_quotes)
+    else:
+        return random.choice(unknown_quotes)
+
 @app.route('/', methods=['GET'])
 def home():
     global data
     global server_list
     global server_list_loaded
+    global data_file
+    print (data_file)
     full_filename = '/static/howru.png'
+    os.chdir(data_dir)
     if (multi_server):
         if (server_list_loaded == 0):
             set_file_name()
@@ -133,9 +158,16 @@ def home():
                 server_name = host["host"]["name"]
                 server_list.append(server_name)
             server_list_loaded = 1
-        return render_template("index_m.html", len = len (server_list), server_list = server_list, user_image = full_filename)
+        if (len(server_list) > 0):
+            return render_template("index_m.html", len = len (server_list), server_list = server_list, user_image = full_filename)
+        else:
+            return render_template("index_e.html", user_image = full_filename)
     else:
-        return render_template("index.html", user_image = full_filename)
+        if (os.path.exists(data_file)):
+            return render_template("index.html", user_image = full_filename)
+        else:
+            return render_template("index_w.html", user_image = full_filename)
+    os.chdir('/opt/howru/www/api')
 
 @app.route('/docs', methods=['GET'])
 def documentation():
@@ -159,7 +191,7 @@ def api_json():
 
 @app.route('/howru/monitoring/howareyou', methods=['GET'])
 def api_howareyou():
-    global data, multi_server
+    global data, multi_server, file_found
     set_file_name()
     load_data()
     ok = 0
@@ -168,58 +200,144 @@ def api_howareyou():
     results = []
     unknown = 0
     res = "I am not sure"
-
+    servername = ""
+    
     if (multi_server):
         results = {
             "server": [
                       ]
             }
-        for serv in data['server']:
-           name_o = serv['host']
-           name =  name_o['name']
-           obj = serv['monitoring']
-           for status in obj:
-               if (status['pluginStatusCode'] == "0"):
-                   ok = ok + 1
-               elif (status['pluginStatusCode'] == "1"):
-                   warn = warn + 1
-               elif (status['pluginStatusCode'] == "2"):
-                   crit = crit +1
-               else:
-                   unknown = unknown +1
-           if (crit > 0):
-               res = "I'm not fine!"
-               ret_code = 2
-           else:
-               if (warn > 0):
-                   res = "I'm so so"
-                   ret_code = 1
-               else:
-                   res = "I'm "
-                   if (unknown > 0):
-                       res = res + " not completly sure to be honest."
-                       ret_code = 3
-                   else:
-                       res = res + " fine, thanks for asking!"
-                       ret_code = 0
 
-           server = [
-                {  'name' : name,
-                   'answer' : res,
-                   'return_code' : ret_code,
-                   'monitor_results':
-                      {'ok': ok,
-                       'warn' : warn,
-                       'crit' : crit,
-                       'unknown': unknown
+        if ('server' in request.args):
+            servername = request.args['server']
+        if (len(servername) > 2 ):
+            for serv in data['server']:
+                name_o = serv['host']
+                name = name_o['name']
+                if (name == servername):
+                    mon = serv['monitoring']
+                    for status in mon:
+                        if (status['pluginStatusCode'] == "0"):
+                            ok = ok + 1
+                        elif (status['pluginStatusCode'] == "1"):
+                            warn = warn + 1
+                        elif (status['pluginStatusCode'] == "2"):
+                            crit = crit + 1
+                        else:
+                            unknown = unknown + 1
+                    if (crit > 0):
+                        ret_code = 2
+                    else:
+                        if (warn > 0):
+                            ret_code = 1
+                        else:
+                            if (unknown > 0):
+                                ret_code = 3
+                            else:
+                                ret_code = 0
+                    res = rand_quote(ret_code)
+                    result = [
+                    {  'name' : name,
+                       'answer' : res,
+                       'return_code' : ret_code,
+                       'monitor_results':
+                           {'ok': ok,
+                            'warn' : warn,
+                            'crit' : crit,
+                            'unknown': unknown
+                           }
+                    }
+                    ]
+
+                    return jsonify(result)
+            
+        if (len(file_name) > 2):
+            if (file_found == 0):
+                res = "File not found"
+                ret_code = 3
+                result = [
+                        {    'name': file_name,
+                             'answer': res,
+                             'return_code': ret_code
+                        }
+                ]
+                return jsonify(result)
+            name_o = data['host']
+            name = name_o['name']
+            obj = data['monitoring']
+            for status in obj:
+                if (status['pluginStatusCode'] == "0"):
+                    ok = ok + 1
+                elif (status['pluginStatusCode'] == "1"):
+                    warn = warn + 1
+                elif (status['pluginStatusCode'] == "2"):
+                    crit = crit + 1
+                else:
+                    unknown = unknown + 1
+            if (crit > 0):
+                ret_code = 2
+            else:
+                if (warn > 0):
+                    ret_code = 1
+                else:
+                    if (unknown > 0):
+                        ret_code = 3
+                    else:
+                        ret_code = 0
+            res = rand_quote(ret_code)
+            server = {  'name' : name,
+                        'answer' : res,
+                        'return_code' : ret_code,
+                        'monitor_results':
+                           {'ok': ok,
+                            'warn' : warn,
+                            'crit' : crit,
+                            'unknown': unknown
+                        }
+                    }
+            results["server"].append(server)
+        else:
+            for serv in data['server']:
+               name_o = serv['host']
+               name =  name_o['name']
+               obj = serv['monitoring']
+               for status in obj:
+                   if (status['pluginStatusCode'] == "0"):
+                       ok = ok + 1
+                   elif (status['pluginStatusCode'] == "1"):
+                       warn = warn + 1
+                   elif (status['pluginStatusCode'] == "2"):
+                       crit = crit +1
+                   else:
+                       unknown = unknown +1
+               if (crit > 0):
+                   ret_code = 2
+               else:
+                   if (warn > 0):
+                       ret_code = 1
+                   else:
+                       if (unknown > 0):
+                           ret_code = 3
+                       else:
+                           ret_code = 0
+               res = rand_quote(ret_code)
+               server = [
+                    {  'name' : name,
+                       'answer' : res,
+                       'return_code' : ret_code,
+                       'monitor_results':
+                           {'ok': ok,
+                            'warn' : warn,
+                            'crit' : crit,
+                            'unknown': unknown
+                       }
                    }
-               }
-           ]
-           
-           results["server"].append(server);
-           ok = 0
-           warn = 0
-           crit = 0
+               ]
+
+               results["server"].append(server);
+               ok = 0
+               warn = 0
+               crit = 0
     else:
         obj = data['monitoring']
         for status in obj:
@@ -232,21 +350,16 @@ def api_howareyou():
             else:
                 unknown = unknown +1
         if (crit > 0):
-            res = "I'm not fine!"
             ret_code = 2
         else:
             if (warn > 0):
-                res = "I'm so so"
                 ret_code = 1
             else:
-                res = "I'm "
                 if (unknown > 0):
-                    res = res + " not completly sure to be honest."
                     ret_code = 3
                 else:
-                    res = res + " fine, thanks for asking!"
                     ret_code = 0
-
+        res = rand_quote(ret_code)
         results = [
             { 'answer' : res,
                 'return_code' : ret_code,    
@@ -266,19 +379,53 @@ def api_show_oks():
     global data, multi_server
     set_file_name()
     load_data()
+    multi_set = 0
+    servername = ""
+    name_is_set = False
+    name_found = False
 
     results = []
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+            multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
-            res_set.append(s['host'])
-            obj = s['monitoring']
-            for i in obj:
-               if (i['pluginStatusCode'] == "0"):
-                   res_set.append(i)
-            results.append(res_set);
+            if ('server' in request.args):
+                servername = request.args['server']
+                if (len(servername) > 2):
+                    name_is_set = True
+            if (name_is_set == True):
+                 if (s['host']['name'] == servername):
+                    res_set.append(s['host'])
+                    obj = s['monitoring']
+                    for i in obj:
+                        if (i['pluginStatusCode'] == "0"):
+                            res_set.append(i)
+                    results.append(res_set)
+                    server_found = True
+                    return jsonify(results)
+                 else:
+                     server_found = False
+            else:
+                res_set.append(s['host'])
+                obj = s['monitoring']
+                for i in obj:
+                    if (i['pluginStatusCode'] == "0"):
+                        res_set.append(i)
+                results.append(res_set);
+        if (name_is_set == True and server_found == False):
+            results = [
+                { 'returnCode' :'3',
+                   'monitoring':
+                           {'info': 'Server not found'
+                        }
+                    }
+                ]
     else:
         results.append(data['host'])
         obj = data['monitoring']
@@ -293,18 +440,52 @@ def api_show_warnings():
     global data, multi_server 
     set_file_name()
     load_data()
+    multi_set = 0
     results = []
+    servername = ""
+    name_is_set = False
+    name_found = False
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+             multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
-            res_set.append(s['host'])
-            obj = s['monitoring']
-            for i in obj:
-               if (i['pluginStatusCode'] == "1"):
-                   res_set.append(i)
-            results.append(res_set);
+            if ('server' in request.args):
+                servername = request.args['server']
+                if (len(servername) > 2):
+                    name_is_set = True
+            if (name_is_set == True):
+                if (s['host']['name'] == servername):
+                    res_set.append(s['host'])
+                    obj = s['monitoring']
+                    for i in obj:
+                        if (i['pluginStatusCode'] == "1"):
+                            res_set.append(i)
+                    results.append(res_set)
+                    server_found = True
+                    return jsonify(results)
+                else:
+                    server_found = False
+            else:
+                res_set.append(s['host'])
+                obj = s['monitoring']
+                for i in obj:
+                   if (i['pluginStatusCode'] == "1"):
+                       res_set.append(i)
+                results.append(res_set);
+        if (name_is_set == True and server_found == False):
+            results = [
+                    { 'returnCode' :'3',
+                       'monitoring':
+                               {'info': 'Server not found'
+                            }
+                        }
+                    ]
     else:
         results.append(data['host'])
         obj = data['monitoring']
@@ -319,18 +500,53 @@ def api_show_criticals():
     global data, multi_server
     set_file_name()
     load_data()
+    multi_set = 0
     results = []
+    servername = ""
+    name_is_set = 0
+    name_found = 0
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+            multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
-            res_set.append(s['host'])
-            obj = s['monitoring']
-            for i in obj:
-               if (i['pluginStatusCode'] == "2"):
-                   res_set.append(i)
-            results.append(res_set);
+            if ('server' in request.args):
+                servername = request.args['server']
+                if (len(servername) > 2):
+                    name_is_set = 1
+            if (name_is_set > 0):
+                if (s['host']['name'] == servername):
+                    res_set.append(s['host'])
+                    obj = s['monitoring']
+                    for i in obj:
+                        if (i['pluginStatusCode'] == "2"):
+                            res_set.append(i)
+                    results.append(res_set)
+                    name_found = 1
+                    return jsonify(results) 
+                else:
+                    name_found = 0
+            else:
+                res_set.append(s['host'])
+                obj = s['monitoring']
+                for i in obj:
+                    if (i['pluginStatusCode'] == "2"):
+                        res_set.append(i)
+                results.append(res_set);
+        if (name_is_set > 0 and name_found == 0):
+            result = [
+                    { 'returnCode' :'3',
+                       'monitoring':
+                               {'info': 'Server not found'
+                            }
+                        }
+                    ]
+            return jsonify(result)
     else:
        results.append(data['host'])
        obj = data['monitoring']
@@ -345,9 +561,15 @@ def api_show_changes():
     global data, multi_server
     set_file_name()
     load_data()
+    multi_set = 0
     results = []
 
     if (multi_server):
+        try:
+            host = data['host']
+        except:
+            multi_set = 1
+    if (multi_set > 0):
         serv = data['server']
         for s in serv:
             res_set = []
@@ -391,7 +613,6 @@ def api_show_plugin():
         for x in data['server']:
             this_server = x['host']['name']
             if (this_server == server):
-                print ("server found")
                 server_found = 1
                 s_name = {
                     'name': this_server
@@ -461,6 +682,7 @@ def api_show_server():
 
     if 'id' in request.args:
         id = int(request.args['id'])
+
     if (id == -1 ):
         if 'host' in request.args:
             # Search host
@@ -483,7 +705,18 @@ def api_show_server():
         # results by id
         # BUG: server_list loaded in home, must be loaded here if not
         if (server_list_loaded == 0):
-            s_data = data["server"]
+            try:
+                s_data = data["server"]
+            except:
+                results = [
+                        { 'returnCode' : '3',
+                            'servers':
+                               { 
+                                'info': 'Server api not enabled in single mode'
+                               }
+                        }
+                ]
+                return jsonify(results)
             for host in s_data:
                 server_name = host["host"]["name"]
                 server_list.append(server_name)

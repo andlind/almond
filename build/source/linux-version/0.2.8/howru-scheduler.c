@@ -42,7 +42,7 @@ char storeDir[50];
 char logDir[50];
 char pluginDir[50];
 char pluginDeclarationFile[75];
-char hostName[255];
+char hostName[255] = "None";
 char outputFormat[10];
 char jsonFileName[50] = "monitor_data_c.json";
 struct PluginItem *declarations;
@@ -59,6 +59,7 @@ int logPluginOutput = 0;
 int pluginResultToFile = 0;
 int decCount = 0;
 int saveOnExit = 0;
+int dockerLog = 0;
 time_t tLastUpdate, tnextUpdate;
 
 FILE *fptr;
@@ -110,6 +111,9 @@ void writeLog(const char *message, int level) {
         }
         strcat(wmes, message);
         fprintf(fptr, "%s\n", wmes);
+	if (dockerLog > 0) {
+		printf("%s\n", wmes);
+	}
 }
 
 int directoryExists(const char *checkDir, size_t length) {
@@ -354,6 +358,10 @@ int getConfigurationValues() {
                            }
                    }
            }
+	   if (strcmp(confName, "scheduler.logToStdout") == 0) {
+ 		   printf("Found logToStdout");
+ 		   dockerLog = atoi(confValue);
+ 	   }
 	   if (strcmp(confName, "scheduler.logDir") == 0) {
 		   if (directoryExists(confValue, 255) == 0) {
 			   size_t dest_size = sizeof(confValue);
@@ -414,6 +422,12 @@ int getConfigurationValues() {
 			   writeLog("Plugin results will be stored in csv file.", 0);
 			   pluginResultToFile = 1;
 		   }
+	   }
+	   if (strcmp(confName, "scheduler.hostName") == 0) {
+	   	  char info[300];
+		  strncpy(hostName, trim(confValue), strlen(confValue));
+		  snprintf(info, 300, "Scheduler will name this host: %s", hostName);
+		  writeLog(trim(info), 0);
 	   }
 	   if (strcmp(confName, "plugins.directory") == 0) {
 		   if (directoryExists(confValue, 255) == 0) {
@@ -966,7 +980,9 @@ int main()
 		writeLog("Configuration is not valid", 1);
 		return 1;
 	}
-	strncpy(hostName, getHostName(), 255);
+	if (strcmp(hostName, "None") == 0) { 
+		strncpy(hostName, getHostName(), 255);
+	}
 	decCount = countDeclarations(pluginDeclarationFile);
 	declarations = malloc(sizeof(struct PluginItem) * decCount);
 	if (!declarations) {
