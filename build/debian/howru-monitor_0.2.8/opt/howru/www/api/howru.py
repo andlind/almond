@@ -162,6 +162,8 @@ def home():
             return render_template("index_m.html", len = len (server_list), server_list = server_list, user_image = full_filename)
         else:
             return render_template("index_e.html", user_image = full_filename)
+        server_list_loaded = 0
+        server_list.clear()
     else:
         if (os.path.exists(data_file)):
             return render_template("index.html", user_image = full_filename)
@@ -184,10 +186,31 @@ def search_plugin():
 
 @app.route('/howru/monitoring/json', methods=['GET'])
 def api_json():
-   global data 
+   global data
+   server_found = 0
    set_file_name()
    load_data()
-   return jsonify(data)
+   if not ('server' in request.args): 
+       return jsonify(data)
+   else:
+       servername = request.args['server']
+       for serv in data['server']:
+           name_o = serv['host']
+           name = name_o['name']
+           if (name == servername):
+               result = serv
+               server_found = 1
+       if (server_found == 1):
+           return jsonify(result)
+       else:
+           result = [
+                    { 'returnCode' :'3',
+                       'monitoring':
+                               {'info': 'Server not found'
+                            }
+                        }
+                    ]
+           return jsonify(result)
 
 @app.route('/howru/monitoring/howareyou', methods=['GET'])
 def api_howareyou():
