@@ -15,10 +15,10 @@ enable_file = False
 server_list_loaded = 0
 server_list = []
 file_found = 1
-data_dir="/opt/howru/www"
+data_dir="/opt/howru/data"
 file_name = ''
 data_file = "/opt/howru/www/monitor_data.json"
-metrics_dir="/opt/howru/data"
+metrics_dir="/opt/howru/data/metrics"
 full_metrics_file_name="monitor.metrics"
 
 ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I think I never felt better!", "I feel good, I knew that I would", "I feel happy from head to feet"]
