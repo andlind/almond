@@ -4,7 +4,7 @@
 Summary:	HowRU monitoring scheduler and api
 Name:		%{name}	
 Version: 	%{version}
-Release:	3%{?dist}
+Release:	1%{?dist}
 Summary:	HowRU scheduler
 
 Group:	        Applications/System 	
@@ -18,6 +18,8 @@ Requires:	python, python-flask
 
 %description
 HowRU scheduler and API, compatible with Nagios plugins
+
+%global debug_package %{nil} 
 
 %prep
 %setup -q
