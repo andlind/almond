@@ -1,0 +1,18 @@
+<!doctype html>
+<title>HowRU {% block title %}{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<nav>
+	<p align="center"><img src="{{ user_image }}" alt="User Image"></p>
+	<p align="center" style="font-family: Vedana; font-size: 14px; font-weight: bold">HowRU is running (multi-server mode) on this server</p>
+  <ul>
+  </ul>
+</nav>
+<section class="content">
+  <header>
+    {% block header %}{% endblock %}
+  </header>
+  {% for message in get_flashed_messages() %}
+    <div class="flash">{{ message }}</div>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</section>
