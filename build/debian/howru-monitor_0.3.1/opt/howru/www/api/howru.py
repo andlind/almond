@@ -843,7 +843,8 @@ def api_show_metrics():
     else:
         #Error: no metric selection
         return redirect(url_for('api_show_metric_lists'))
-    return jsonify(return_list)
+    #return jsonify(return_list)
+    return render_template("show_metrics.html", b_lines=return_list)
 
 if __name__ == '__main__':
     use_port = load_conf()
