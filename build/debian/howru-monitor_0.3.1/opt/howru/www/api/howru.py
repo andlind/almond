@@ -12,21 +12,25 @@ settings = None
 bindPort = None
 multi_server = False
 enable_file = False
+enable_ssl = False
 server_list_loaded = 0
 server_list = []
 file_found = 1
-data_dir="/opt/howru/data"
+data_dir="/opt/howru/www"
 file_name = ''
 data_file = "/opt/howru/www/monitor_data.json"
-metrics_dir="/opt/howru/data/metrics"
+metrics_dir="/opt/howru/data"
 full_metrics_file_name="monitor.metrics"
+ssl_certificate="/opt/howru/www/api/certificate.pem"
+ssl_key="/opt/howru/www/api/certificate.key"
 
 ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I think I never felt better!", "I feel good, I knew that I would", "I feel happy from head to feet"]
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
 def load_conf():
-    global bindPort, multi_server, enable_file, data_file, data_dir
+    global bindPort, multi_server, enable_file, data_file, data_dir, enable_ssl
+    global ssl_certificate, ssl_key
     conf = open("/etc/howru/howruc.conf", "r")
     for line in conf:
         if (line.find('data') == 0):
@@ -64,8 +68,33 @@ def load_conf():
                         enable_file = False
                 else:
                     enable_file = False
+            if (line.find('SSL') > 0):
+                pos = line.find('=')
+                useSSL = line[pos+1]
+                if (isinstance(int(useSSL), int)):
+                    if (int(useSSL) > 0):
+                        enable_ssl = True
+                    else:
+                        enable_ssl = False
+                else:
+                    enable_ssl = False
+            if (line.find('sslCertificate') > 0):
+                pos = line.find('=')
+                ssl_certificate = line[pos+1:].rstrip()
+            if (line.find('sslKey') > 0):
+                pos = line.find('=')
+                ssl_key = line[pos+1:].rstrip()
     conf.close()
     return bindPort
+
+def useCertificate():
+    global enable_ssl
+    return enable_ssl
+
+def getCertificates():
+    global ssl_certificate, ssl_key
+    ret_val = "('" + ssl_certificate + "', '" + ssl_key + "')"
+    return eval(ret_val)
 
 def load_data():
     global data, data_dir, multi_server, enable_file, file_name, data_file, file_found
@@ -844,8 +873,14 @@ def api_show_metrics():
         #Error: no metric selection
         return redirect(url_for('api_show_metric_lists'))
     #return jsonify(return_list)
+    # return_list should be reversed
     return render_template("show_metrics.html", b_lines=return_list)
 
 if __name__ == '__main__':
     use_port = load_conf()
-    app.run(host='0.0.0.0', port=use_port)
+    use_ssl = useCertificate()
+    context = getCertificates()
+    if (use_ssl):
+        app.run(host='0.0.0.0', port=use_port, ssl_context=context, threaded=True)
+    else:
+        app.run(host='0.0.0.0', port=use_port)
