@@ -692,8 +692,6 @@ void collectMetrics(int decLen) {
 			printf("Metrics = %s\n", trim(outputs[i].retString));
                         //fprintf(mf,"%s_%s{%s_%s_result=\"%d\"} %s\n", hostName, pluginName, hostName, pluginName, outputs[i].retCode, trim(metrics)); // <%app>_<%description>{<%app>_<%description>_result="<%return_code>"} <%return_metrics>
                         fprintf(mf, "%s_%s{%s_%s_result=\"%s\"} %d\n", hostName, pluginName, hostName, pluginName, trim(outputs[i].retString), outputs[i].retCode);
-
-
 		}
                 else {
         	 	e = strchr(outputs[i].retString, '|');
@@ -1080,7 +1078,6 @@ void initScheduler(int numOfP, int msSleep) {
 		       //collectBoth
 		       collectJsonData(numOfP);
 		       collectMetrics(numOfP);
-		       // will cause segmentation fault?
 		       break;
 	        default:
 			collectJsonData(numOfP);
