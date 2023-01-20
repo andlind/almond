@@ -342,12 +342,16 @@ int getConfigurationValues() {
 	   }
 	   if (strcmp(confName, "scheduler.format") == 0) {
               if (strcmp(trim(confValue), "json") == 0){
+		      printf ("Export to json\n");
 		      output_type= JSON_OUTPUT;
 	      }
 	      else if (strcmp(trim(confValue), "metrics") == 0) {
+		      printf ("Export to metrics file\n");
 		      output_type = METRICS_OUTPUT;
 	      }
 	      else if (strcmp(trim(confValue), "jsonmetrics") == 0) {
+		      printf ("Export both to json and metrics file.\n");
+		      writeLog("Exporting both to json and to metrics file.", 0);
 		      output_type = JSON_AND_METRICS_OUTPUT;
 	      }
 	      else {
@@ -436,7 +440,7 @@ int getConfigurationValues() {
 	   }
 
 	   if (strcmp(confName, "scheduler.logToStdout") == 0) {
- 		   printf("Found logToStdout");
+ 		   printf("Found logToStdout\n");
  		   dockerLog = atoi(confValue);
  	   }
 	   if (strcmp(confName, "scheduler.logDir") == 0) {
@@ -672,7 +676,7 @@ void collectMetrics(int decLen) {
         strncat(storeName, &ch, 1);
         strcat(storeName, metricsFileName);
         mf = fopen(storeName, "w");
-        snprintf(info, 225, "Collecting metrics to file: %s", fileName);
+        snprintf(info, 225, "Collecting metrics to file: %s", storeName);
         writeLog(trim(info), 0);
 	for (int i = 0; i < decLen; i++) {
         	//writeMetric(decLen, i);
@@ -682,28 +686,37 @@ void collectMetrics(int decLen) {
         	removeChar(pluginName, ']');
         	// Get metrics
         	char *e;
-        	e = strchr(outputs[i].retString, '|');
-        	int position = (int)(e - outputs[i].retString);
-        	int len = strlen(outputs[i].retString);
-        	int sublen = len - position;
-        	sublen++;
-        	char metrics[sublen];
-        	memcpy(metrics,&outputs[i].retString[position+1],sublen);
-		// Todo split metrics on =
-        	printf("Metrics = %s\n", trim(metrics));
-		//fprintf(mf,"%s_%s{%s_%s_result=\"%d\"} %s\n", hostName, pluginName, hostName, pluginName, outputs[i].retCode, trim(metrics)); // <%app>_<%description>{<%app>_<%description>_result="<%return_code>"} <%return_metrics> 
-		fprintf(mf, "%s_%s{%s_%s_result=\"%s\"} %d\n", hostName, pluginName, hostName, pluginName, outputs[i].retString, outputs[i].retCode);
-		char * token = strtok(metrics, "=");
-		//printf("%s_%s{%s_%s value=\"%s\""}",hostName, pluginName, hostName, pluginName, token);
-		while (token != NULL) {
-			printf(" %s\n", token);
-			//printf("%s_%s{%s_%s_%s} %s", hostName, pluginName, hostName, pluginName, token, token);
-			/*char * token2 = strtok(token, " ");
-			while (token2 != NULL) {
-				printf(" %s\n", token2);
-				token2 = strtok(NULL, " ");
-			}*/
-			token = strtok(NULL, "=");
+		if (strchr(outputs[i].retString, '|') == NULL) {
+			snprintf(info, 255, "Plugin %s does not provide metrics. Using plain output.", pluginName);
+			writeLog(trim(info), 1);
+			printf("Metrics = %s\n", trim(outputs[i].retString));
+                        //fprintf(mf,"%s_%s{%s_%s_result=\"%d\"} %s\n", hostName, pluginName, hostName, pluginName, outputs[i].retCode, trim(metrics)); // <%app>_<%description>{<%app>_<%description>_result="<%return_code>"} <%return_metrics>
+                        fprintf(mf, "%s_%s{%s_%s_result=\"%s\"} %d\n", hostName, pluginName, hostName, pluginName, trim(outputs[i].retString), outputs[i].retCode);
+		}
+                else {
+        	 	e = strchr(outputs[i].retString, '|');
+        	    	int position = (int)(e - outputs[i].retString);
+        		int len = strlen(outputs[i].retString);
+        		int sublen = len - position;
+        		sublen++;
+        		char metrics[sublen];
+        		memcpy(metrics,&outputs[i].retString[position+1],sublen);
+			// Todo split metrics on =
+        		printf("Metrics = %s\n", trim(metrics));
+			//fprintf(mf,"%s_%s{%s_%s_result=\"%d\"} %s\n", hostName, pluginName, hostName, pluginName, outputs[i].retCode, trim(metrics)); // <%app>_<%description>{<%app>_<%description>_result="<%return_code>"} <%return_metrics> 
+			fprintf(mf, "%s_%s{%s_%s_result=\"%s\"} %d\n", hostName, pluginName, hostName, pluginName, trim(outputs[i].retString), outputs[i].retCode);
+			//char * token = strtok(metrics, "=");
+			//printf("%s_%s{%s_%s value=\"%s\""}",hostName, pluginName, hostName, pluginName, token);
+			//while (token != NULL) {
+			//	printf(" %s\n", token);
+				//printf("%s_%s{%s_%s_%s} %s", hostName, pluginName, hostName, pluginName, token, token);
+				/*char * token2 = strtok(token, " ");
+				while (token2 != NULL) {
+					printf(" %s\n", token2);
+					token2 = strtok(NULL, " ");
+				}*/
+			//	token = strtok(NULL, "=");
+			//}
 		}
         	free(pluginName);
 	}
@@ -1063,6 +1076,8 @@ void initScheduler(int numOfP, int msSleep) {
 			break;
 		case JSON_AND_METRICS_OUTPUT:
 		       //collectBoth
+		       collectJsonData(numOfP);
+		       collectMetrics(numOfP);
 		       break;
 	        default:
 			collectJsonData(numOfP);
