@@ -703,6 +703,7 @@ void collectMetrics(int decLen, int style) {
 				serviceName = malloc(strlen(declarations[i].description)+1);
 				strcpy(serviceName, declarations[i].description);
 				fprintf(mf, "howru_%s{hostname=\"%s\", service=\"%s\", value=\"%s\"} %d\n", pluginName, hostName, serviceName, trim(outputs[i].retString), outputs[i].retCode);
+				free(serviceName);
 			}
 		}
                 else {
@@ -720,7 +721,37 @@ void collectMetrics(int decLen, int style) {
 				serviceName = malloc(strlen(declarations[i].description)+1);
 				strcpy(serviceName, declarations[i].description);
 				// We need to loop through metrics
-				fprintf(mf, "howru_%s{hostname=\"%s\",service =\"%s\", value=\"%s\"} %d\n", pluginName, hostName, serviceName, trim(outputs[i].retString), outputs[i].retCode);
+				char * token = strtok(metrics, " ");
+				// Segmentation fault on certain checks.
+				// Code below needs more debug
+				while (token != NULL) {
+					char*  metricsToken;
+					char* metricsName;
+					char* metricsValue;
+					metricsToken = malloc(strlen(token)+1);
+					//printf(" %sn\n", token);
+					char *e = strchr(token, ';');
+					int index = (int)(e - token);
+					strcpy(metricsToken, token);
+					metricsToken[index] = '\0';
+				        //printf(" %s\n", metricsToken);	
+					char *f = strchr(metricsToken, '=');
+					index = (int)(f - metricsToken);
+					metricsName = malloc(strlen(metricsToken)+1);
+                                        strcpy(metricsName, metricsToken);
+					metricsValue = malloc(strlen(metricsName-index)+1);
+					strcpy(metricsValue, metricsName + index +1);
+					//printf("Metrics value = %s\n", metricsValue);
+					metricsName[index] = '\0';
+					//printf("Metrics name = %s\n", metricsName);
+					fprintf(mf, "howru_%s_%s{hostname=\"%s\", service=\"%s\", key=\"%s\"} %s\n", pluginName, metricsName, hostName, serviceName, metricsName, metricsValue);
+					free(metricsValue);
+					free(metricsName);
+					free(metricsToken);
+					token = strtok(NULL, " ");
+				}
+				//fprintf(mf, "howru_%s{hostname=\"%s\",service =\"%s\", value=\"%s\"} %d\n", pluginName, hostName, serviceName, trim(outputs[i].retString), outputs[i].retCode);
+				free(serviceName);
 			}
 		}
         	free(pluginName);
