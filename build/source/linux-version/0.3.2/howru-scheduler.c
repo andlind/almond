@@ -657,6 +657,7 @@ void collectMetrics(int decLen, int style) {
 	FILE *mf;
         clock_t t;
         char info[225];
+	char *p;
 
 	strcpy(fileName, templateDir);
         strncat(fileName, &ch, 1);
@@ -690,12 +691,16 @@ void collectMetrics(int decLen, int style) {
        		strcpy(pluginName, declarations[i].name);
         	removeChar(pluginName, '[');
         	removeChar(pluginName, ']');
+		for (p = pluginName; *p != '\0'; ++p) {
+			//if (*p == '/') *p = '_';
+			*p = tolower(*p);
+		}
         	// Get metrics
         	char *e;
 		if (strchr(outputs[i].retString, '|') == NULL) {
 			snprintf(info, 255, "Plugin %s does not provide metrics. Using plain output.", pluginName);
 			writeLog(trim(info), 1);
-			printf("Metrics = %s\n", trim(outputs[i].retString));
+			//printf("Metrics = %s\n", trim(outputs[i].retString));
 			if (style == 0)
                        		fprintf(mf, "howru_%s{hostname=\"%s\",%s_result=\"%s\"} %d\n", pluginName, hostName, pluginName, trim(outputs[i].retString), outputs[i].retCode);
 			else { 
@@ -722,28 +727,54 @@ void collectMetrics(int decLen, int style) {
 				strcpy(serviceName, declarations[i].description);
 				// We need to loop through metrics
 				char * token = strtok(metrics, " ");
-				// Segmentation fault on certain checks.
-				// Code below needs more debug
 				while (token != NULL) {
 					char*  metricsToken;
 					char* metricsName;
 					char* metricsValue;
 					metricsToken = malloc(strlen(token)+1);
-					//printf(" %sn\n", token);
+					//printf("DEBUG [token] =  %sn\n", token);
+					/*size_t len = strlen(metricsToken);
+                                        size_t spn = strcspn(metricsToken, "'");
+					if (len == spn) {
+						printf("DEBUG: Lenghts are equal.\n");
+					}
+					else {
+                                                printf("DEBUG: Lengts are not equal.\n");
+                                        }*/
+					int do_cut = 0;
+					const char *haystring = ";";
+					char *c = token;
+					while (*c) {
+						if (strchr(haystring, *c)) {
+							do_cut++;
+						}
+						c++;
+					}
+					//printf("DEBUG [do_cut] = %d\n", do_cut);
 					char *e = strchr(token, ';');
-					int index = (int)(e - token);
-					strcpy(metricsToken, token);
-					metricsToken[index] = '\0';
-				        //printf(" %s\n", metricsToken);	
+                                        int index = (int)(e - token);
+                                        //printf("DEBUG [index] = %d\n", index);
+					if (do_cut > 0) {
+						strcpy(metricsToken, token);
+						metricsToken[index] = '\0';
+					}
+					else {
+						strcpy(metricsToken, token);
+					}
+				        //printf("DEBUG [metricsToken] =  %s\n", metricsToken);	
 					char *f = strchr(metricsToken, '=');
 					index = (int)(f - metricsToken);
 					metricsName = malloc(strlen(metricsToken)+1);
                                         strcpy(metricsName, metricsToken);
 					metricsValue = malloc(strlen(metricsName-index)+1);
 					strcpy(metricsValue, metricsName + index +1);
-					//printf("Metrics value = %s\n", metricsValue);
+					//printf("DEBUG [Metrics value] = %s\n", metricsValue);
 					metricsName[index] = '\0';
-					//printf("Metrics name = %s\n", metricsName);
+					char *pm;
+					for (pm = metricsName; *pm != '\0'; ++pm) 
+			                        *pm = tolower(*pm);
+					removeChar(metricsName, '/');
+					//printf("DEBUG [Metrics name] = %s\n", metricsName);
 					fprintf(mf, "howru_%s_%s{hostname=\"%s\", service=\"%s\", key=\"%s\"} %s\n", pluginName, metricsName, hostName, serviceName, metricsName, metricsValue);
 					free(metricsValue);
 					free(metricsName);
