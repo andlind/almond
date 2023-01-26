@@ -1,6 +1,6 @@
 import json
 import flask 
-from flask import request, jsonify, render_template, redirect, url_for
+from flask import request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
 import os, os.path
 import glob
 import random
@@ -241,7 +241,8 @@ def api_json():
                             }
                         }
                     ]
-           return jsonify(result)
+           headers = {"Content-Type": "application/json"}
+           return make_response(jsonify(result), 200, headers)
 
 @app.route('/howru/monitoring/howareyou', methods=['GET'])
 def api_howareyou():
@@ -875,6 +876,32 @@ def api_show_metrics():
     #return jsonify(return_list)
     # return_list should be reversed
     return render_template("show_metrics.html", b_lines=return_list)
+
+@app.route('/howru/status', methods=['GET'])
+def api_show_status():
+    # only in json mode -> show server status
+    return "Not implemented"
+
+@app.route('/metrics', methods=['GET'])
+def api_prometheus_export():
+    global metrics_dir, full_metrics_file_name
+    file_name = metrics_dir + '/' + full_metrics_file_name
+    if os.path.isfile(file_name):
+        with open(file_name) as f:
+            return_list = f.readlines()
+            f.close()
+        response = app.response_class(response=return_list, status=200, mimetype='application/txt')
+        return response
+    # only in prometheus mode -> return metrics file
+    return redirect(url_for('api_show_metric_lists'))
+
+@app.route('/get-file/<path:path>', methods=['GET'])
+def get_files(path):
+    DOWNLOAD_DIRECTORY = "/opt/howru/data"
+    try:
+        return send_from_directory(DOWNLOAD_DIRECTORY, path, as_attachment=True)
+    except FileNotFoundError:
+        abort(404)
 
 if __name__ == '__main__':
     use_port = load_conf()
