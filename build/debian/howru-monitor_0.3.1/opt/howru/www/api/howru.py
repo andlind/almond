@@ -858,7 +858,7 @@ def api_show_metrics():
     global metrics_dir, full_metrics_file_name
     metric_selection = ''
     file_name = ''
-    return_list = ''
+    return_list = []
     if 'metric' in request.args:
         metric_selection = request.args['metric']
         if metric_selection == '-1':
@@ -869,12 +869,13 @@ def api_show_metrics():
                 file_name = metrics_dir + '/' + full_metrics_file_name
             with open(file_name) as f:
                 return_list = f.readlines()
+                if not metric_selection == 'Current metrics':
+                    return_list.reverse()
                 f.close()
     else:
         #Error: no metric selection
         return redirect(url_for('api_show_metric_lists'))
     #return jsonify(return_list)
-    # return_list should be reversed
     return render_template("show_metrics.html", b_lines=return_list)
 
 @app.route('/howru/status', methods=['GET'])
