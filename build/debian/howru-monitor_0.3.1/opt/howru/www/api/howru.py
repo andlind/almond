@@ -4,6 +4,7 @@ from flask import request, jsonify, render_template, redirect, url_for, send_fro
 import os, os.path
 import glob
 import random
+import socket
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -245,7 +246,7 @@ def api_json():
            return make_response(jsonify(result), 200, headers)
 
 @app.route('/howru/monitoring/howareyou', methods=['GET'])
-def api_howareyou():
+def api_howareyou(response=True):
     global data, multi_server, file_found
     set_file_name()
     load_data()
@@ -304,7 +305,10 @@ def api_howareyou():
                     }
                     ]
 
-                    return jsonify(result)
+                    if (response):
+                        return jsonify(result)
+                    else:
+                        return result
             
         if (len(file_name) > 2):
             if (file_found == 0):
@@ -426,8 +430,10 @@ def api_howareyou():
                 }  
             }
         ]
-
-    return jsonify(results)
+        if (response):
+            return jsonify(results)
+        else:
+            return results
 
 @app.route('/howru/monitoring/ok', methods=['GET'])
 def api_show_oks():
@@ -878,10 +884,34 @@ def api_show_metrics():
     #return jsonify(return_list)
     return render_template("show_metrics.html", b_lines=return_list)
 
-@app.route('/howru/status', methods=['GET'])
+@app.route('/howru/monitoring/status', methods=['GET'])
 def api_show_status():
-    # only in json mode -> show server status
-    return "Not implemented"
+    # Add multi_server
+    # Add detailed_status with outputs
+    global multi_server
+    this_data = api_howareyou(False)
+    full_filename = '/static/howru.png'
+    image_icon = '/static/green.png'
+    if (multi_server):
+        print ("Not yet enabled in multiserver mode.")
+        return "Not enabled"
+    else:
+        #hostname = os.uname()[1]
+        hostname = socket.getfqdn()
+        ret_code = this_data[0]['return_code']
+        if (ret_code == 2):
+            image_icon = '/static/red.png'
+        elif (ret_code == 1):
+            image_icon = '/static/yellow.png'
+        else:
+            image_icon = '/static/green.png'
+        mon_res = this_data[0]['monitor_results']
+        num_of_ok = mon_res['ok']
+        num_of_warnings = mon_res['warn']
+        num_of_criticals = mon_res['crit']
+        num_of_unknown = mon_res['unknown']
+        # only in json mode -> show server status
+    return render_template("status.html", user_image = full_filename, server = hostname, icon = image_icon, oks = num_of_ok, warnings = num_of_warnings, criticals = num_of_criticals, unknown = num_of_unknown)
 
 @app.route('/metrics', methods=['GET'])
 def api_prometheus_export():
