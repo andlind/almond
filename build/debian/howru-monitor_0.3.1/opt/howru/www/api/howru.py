@@ -1,9 +1,10 @@
 import json
 import flask 
-from flask import request, jsonify, render_template, redirect, url_for
+from flask import request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
 import os, os.path
 import glob
 import random
+import socket
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -241,10 +242,11 @@ def api_json():
                             }
                         }
                     ]
-           return jsonify(result)
+           headers = {"Content-Type": "application/json"}
+           return make_response(jsonify(result), 200, headers)
 
 @app.route('/howru/monitoring/howareyou', methods=['GET'])
-def api_howareyou():
+def api_howareyou(response=True):
     global data, multi_server, file_found
     set_file_name()
     load_data()
@@ -303,7 +305,10 @@ def api_howareyou():
                     }
                     ]
 
-                    return jsonify(result)
+                    if (response):
+                        return jsonify(result)
+                    else:
+                        return result
             
         if (len(file_name) > 2):
             if (file_found == 0):
@@ -425,8 +430,10 @@ def api_howareyou():
                 }  
             }
         ]
-
-    return jsonify(results)
+    if (response):
+        return jsonify(results)
+    else:
+        return results
 
 @app.route('/howru/monitoring/ok', methods=['GET'])
 def api_show_oks():
@@ -857,7 +864,7 @@ def api_show_metrics():
     global metrics_dir, full_metrics_file_name
     metric_selection = ''
     file_name = ''
-    return_list = ''
+    return_list = []
     if 'metric' in request.args:
         metric_selection = request.args['metric']
         if metric_selection == '-1':
@@ -868,13 +875,69 @@ def api_show_metrics():
                 file_name = metrics_dir + '/' + full_metrics_file_name
             with open(file_name) as f:
                 return_list = f.readlines()
+                if not metric_selection == 'Current metrics':
+                    return_list.reverse()
                 f.close()
     else:
         #Error: no metric selection
         return redirect(url_for('api_show_metric_lists'))
     #return jsonify(return_list)
-    # return_list should be reversed
     return render_template("show_metrics.html", b_lines=return_list)
+
+@app.route('/howru/monitoring/status', methods=['GET'])
+def api_show_status():
+    # Add multi_server
+    # Add detailed_status with outputs
+    global multi_server
+    this_data = api_howareyou(False)
+    full_filename = '/static/howru.png'
+    image_icon = '/static/green.png'
+
+    if (multi_server):
+        servers = [] 
+        icons = ['/static/green.png', '/static/yellow.png', '/static/red.png']
+        server_data = this_data['server']
+        for server in server_data:
+            servers.append(server[0])
+        return render_template("status_mm.html", user_image = full_filename, servers = servers, icons = icons)
+    else:
+        #hostname = os.uname()[1]
+        hostname = socket.getfqdn()
+        ret_code = this_data[0]['return_code']
+        if (ret_code == 2):
+            image_icon = '/static/red.png'
+        elif (ret_code == 1):
+            image_icon = '/static/yellow.png'
+        else:
+            image_icon = '/static/green.png'
+        mon_res = this_data[0]['monitor_results']
+        num_of_ok = mon_res['ok']
+        num_of_warnings = mon_res['warn']
+        num_of_criticals = mon_res['crit']
+        num_of_unknown = mon_res['unknown']
+        # only in json mode -> show server status
+    return render_template("status.html", user_image = full_filename, server = hostname, icon = image_icon, oks = num_of_ok, warnings = num_of_warnings, criticals = num_of_criticals, unknown = num_of_unknown)
+
+@app.route('/metrics', methods=['GET'])
+def api_prometheus_export():
+    global metrics_dir, full_metrics_file_name
+    file_name = metrics_dir + '/' + full_metrics_file_name
+    if os.path.isfile(file_name):
+        with open(file_name) as f:
+            return_list = f.readlines()
+            f.close()
+        response = app.response_class(response=return_list, status=200, mimetype='application/txt')
+        return response
+    # only in prometheus mode -> return metrics file
+    return redirect(url_for('api_show_metric_lists'))
+
+@app.route('/get-file/<path:path>', methods=['GET'])
+def get_files(path):
+    DOWNLOAD_DIRECTORY = "/opt/howru/data"
+    try:
+        return send_from_directory(DOWNLOAD_DIRECTORY, path, as_attachment=True)
+    except FileNotFoundError:
+        abort(404)
 
 if __name__ == '__main__':
     use_port = load_conf()
