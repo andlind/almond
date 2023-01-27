@@ -19,6 +19,7 @@
 #define METRICS_OUTPUT 1
 #define JSON_AND_METRICS_OUTPUT 2
 #define PROMETHEUS_OUTPUT 3
+#define JSON_AND_PROMETHEUS_OUTPUT 4
 
 struct PluginItem {
         char name[50];
@@ -231,23 +232,33 @@ void closejsonfile() {
 
 void sig_handler(int signal){
 	//TODO: Threads to join before exit? Or just a grace sleep...
+	//      closemetricsfile...
     	switch (signal) {
         	case SIGINT:
 			writeLog("Caught SIGINT, exiting program.", 0);
 			closejsonfile();
 			fclose(fptr);
+			free(declarations);
+			free(outputs);
+			printf("Exiting application...");
             		exit(0);
 		case SIGKILL:
 			writeLog("Caught SIGKILL, exiting progam.", 0);
 			closejsonfile();
 			fclose(fptr);
+			free(declarations);
+			free(outputs);
+			printf("Exiting application...");
 			exit(0);
 		case SIGTERM:
 			printf("Caught signal to quit program.\n");
 			closejsonfile();
                         writeLog("Caught signal to terminate program.", 0);
+			free(declarations);
+			free(outputs);
 			writeLog("HowRU says goodbye.", 0);
                         fclose(fptr);
+			printf("Application is stopped.");
                         exit(0);
     	}
 //	stop = 1;
@@ -360,6 +371,11 @@ int getConfigurationValues() {
 		      writeLog("Export to prometheus style metrics.\n", 0);
 		      output_type = PROMETHEUS_OUTPUT;
 	      }
+	      else if (strcmp(trim(confValue), "jsonprometheus") == 0) {
+                      printf("Export to both json and Prometheus style metrics.\n");
+                      writeLog("Exporting to both json and prometheus style metrics.\n", 0);
+                      output_type = JSON_AND_PROMETHEUS_OUTPUT;
+              }
 	      else {
 		      printf("%s is not a valid value.  supported at this moment.\n", confValue);
 		      writeLog("Unsupported value in configuration scheduler.format.", 1);
@@ -1148,6 +1164,11 @@ void initScheduler(int numOfP, int msSleep) {
 		       break;
 		case PROMETHEUS_OUTPUT:
 		       collectMetrics(numOfP, 1);
+		       break;
+		case JSON_AND_PROMETHEUS_OUTPUT:
+		       collectJsonData(numOfP);
+		       collectMetrics(numOfP, 1);
+		       break;
 	        default:
 			collectJsonData(numOfP);
 	}		
@@ -1217,6 +1238,11 @@ void scheduleChecks(int numOfT){
                        		break;
 			case PROMETHEUS_OUTPUT:
 				collectMetrics(numOfT, 1);
+				break;
+			case JSON_AND_PROMETHEUS_OUTPUT:
+				collectJsonData(numOfT);
+                                collectMetrics(numOfT, 1);
+				break;
                 	default:
                         	collectJsonData(numOfT);
         	}
