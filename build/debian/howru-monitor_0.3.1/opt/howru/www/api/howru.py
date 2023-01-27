@@ -430,10 +430,10 @@ def api_howareyou(response=True):
                 }  
             }
         ]
-        if (response):
-            return jsonify(results)
-        else:
-            return results
+    if (response):
+        return jsonify(results)
+    else:
+        return results
 
 @app.route('/howru/monitoring/ok', methods=['GET'])
 def api_show_oks():
@@ -892,9 +892,14 @@ def api_show_status():
     this_data = api_howareyou(False)
     full_filename = '/static/howru.png'
     image_icon = '/static/green.png'
+
     if (multi_server):
-        print ("Not yet enabled in multiserver mode.")
-        return "Not enabled"
+        servers = [] 
+        icons = ['/static/green.png', '/static/yellow.png', '/static/red.png']
+        server_data = this_data['server']
+        for server in server_data:
+            servers.append(server[0])
+        return render_template("status_mm.html", user_image = full_filename, servers = servers, icons = icons)
     else:
         #hostname = os.uname()[1]
         hostname = socket.getfqdn()
