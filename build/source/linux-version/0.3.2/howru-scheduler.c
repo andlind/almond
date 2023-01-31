@@ -54,6 +54,7 @@ char hostName[255] = "None";
 char templateName[50] = "metrics.template";
 char jsonFileName[50] = "monitor_data_c.json";
 char metricsFileName[50] = "monitor.metrics";
+char gardenerScript[75] = "/opt/howru/gardener.py";
 struct PluginItem *declarations;
 struct PluginOutput *outputs;
 int initSleep;
@@ -70,6 +71,8 @@ int pluginResultToFile = 0;
 int decCount = 0;
 int saveOnExit = 0;
 int dockerLog = 0;
+int enableGardener = 0;
+unsigned int gardenerInterval = 43200;
 unsigned char output_type = 0;
 time_t tLastUpdate, tnextUpdate;
 
@@ -129,7 +132,6 @@ char *replaceWord(char *sentence, char *find, char *replace) {
     return dest;
 }
 			
-
 void writeLog(const char *message, int level) {
         char timeStamp[20];
         char wmes[300] = "";
@@ -560,6 +562,34 @@ int getConfigurationValues() {
 			   return 1;
 		   }
 	   }
+	   if (strcmp(confName, "scheduler.enableGardener") == 0) {
+		   if (atoi(confValue) == 0) {
+                           writeLog("Metrics gardener is not enabled.", 0);
+                   }
+                   else {
+                           writeLog("Metrics gardeber is enabled.", 0);
+                           enableGardener = 1;
+                   }
+           }
+	   if (strcmp(confName, "scheduler.gardenerScript") == 0) {
+		   if (access(trim(confValue), F_OK) == 0){
+                   	strncpy(gardenerScript, trim(confValue), strlen(confValue));
+                   }
+		   else {
+                   	enableGardener = 0;
+			writeLog("Gardener script file could not be found", 1);
+			writeLog("Metrics gardener is disabled.", 2);
+		   }
+	   }
+	   if (strcmp(confName, "scheduler.gardenerRunInterval") == 0) {
+		   char mes[40];
+                   int i = strtol(trim(confValue), NULL, 0);
+                   if (i < 60)
+                           i = 43200;
+                   snprintf(mes, 40, "Gardener run interval is %d seconds.", i);
+                   writeLog(trim(mes), 0);
+                   gardenerInterval = i;
+           }
 	   if (strcmp(confName, "data.jsonFile") == 0) {
 		   char info[100];
 		   strncpy(jsonFileName, trim(confValue), strlen(confValue));
