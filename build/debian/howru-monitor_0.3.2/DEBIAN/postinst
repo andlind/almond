@@ -6,6 +6,7 @@
 /bin/chown root:root /lib/systemd/system/howru-scheduler.service
 /bin/chmod 655 /lib/systemd/system/howru-api.service
 /bin/chmod 655 /lib/systemd/system/howru-scheduler.service
+/bin/chmod 755 /opt/howru/gardener.py
 
 # Enable service
 systemctl daemon-reload

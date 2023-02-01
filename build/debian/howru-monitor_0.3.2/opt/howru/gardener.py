@@ -4,7 +4,6 @@ import os
 from os import walk
 from datetime import datetime
 
-store_result=0
 data_dir="/opt/howru/data/metrics"
 metrics_file="monitor.metrics"
 enabled=0
@@ -15,9 +14,6 @@ def load_conf():
     conf = open("/etc/howru/howruc.conf", "r")
     for line in conf:
         if (line.find('scheduler') == 0):
-            if (line.find('storeResult') > 0):
-                pos = line.find('=')
-                store_result = line[pos+1:].rstrip()
             if (line.find('storeDir') > 0):
                 pos = line.find('=')
                 data_dir = line[pos+1:].rstrip()
@@ -39,10 +35,6 @@ def load_conf():
 
     conf.close()
 
-def get_store_result():
-    global store_result
-    return store_result
-
 def get_data_dir():
     global data_dir
     return data_dir
@@ -62,11 +54,9 @@ def get_metrics_file():
 def truncate_metrics_file(datadir, metricsfile, clean_uptime):
     # Truncate file
     current_dir = os.getcwd()
-    #print (cleanup_time)
     os.chdir(datadir)
     now = datetime.now()
     date_time = now.strftime("%a %b %d %H:%M:%S %Y")
-    #print (date_time)
     truncid = -1
     line_count = 0
     with open(metricsfile, 'r+') as f:
@@ -75,7 +65,6 @@ def truncate_metrics_file(datadir, metricsfile, clean_uptime):
             line_count = line_count +1
             pos = line.find(',')
             date_strip = line[:pos]
-            #print(date_strip)
             try:
                 datetime_obj = datetime.strptime(date_strip, "%a %b %d %H:%M:%S %Y")
             except ValueError:
@@ -101,15 +90,8 @@ def truncate_metrics_file(datadir, metricsfile, clean_uptime):
     
 if __name__ == '__main__':
     load_conf()
-    print (get_store_result())
-    print (get_data_dir())
-    print (get_enabled())
-    print (get_cleanup_time())
-    print (get_metrics_file())
     
     filenames = next(walk(get_data_dir()), (None, None, []))[2]
-
-    print (filenames)
 
     for f in filenames:
         if (f == get_metrics_file()):
