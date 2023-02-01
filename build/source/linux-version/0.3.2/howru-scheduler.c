@@ -75,10 +75,9 @@ int enableGardener = 0;
 unsigned int gardenerInterval = 43200;
 unsigned char output_type = 0;
 time_t tLastUpdate, tnextUpdate;
+time_t tnextGardener;
 
 FILE *fptr;
-//pthread_t thread_id;
-//volatile sig_atomic_t stop;
 
 char *trim(char *s) {
     char *ptr;
@@ -102,14 +101,7 @@ void removeChar(char *str, char garbage) {
 
 char *replaceWord(char *sentence, char *find, char *replace) {
 	char *dest = malloc(strlen(sentence)-strlen(find)+strlen(replace)+1);
-	//*char *ptr;
 	strcpy(dest,sentence);
-	/*ptr = strstr(dest,find);
-	if (ptr) {
-		memmove(ptr+strlen(replace), ptr+strlen(find), strlen(ptr+strlen(find))+1);
-		strncpy(ptr, replace, strlen(replace));
-	}
-	return dest;*/
 	char buffer[1024] = { 0 };
 	char *insert_point = &buffer[0];
 	const char *tmp = dest;
@@ -187,7 +179,6 @@ void flushLog() {
         strcat(logFile, "howruc.log");
 	fclose(fptr);
 	sleep(0.10);
-	//fptr = fopen("/var/log/howru/howruc.log", "a");
 	fptr = fopen(logFile, "a");
 
 }
@@ -625,7 +616,6 @@ int getConfigurationValues() {
 void collectJsonData(int decLen){
 	int retVal = 0;
 	char ch = '/';
-	//char jsonFile[18] = "monitor_datc.json";
 	char fileName[100];
 	char* pluginName;
 	FILE *fp;
@@ -778,15 +768,6 @@ void collectMetrics(int decLen, int style) {
 					char* metricsName;
 					char* metricsValue;
 					metricsToken = malloc(strlen(token)+1);
-					//printf("DEBUG [token] =  %sn\n", token);
-					/*size_t len = strlen(metricsToken);
-                                        size_t spn = strcspn(metricsToken, "'");
-					if (len == spn) {
-						printf("DEBUG: Lenghts are equal.\n");
-					}
-					else {
-                                                printf("DEBUG: Lengts are not equal.\n");
-                                        }*/
 					int do_cut = 0;
 					const char *haystring = ";";
 					char *c = token;
@@ -796,10 +777,8 @@ void collectMetrics(int decLen, int style) {
 						}
 						c++;
 					}
-					//printf("DEBUG [do_cut] = %d\n", do_cut);
 					char *e = strchr(token, ';');
                                         int index = (int)(e - token);
-                                        //printf("DEBUG [index] = %d\n", index);
 					if (do_cut > 0) {
 						strcpy(metricsToken, token);
 						metricsToken[index] = '\0';
@@ -807,20 +786,17 @@ void collectMetrics(int decLen, int style) {
 					else {
 						strcpy(metricsToken, token);
 					}
-				        //printf("DEBUG [metricsToken] =  %s\n", metricsToken);	
 					char *f = strchr(metricsToken, '=');
 					index = (int)(f - metricsToken);
 					metricsName = malloc(strlen(metricsToken)+1);
                                         strcpy(metricsName, metricsToken);
 					metricsValue = malloc(strlen(metricsName-index)+1);
 					strcpy(metricsValue, metricsName + index +1);
-					//printf("DEBUG [Metrics value] = %s\n", metricsValue);
 					metricsName[index] = '\0';
 					char *pm;
 					for (pm = metricsName; *pm != '\0'; ++pm) 
 			                        *pm = tolower(*pm);
 					removeChar(metricsName, '/');
-					//printf("DEBUG [Metrics name] = %s\n", metricsName);
 					fprintf(mf, "howru_%s_%s{hostname=\"%s\", service=\"%s\", key=\"%s\"} %s\n", pluginName, metricsName, hostName, serviceName, metricsName, metricsValue);
 					free(metricsValue);
 					free(metricsName);
@@ -946,11 +922,39 @@ void runPlugin(int storeIndex)
 	}
 }
 
+void runGardener() {
+	FILE *fp;
+	char retString[1035];
+	char info[255];
+	int rc = 0;
+
+	fp = popen(gardenerScript, "r");
+        if (fp == NULL) {
+                printf("Failed to run gardener script\n");
+                writeLog("Failed to run gardener script.", 2);
+        }
+        while (fgets(retString, sizeof(retString), fp) != NULL) {
+                // VERBOSE  printf("%s", retString);
+        }
+        rc = pclose(fp);
+	snprintf(info, 225, "Gardener script executed with return code %i.", rc);
+        if (rc > 1) {
+		writeLog(trim(info), 2);
+	}
+	else writeLog(trim(info), rc);
+}
+
 void* pluginExeThread(void* data) {
 	long storeIndex = (long)data;
 	pthread_detach(pthread_self());
 	// VERBOSE printf("Executing %s in pthread %lu\n", declarations[storeIndex].description, pthread_self());
 	runPlugin(storeIndex);
+	pthread_exit(NULL);
+}
+
+void* gardenerExeThread(void* data) {
+	pthread_detach(pthread_self());
+	runGardener();
 	pthread_exit(NULL);
 }
 
@@ -1188,20 +1192,20 @@ void initScheduler(int numOfP, int msSleep) {
 			collectMetrics(numOfP, 0);
 			break;
 		case JSON_AND_METRICS_OUTPUT:
-		       //collectBoth
-		       collectJsonData(numOfP);
-		       collectMetrics(numOfP, 0);
-		       break;
+		       	collectJsonData(numOfP);
+		       	collectMetrics(numOfP, 0);
+		       	break;
 		case PROMETHEUS_OUTPUT:
-		       collectMetrics(numOfP, 1);
-		       break;
+		       	collectMetrics(numOfP, 1);
+		       	break;
 		case JSON_AND_PROMETHEUS_OUTPUT:
-		       collectJsonData(numOfP);
-		       collectMetrics(numOfP, 1);
-		       break;
+		      	collectJsonData(numOfP);
+		     	collectMetrics(numOfP, 1);
+			break;
 	        default:
 			collectJsonData(numOfP);
-	}		
+	}	
+        tnextGardener = time(0) + gardenerInterval;	
 }
 
 void runPluginThreads(int loopVal){
@@ -1240,6 +1244,23 @@ void runPluginThreads(int loopVal){
         //pthread_exit(NULL);
 }
 
+void executeGardener() {
+	pthread_t thread_id;
+	int rc;
+	char logInfo[200];
+
+	rc = pthread_create(&thread_id, NULL, gardenerExeThread, "gardener 1");
+	if(rc) {
+		snprintf(logInfo, 200, "Error: return code from phtread_create is %d\n", rc);
+               	writeLog(trim(logInfo), 2);
+        }
+        else {
+        	snprintf(logInfo, 200, "Created new thread (%lu) truncating metrics logs (gardener) \n", thread_id);
+        	writeLog(trim(logInfo), 0);
+       }
+
+}
+
 void scheduleChecks(int numOfT){
 	char logInfo[100];
 	float sleepTime = schedulerSleep/1000;
@@ -1254,7 +1275,6 @@ void scheduleChecks(int numOfT){
 		snprintf(logInfo, 100, "Sleeping for  %.3f seconds.\n", sleepTime);
 		writeLog(trim(logInfo), 0);
 		sleep(sleepTime);
-		//collectJsonData(numOfT);
 		switch (output_type) {
                 	case JSON_OUTPUT:
                         	collectJsonData(numOfT);
@@ -1278,6 +1298,17 @@ void scheduleChecks(int numOfT){
         	}
 		// Set this to timestamp
 		updatePluginDeclarations();
+		// Time to execute gardener?
+		if (enableGardener != 0) {
+			time_t seconds = time(0);
+			if (seconds > tnextGardener) {
+				sleep(10);
+				executeGardener();
+				tnextGardener = seconds + gardenerInterval;
+				sleep(10);
+			}
+
+		}
 		flushLog();
 	}
 }
