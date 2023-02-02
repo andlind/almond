@@ -8,50 +8,59 @@
         <p align="center" style="font-family: Vedana; font-size: 14px; font-weight: bold">HowRU is running on this server</p>
         <hr size="1">
 	<h1 align="center"> {{ server }} </h1>
-        <table style="margin-left:auto;margin-right:auto;border:1px solid #ffffff; text-align:center" width="75%">
-        <caption style="font-family: Verdana; font-size: 14px; text-decoration:underline">Summary</caption>
-         <tr style="text-align:center">
+	<table width="40%" align="center">
+	<tr> 
 		<td>
-               		<p style="font-family: Verdana; font-size: 14px;font-weight:bold">Status</p>
+               		<p style="font-family: Verdana; font-size:24px; font-weight:bold">Status</p>
 		</td>
 		<td>
 			<img src="{{ icon }}" alt="Icon Image">		
                 </td>
 	</tr>
         </table>
-        <table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center" width="75%">
-        <tr style="text-align:center">
-                <td>    
-                        <p style="font-family: Verdana; font-size: 12px;font-weight:bold">OK</p>
-                </td>
+	<hr size="1">
+        <table style="border: 1px solid black; border-collapse: collapse; margin-left: auto; margin-right: auto; min-width: 400px; box-shadow: 0 0 20px rgba(0, 0, 0, 0.15)" width="60%" align="center">
+	<tr style="background: #000000; color:#ffffff">
+		<td colspan="2" style="font-family: sans-serif; font-size: 22px; text-decoration: underline; text-align: center">Summary
+		</td>			
+	</tr>
+        <tr>
+		<td style="padding-left: 20px">    
+                       	<p style="font-family: Verdana; font-size: 12px;font-weight:bold">OK</p>
+               	</td>
                 <td>    
 			{{ oks }} 
                 </td>
         </tr>
-        <tr style="text-align:center">
-                <td>
+        <tr>
+                <td style="padding-left: 20px">
                         <p style="font-family: Verdana; font-size: 12px;font-weight:bold">Warning</p>
                 </td>
                 <td>
                        {{ warnings }} 
                 </td>
         </tr>
-        <tr style="text-align:center">
-                <td>
+        <tr>
+                <td style="padding-left: 20px">
                         <p style="font-family: Verdana; font-size: 12px;font-weight:bold">Critical</p>
                 </td>
                 <td>
 			{{ criticals }}
                 </td>
         </tr>
-        <tr style="text-align:center">
-                <td>
+        <tr>
+                <td style="padding-left: 20px"> 
                         <p style="font-family: Verdana; font-size: 12px;font-weight:bold">Unknown</p>
                 </td>
                 <td>
 			{{ unknown }}
                 </td>
         </tr>
+	<tr>
+		<td colspan="2" style="text-align: right; padding-right: 20px">
+			<a href="howru/monitoring/details">Detailed list</a>
+		</td>
+	</tr>
         </table>
         <hr size="1">
         <p align="center"><a href="/howru/settings/plugins">Plugin settings</a></p>
