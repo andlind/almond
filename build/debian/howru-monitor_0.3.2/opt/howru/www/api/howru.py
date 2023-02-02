@@ -224,14 +224,17 @@ def search_plugin():
     else:
         return render_template("plugin_query.html", user_image = full_filename)
 
-@app.route('/howru/monitoring/json', methods=['GET'])
-def api_json():
+@app.route('/howru/api/json', methods=['GET'])
+def api_json(response = True):
    global data
    server_found = 0
    set_file_name()
    load_data()
    if not ('server' in request.args): 
-       return jsonify(data)
+       if (response):
+           return jsonify(data)
+       else:
+           return data
    else:
        servername = request.args['server']
        for serv in data['server']:
@@ -241,7 +244,10 @@ def api_json():
                result = serv
                server_found = 1
        if (server_found == 1):
-           return jsonify(result)
+           if (response):
+               return jsonify(result)
+           else:
+               return result
        else:
            result = [
                     { 'returnCode' :'3',
@@ -253,7 +259,15 @@ def api_json():
            headers = {"Content-Type": "application/json"}
            return make_response(jsonify(result), 200, headers)
 
-@app.route('/howru/monitoring/howareyou', methods=['GET'])
+@app.route('/howru/monitoring/json', methods=['GET'])
+def api_old_json():
+    if not ('server' in request.args):
+        return redirect(url_for('api_json'))
+    else:
+        servername = request.args['server']
+        return redirect(url_for('api_json', server=servername))
+
+@app.route('/howru/api/howareyou', methods=['GET'])
 def api_howareyou(response=True):
     global data, multi_server, file_found
     set_file_name()
@@ -443,7 +457,15 @@ def api_howareyou(response=True):
     else:
         return results
 
-@app.route('/howru/monitoring/ok', methods=['GET'])
+@app.route('/howru/monitoring/howareyou', methods=['GET'])
+def api_old_howareyou():
+    if ('server' in request.args):
+        servername = request.args['server']
+        return_redirect(url_for('api_howareyou', server=servername))
+    else:
+        return redirect(url_for('api_howareyou'))
+
+@app.route('/howru/api/ok', methods=['GET'])
 def api_show_oks():
     global data, multi_server
     set_file_name()
@@ -504,7 +526,15 @@ def api_show_oks():
 
     return jsonify(results)
 
-@app.route('/howru/monitoring/warnings', methods=['GET'])
+@app.route('/howru/monitoring/ok', methods=['GET'])
+def api_old_ok():
+    if ('server' in request.args):
+        servername = request.args['server']
+        return redirect(url_for('api_show_oks', server=servername))
+    else:
+        return redirect(url_for('api_show_oks'))
+
+@app.route('/howru/api/warnings', methods=['GET'])
 def api_show_warnings():
     global data, multi_server 
     set_file_name()
@@ -564,7 +594,15 @@ def api_show_warnings():
 
     return jsonify(results)
 
-@app.route('/howru/monitoring/criticals', methods=['GET'])
+@app.route('/howru/monitoring/warnings', methods=['GET'])
+def api_old_warnings():
+    if ('server' in request.args):
+        servername = request.args['server']
+        return redirect(url_for('api_show_warnings', server=servername))
+    else:
+        return redirect(url_for('api_show_warnings'))
+
+@app.route('/howru/api/criticals', methods=['GET'])
 def api_show_criticals():
     global data, multi_server
     set_file_name()
@@ -625,7 +663,15 @@ def api_show_criticals():
 
     return jsonify(results)
 
-@app.route('/howru/monitoring/changes', methods=['GET'])
+@app.route('/howru/monitoring/criticals', methods=['GET'])
+def api_old_criticals():
+    if ('server' in request.args):
+        servername = request.args['server']
+        return redirect(url_for('api_show_criticals', server=servername))
+    else:
+        return redirect(url_for('api_show_criticals'))
+
+@app.route('/howru/api/changes', methods=['GET'])
 def api_show_changes():
     global data, multi_server
     set_file_name()
@@ -657,7 +703,11 @@ def api_show_changes():
 
     return jsonify(results)
 
-@app.route('/howru/monitoring/plugin', methods=['GET'])
+@app.route('/howru/monitoring/changes', methods=['GET'])
+def api_old_changes():
+    return redirect(url_for('api_show_changes'))
+
+@app.route('/howru/api/plugin', methods=['GET'])
 def api_show_plugin():
     global data, multi_server
     set_file_name()
@@ -739,7 +789,27 @@ def api_show_plugin():
 
     return jsonify(results)
 
-@app.route('/howru/monitoring/servers', methods=['GET'])
+@app.route('/howru/monitoring/plugin', methods=['GET'])
+def api_old_plugin():
+    if ('server' in request.args):
+        servername = request.args['server']
+        if ('name' in request.args):
+            plugin_name = request.args['name']
+            return redirect(url_for('api_show_plugin', server=servername, name=plugin_name))
+        if ('id' in request.args):
+            this_id = request.args['id']
+            return redirect(url_for('api_show_plugin', server=servername, id=this_id))
+        return redirect(url_for('api_show_plugin', server=servername))
+    if ('name' in request.args):
+        name = request.args['name']
+        return redirect(url_for('api_show_plugin', name=name))
+    elif ('id' in request.args):
+        this_id = int(request.args['id'])
+        return redirect(url_for('api_show_plugin', id=this_id))
+    else:
+        return redirect(url_for('api_show_plugin'))
+
+@app.route('/howru/api/servers', methods=['GET'])
 def api_show_server():
     global data
     global server_list
@@ -801,6 +871,15 @@ def api_show_server():
         results.append(server_data)
     
     return jsonify(results)
+
+@app.route('/howru/monitoring/servers', methods=['GET'])
+def api_old_servers():
+    if ('id' in request.args):
+        return redirect(url_for('api_show_servers', id=request.args['id']))
+    elif ('host' in request.args):
+        return redirect(url_for('api_show_servers', host=request.args['host']))
+    else:
+        return redirect(url_for('api_show_servers'))
 
 @app.route('/howru/settings/plugins', methods=['GET'])
 def api_show_settings():
@@ -894,8 +973,6 @@ def api_show_metrics():
 
 @app.route('/howru/monitoring/status', methods=['GET'])
 def api_show_status():
-    # Add multi_server
-    # Add detailed_status with outputs
     global multi_server
     this_data = api_howareyou(False)
     full_filename = '/static/howru.png'
@@ -925,6 +1002,19 @@ def api_show_status():
         num_of_unknown = mon_res['unknown']
         # only in json mode -> show server status
     return render_template("status.html", user_image = full_filename, server = hostname, icon = image_icon, oks = num_of_ok, warnings = num_of_warnings, criticals = num_of_criticals, unknown = num_of_unknown)
+
+@app.route('/howru/monitoring/details', methods=['GET', 'POST'])
+def api_show_details():
+    global multu_server
+    this_data = api_json(False)
+    full_filename = '/static/howru.png'
+    
+    if (multi_server):
+        return "Hello"
+    else:
+        hostname = this_data['host']['name']
+        monitoring = this_data['monitoring']
+        return render_template("details.html", user_image=full_filename, server=hostname, monitoring=monitoring)
 
 @app.route('/metrics', methods=['GET'])
 def api_prometheus_export():
