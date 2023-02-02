@@ -1010,7 +1010,20 @@ def api_show_details():
     full_filename = '/static/howru.png'
     
     if (multi_server):
-        return "Hello"
+        monitoring = []
+        server = request.args['name']
+        monitoring_data = this_data['server']
+        for obj in monitoring_data:
+            print (obj['host']['name'])
+            if (obj['host']['name'] == server):
+                print ("Found server: " + server)
+                print (obj['monitoring'])
+                monitoring = obj['monitoring']
+                print ("Monitoring is of type:", type(monitoring))
+                break
+        if len(monitoring) == 0:
+            return "No monitoring data found for server: " + server
+        return render_template("details.html", user_image=full_filename, server=server, monitoring=monitoring)
     else:
         hostname = this_data['host']['name']
         monitoring = this_data['monitoring']
