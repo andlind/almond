@@ -40,7 +40,7 @@ def load_conf():
                 pos = line.find('=')
                 data_file = line[pos+1:].rstrip()
         if (line.find('api') == 0):
-            if (line.find('Data') > 0):
+            if (line.find('data') > 0):
                 pos = line.find('=')
                 data_dir = line[pos+1:]
             if (line.find('Port') > 0):
@@ -103,7 +103,7 @@ def getCertificates():
 
 def load_data():
     global data, data_dir, multi_server, enable_file, file_name, data_file, file_found
-    os.chdir(data_dir)
+    os.chdir(data_dir.strip())
     if (enable_file == True):
         if (len(file_name) > 5):
             if (os.path.exists(file_name)):
@@ -188,7 +188,7 @@ def home():
         return api_show_status()
     if (start_page == 'metrics'):
         return api_show_metrics()
-    os.chdir(data_dir)
+    os.chdir(data_dir.strip())
     if (multi_server):
         if (server_list_loaded == 0):
             set_file_name()

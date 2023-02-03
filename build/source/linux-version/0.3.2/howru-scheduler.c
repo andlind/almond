@@ -755,7 +755,7 @@ void collectMetrics(int decLen, int style) {
         		sublen++;
         		char metrics[sublen];
         		memcpy(metrics,&outputs[i].retString[position+1],sublen);
-        		printf("Metrics = %s\n", trim(metrics));
+        		//printf("Metrics = %s\n", trim(metrics));
 			if (style == 0)
 				fprintf(mf, "howru_%s{hostname=\"%s\", %s_result=\"%s\"} %d\n", pluginName, hostName, pluginName, trim(outputs[i].retString), outputs[i].retCode);
 			else {
