@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>Almond admin</title>
+    <style type="text/css">
+        body {font-family: Arial, Helvetica, sans-serif;}
+    
+	input[type=text], input[type=password] {
+        	width: 100%;
+            	padding: 12px 20px;
+            	margin: 8px 0;
+            	display: inline-block;
+            	border: 1px solid #ccc;
+            	box-sizing: border-box;
+	}
+        
+        button {
+		background-color: #491c0f;
+        	color: white;
+        	padding: 14px 20px;
+        	margin: 8px 0;
+        	border: none;
+        	cursor: pointer;
+             	width: 100%;
+        }
+
+        button:hover {
+             	opacity: 0.8;
+        }
+
+	.cancelbtn {
+		width: auto;
+		padding: 10px 18px;
+		background-color: #f44336;
+	}
+
+        .imgcontainer {
+        	text-align: center;
+       		margin: 24px 0 12px 0;
+       	 	position: relative;
+        }
+
+        img.avatar {
+        	width: 40%;
+        	border-radius: 50%;
+        }
+
+       	.container {
+       		padding: 16px;
+        }
+        
+	span.psw {
+        	float: right;
+        	padding-top: 16px;
+        }
+
+        .modal {
+        	display: none; /* Hidden by default */
+        	position: fixed; /* Stay in place */
+        	z-index: 1; /* Sit on top */
+        	left: 0;
+        	top: 0;
+        	width: 100%; /* Full width */
+        	height: 100%; /* Full height */
+        	overflow: auto; /* Enable scroll if needed */
+        	background-color: rgb(0,0,0); /* Fallback color */
+        	background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        	padding-top: 60px;
+        }
+
+        .modal-content {
+        	background-color: #fefefe;
+        	margin: 5% auto 15% auto; /* 5% from the top, 15% from the bottom and centered */
+        	border: 1px solid #888;
+        	width: 80%; /* Could be more or less, depending on screen size */
+        }
+
+        .close {
+        	position: absolute;
+        	right: 25px;
+        	top: 0;
+        	color: #000;
+        	font-size: 35px;
+        	font-weight: bold;
+        }
+        
+	.close:hover,
+        .close:focus {
+        	color: red;
+        	cursor: pointer;
+        }
+
+        .animate {
+        	-webkit-animation: animatezoom 0.6s;
+        	animation: animatezoom 0.6s
+        }
+
+        @-webkit-keyframes animatezoom {
+        	from {-webkit-transform: scale(0)}
+        	to {-webkit-transform: scale(1)}
+        }
+
+        @keyframes animatezoom {
+        	from {transform: scale(0)}
+        	to {transform: scale(1)}
+        }
+ 
+	@media screen and (max-width: 300px) {
+        	span.psw {
+        		display: block;
+        		float: none;
+        	}
+        	.cancelbtn {
+        		width: 100%;
+        	}
+        }
+    </style>
+</head>
+<body>
+<table style="border:none; margin-left:auto;margin-right:auto;">
+<tr>
+<td><a href="/almond/admin"><button style="width:auto;">Home</button></a></td>
+<td><a href="/almond/admin?page=status"><button style="width:auto;">Status</button></a></td>
+<td><a href="/almond/admin?page=plugins"><button style="width:auto;">Plugins</button></a></td>
+<td><a href="/almond/admin?page=almond"><button style="width:auto;">Almond</button></a></td>
+<td><a href="/almond/admin?page=howru"><button style="width:auto;">Howru</button></a></td>
+<td><a href="/almond/admin?page=docs"><button style="width:auto;">Documentation</button></a></td>
+<td><button onclick="document.getElementById('id01').style.display='block'" style="width:auto;">Credentials</button></td>
+</tr>
+</table>
+<p align="center"> {{ info }} </p>
+<div id="id01" class="modal">
+<form class="modal-content animate" action="/almond/admin" method="post">
+	<input type="hidden" name="action_type" value="change_credentials">
+	<div class="imgcontainer">
+	<span onclick="document.getElementById('id01').style.display='none'" class="close" title="Close Modal">&times;</span>
+	<img src="{{ avatar }}" alt="Avatar" class="avatar">
+	</div>
+	<div class="container">
+	<label for="uname"><b>username</b></label>
+	<input type="text" placeholder="{{ username }}" name="username"" required>
+	<label for="psw"><b>password</b></label>
+	<input type="password" placeholder="{{ passwd }}" name="password" required>
+	<button type="submit">Update</button>
+	</div>
+	<div class="container" style="background-color:#f1f1f1">
+	<button type="button" onclick="document.getElementById('id01').style.display='none'" class="cancelbtn">Cancel</button>
+	</div>
+</form>
+</div>
+<script>
+	// Get the modal
+	var modal = document.getElementById('id01');
+	// When the user clicks anywhere outside of the modal, close it
+	window.onclick = function(event) {
+		if (event.target == modal) {
+			modal.style.display = "none";
+		}
+	}
+</script>
+<p align="center"><img src="{{ user_image }}" alt="User Image"></p>
+<hr size="1">
+<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
+	<tr style="text-align:center">
+                <td>
+                        <p style="font-family: Verdana; color: #491c0f; font-size: 22px;font-weight:bold">Add monitoring object</p>
+                </td>
+       </tr>
+</table>
+<p>&nbsp;</p>
+<table style="margin-left:auto;margin-right:auto;border:none0; text-align:center; " width="90%">
+	<tr style="background-color:#491c0f;color:#ffffff;" >
+		<td>Service and description</td>
+		<td>Plugin</td>
+		<td>Arguments</td>
+		<td>&nbsp;</td>
+		<td>Interval</td>
+		<td>Active</td>
+	</tr>
+<form name="update_plugins" method="post" action="/almond/admin">
+<input type="hidden" name="action_type" value="addplugin">
+<input type="hidden" name="plugin_name" value="{{ plugin  }}">
+<input type="hidden" name="test_plugin" id="test_plugin" value="False">
+<tr>
+        <td>
+		<input type="text" size="30" name="description" value="[check_yourval] Your description">
+	</td>
+	<td>
+	{{ plugin }}
+	</td>
+	<td>
+		<input type="text" size="20" name="arguments">
+	</td>
+	<td>
+		<a href="/almond/admin?page=addplugin&test=true"><button onClick="document.getElementById('test_plugin').value='True'" style="width:auto;">Test plugin</button></a>
+	</td>
+	<td>
+		<input type="number" min="1" max="1440" value="1" size="4" name="intervall">
+	</td>
+	<td>
+		<input type="checkbox" name="active" checked>
+	</td>
+</tr>
+<tr style="text-align:center">
+	<td colspan="5" align="center">
+		<input type="submit" value="Add this monitoring object">
+		<input type="button" value="Go back" onClick="history.back()">
+</form>
+</td>
+</tr>
+</table>
+<hr size=1">
+<p align="center">Almond &copy Andreas Lindell <a href="maito: Andreas_li@hotmail.com">Andreas_li@hotmail.com</a></p>
+</body>
+</html>
