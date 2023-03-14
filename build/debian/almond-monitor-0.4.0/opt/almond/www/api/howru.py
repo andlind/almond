@@ -66,7 +66,7 @@ def load_conf():
                         multi_server = False
                 else:
                     multi_server = False
-            if (line.find('File') > 0):
+            if (line.find('enableFile') > 0):
                 pos = line.find('=')
                 bFile = line[pos+1]
                 if (isinstance(int(bFile), int)):
