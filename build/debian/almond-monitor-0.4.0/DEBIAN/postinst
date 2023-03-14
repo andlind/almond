@@ -4,7 +4,7 @@
 
 # Create almond user
 /usr/sbin/groupadd almond
-/usr/sbin/useradd -s /bin/false -g almond -d /opt/almond
+/usr/sbin/useradd -s /bin/false -g almond -d /opt/almond almond
 
 # Set file ownership
 /bin/chown -R almond:almond /opt/almond
@@ -19,6 +19,7 @@
 # Add almond to nagios group if exists
 if [ $(getent group admin) ]; then
 	/usr/sbin/usermod -a -G nagios almond
+fi
 
 # Enable service
 systemctl daemon-reload
