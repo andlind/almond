@@ -1,0 +1,39 @@
+{% include 'head.html' %}
+<p align="center"><img src="{{ logo_image }}" alt="Logo Image"></p>
+<hr size="1">
+<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
+<tr style="text-align:center">
+<td>
+<p style="font-family: Verdana; color: #491c0f; font-size: 22px;font-weight:bold">Available API:s</p>
+</td>
+</tr>
+</table>
+<table style="margin-left:auto;margin-right:auto;" border="0" width="75%">
+<tr>
+<td>How are you?</td><td><a href="/howru/api/howareyou">Link</a></td>
+</tr>
+<tr>
+<td>Criticals</td><td><a href="/howru/api/criticals">Link</a></td>
+</tr>
+<tr>
+<td>Warnings</td><td><a href="/howru/api/warnings">Link</a></td>
+</tr>
+<tr>
+<td>OKs</td><td><a href="/howru/api/ok">Link</a></td>
+</tr>
+<tr>
+<td>Changes</td><td><a href="/howru/api/changes">Link</a></td>
+</tr>
+<tr>
+<td>Plugin</td><td><a href="/pluginSearch">Link</a></td>   
+</tr>
+<tr>
+<td>Full json blob</td><td><a href="/howru/api/json">Link</a></td>
+</tr>
+</table>
+<p align="center">
+<script language="javascript">document.write('<a href="' + document.referrer + '">Go back</a>');
+</script>
+</p>
+<p>&nbsp;</p>
+{% include 'foot.html' %}
