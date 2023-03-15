@@ -454,6 +454,7 @@ def index():
     global api_conf_file
     global store_dir
     global metrics_file_name
+    global plugins_directory
     
     if not enable_gui:
         return render_template("403.html")
@@ -634,7 +635,7 @@ def index():
             else:
                 plugin_active = False
             if (test_this == 'True'):
-                plugin_cmd = "/usr/local/nagios/libexec/" + plugin
+                plugin_cmd = plugins_directory + '/' + plugin
                 plugin_args = arguments.strip()
                 runcmd = plugin_cmd + " " + plugin_args
                 try:
