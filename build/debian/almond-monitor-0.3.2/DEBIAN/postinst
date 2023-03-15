@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# Set file ownership
+/bin/chown -R root:root /opt/almond
+/bin/chown root:root /lib/systemd/system/howru-api.service
+/bin/chown root:root /lib/systemd/system/almond.service
+/bin/chmod 655 /lib/systemd/system/howru-api.service
+/bin/chmod 655 /lib/systemd/system/almond.service
+/bin/chmod 755 /opt/almond/gardener.py
+
+# Enable service
+systemctl daemon-reload
+systemctl enable almond
+systemctl start almond
+systemctl enable howru-api.service
+systemctl start howru-api.service
+
+exit 0

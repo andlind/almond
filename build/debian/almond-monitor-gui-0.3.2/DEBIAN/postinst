@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Set file ownership
+/bin/chown -R root:root /opt/almond/www/api
+
+# Enable service
+systemctl restart howru-api.service
+
+exit 0

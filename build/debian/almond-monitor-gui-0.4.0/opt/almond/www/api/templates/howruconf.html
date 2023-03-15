@@ -1,0 +1,45 @@
+{% include 'head.html' %}
+<p align="center"><img src="{{ user_image }}" alt="User Image"></p>
+<hr size="1">
+<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
+	<tr style="text-align:center">
+        <td>
+        <p style="font-family: Verdana; font-size: 22px; color: #491c0f; font-weight:bold">API configuration</p>
+        </td>
+        </tr>
+</table>
+<p align="center" style="font-family: Verdana; font-size: 14px; font-weight: bold"> {{ info }}</p>
+<form name="update_plugins" method="post" action="/almond/admin">
+	<input type="hidden" name="action_type" value="api">
+	<table class="styled-table" width="90%">
+        <thead>
+	</thead>
+	<tbody>
+		<tr><td align="center">
+               	<textarea rows=30 cols=70 style="align-content: left; overflow: auto" name="config">
+{%- for c in conf -%}
+{{ c }}
+{% endfor %}
+		</textarea>
+		</td>
+		</tr>
+	    	<tr>
+		<td colspan="2" align="center">
+			<input type="submit" value="Update">
+		</td>
+		</tr>
+	</tbody>
+        </table>
+</form>
+<form name="restart" method="post" action="/almond/admin">
+	<input type="hidden" name="action_type" value="restart_api">
+	<p align="center"><input type="submit" value="Restart HowRU API (this service)">
+	</p>
+</form>
+<hr size=1>
+<p align="center">
+<script language="javascript">document.write('<a href="' + document.referrer + '">Go back</a>');
+</script>
+</p>
+<p>&nbsp;</p>
+{% include 'foot.html' %}
