@@ -1041,7 +1041,8 @@ def api_show_status():
         server_data = this_data['server']
         for server in server_data:
             servers.append(server[0])
-        return render_template("status_mm.html", user_image = full_filename, servers = servers, icons = icons)
+        servers_sorted = sorted(servers, key=lambda n: n['name'])
+        return render_template("status_mm.html", user_image = full_filename, servers = servers_sorted, icons = icons)
     else:
         if not os.path.isfile(data_file):
             return "No data file"
