@@ -1,11 +1,13 @@
 import subprocess
 import json
 import shutil
+import re
 import os.path
 from os import walk
 from flask import Blueprint
 from flask_httpauth import HTTPBasicAuth
 from flask import render_template, session, request, make_response, redirect
+import matplotlib.pyplot as plt
 from werkzeug.security import check_password_hash, generate_password_hash
 
 admin_page = Blueprint('admin_page', __name__, template_folder='templates')
@@ -15,12 +17,13 @@ conf = []
 api_conf = []
 scheduler_conf = []
 extra_conf = []
+graph_names = {}
 api_available_conf = ['api.bindPort', 'api.enableFile',' data.jsonFile', 'data.metricsFile', 'api.enableFile', 'api.dataDir', 'api.useSSL', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.useGUI', 'api.adminUser', 'api.adminPassword', 'api.userFile', 'api.stateType', 'api.multiServer', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
 scheduler_available_conf = ['data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'plugins.directory', 'plugins.declaration', 'scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'gardener.CleanUpTime']
 
 users = {}
+current_version = '0.4.0'
 
-current_version = '0.4.1'
 enable_gui = True
 standalone = True
 jasonFile = '/opt/almond/data/monitor.json'
@@ -389,6 +392,78 @@ def compare_lists(list1, list2):
             return_list.append(element)
     return return_list
 
+def set_graph_names():
+    global plugins, graph_names
+
+    graph_names = {}
+    load_plugins()
+    for plugin in plugins:
+        this_name = ''
+        this_val = ''
+        try:
+           end_pos = plugin.index(']')
+        except ValueError:
+            end_pos = -1
+        if end_pos > 0:
+            this_val = plugin[1:end_pos].strip()
+            if not 'service_name' in this_val:
+                pos = plugin.find(';')
+                this_name = plugin[end_pos+1:pos].strip()
+                graph_names[this_name] = this_val
+
+def get_graph_data(name):
+    global graph_names
+
+    # enabled?
+    # where?
+    data_name = graph_names[name];
+    filename = '/opt/almond/data/metrics/' + data_name;
+    if os.path.isfile(filename):
+        graph_file = open(filename, 'r')
+        d_dates = []
+        d_lines = []
+        for line in graph_file:
+            l_data = line.split("|")
+            d_data = {}
+            if (len(l_data) > 1):
+                d_key = ''
+                d_value = ''
+                l_date = l_data[0].split(",")[0]
+                d_dates.append(l_date)
+                l_stats = l_data[1]
+                data_lines = l_stats.split("=")
+                if not data_lines[0].isnumeric():
+                    d_key = data_lines[0]
+                    d_val = data_lines[1].split(";")[0]
+                    d_float = re.findall(r'\d+\.\d+', d_val)
+                    try:
+                        d_data[d_key] = d_float[0]
+                    except IndexError:
+                        d_int = re.sub('[^0-9]','', d_val)
+                        if not d_int.isnumeric():
+                            d_int = "0"
+                        d_data[d_key] = d_int
+                    d_lines.append(d_data)
+            else:
+                # Does not have metrics
+                l_date = l_data[0].split(",")[0]
+                l_output = l_data[0].split(",")[2]
+                l_output = l_output.lower().strip()
+                if ('ok') in l_output:
+                    ret_val = 0
+                elif ('warning') in l_output:
+                    ret_val = 1
+                elif ('critical') in l_output:
+                    ret_val = 2
+                else:
+                    ret_val = -1
+                d_dates.append(l_date)
+                d_data['returnValue'] = ret_val
+                d_lines.append(d_data)
+    else:
+        print ("Not found")
+    return d_dates, d_lines 
+
 def restart_api():
     p = subprocess.Popen(['/opt/almond/www/api/rs.sh'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -487,7 +562,7 @@ def index():
             set_new_password(username.strip(), password.strip())
             howru_state = check_service_state("howru-api")
             almond_state = check_service_state("almond")
-            return render_template('admin.html', version=current_version, info = info, username=username, passwd=password, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
+            return render_template('admin.html', info = info, version=current_version, username=username, passwd=password, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
         if action_type == 'plugins':
             if 'delete_line' in request.form:
                 line_id = request.form['delete_line']
@@ -751,6 +826,7 @@ def index():
         #return render_template('conf.html', conf = scheduler_conf, user_image=image_file, avatar=almond_avatar, info=info)
     elif page == 'howru':
         load_api_conf()
+        print (api_conf_file)
         if standalone:
             info = ""
         else:
@@ -779,6 +855,7 @@ def index():
         available_conf = compare_lists(available_conf, add_names)
         return render_template('howruconf_a.html', item_names=item_names, item_values=item_values, add_names=add_names, add_values=add_values, conf = api_conf, aconf=available_conf, user_image=image_file, avatar=almond_avatar, info=info)
     elif page == 'status':
+        set_graph_names()
         this_data = load_status_data()
         image_name = '/static/almond_small.png'
         hostname = this_data['host']['name']
@@ -813,6 +890,50 @@ def index():
         else:
             info = ""
         return render_template('metrics_a.html', user_image=image_file, avatar=almond_avatar, metrics_list=metrics_list, info=info)
+    elif page == 'graph':
+        key_list = []
+        key_vals = []
+        graph_name = request.args.get("name")
+        plot_dates, plot_data = get_graph_data(graph_name)
+        x_axis =[10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        data = [22.35, 21.15, 35.42, 88.12, 27.95, 28.35, 42, 75.33, 93.12, 25.87]
+        for data in plot_data:
+            for key, value in data.items():
+                key_list.append(key)
+                key_vals.append(float(value))
+        #key_list = list(plot_data.keys())
+        #key_vals = list(plot_data.values())
+        #plt.plot(x_axis, data)
+        while (len(key_vals) > 40):
+            del key_vals[::2]
+            del plot_dates[::2]
+        print (plot_dates)
+        print (key_vals)
+        plt.plot(plot_dates, key_vals)
+        #plt.scatter(plot_dates, key_vals)
+        plt.title(graph_name)
+        #plt.ylim([min(key_vals), max(key_vals)])
+        #plt.xlim([min(plot_dates), max(plot_dates)])
+        #ax = plt.axes()
+        #ax.set_facecolor("#491c0f")
+        plt.xlabel('Timestamp')
+        plt.ylabel(key_list[0])
+        #fig = plt.figure()
+        #fig.autofmt_xdate(rotation=45)
+        plt.xticks(fontsize=6, rotation=90, ha='right')
+        #plt.gcf().autofmt_xdate()
+        #plt.draw()
+        graph_file_name = graph_name
+        graph_file_name.replace(" ", "")
+        graph_file_name.replace("/", "_")
+        print (graph_file_name)
+        save_name = 'static/charts/' + graph_file_name + '.png'
+        save_name = 'static/charts/graph.png'
+        print (save_name)
+        plt.savefig(save_name)
+        plt.clf()
+        save_name = '/' + save_name
+        return render_template("graph.html", user_image = image_file, name="Memory usage", url=save_name)
     elif page == 'logout':
         almond_img = '/static/almond.png'
         session.pop('login', None)

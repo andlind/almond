@@ -25,7 +25,7 @@
 		    </tr>
                 {% endif %}		
 		    <tr>
-			    <td> {{ obj['pluginName'] }} </td>
+			    <td><a href="/almond/admin?page=graph&name={{obj['pluginName']}}"> {{ obj['pluginName'] }} </a></td>
 			    <td> {{ obj['pluginStatus'] }}</td>
 			    <td> {{ obj['lastRun']  }} </td>
 			    <td> {{ obj['pluginOutput'] }} </td>
