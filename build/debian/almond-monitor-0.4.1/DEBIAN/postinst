@@ -1,4 +1,8 @@
 #!/bin/sh
+
+# Create log dir
+/usr/bin/mkdir -p /var/log/almond
+
 # Symlink plugins
 /usr/bin/ln -s /usr/lib/nagios/plugins/* /opt/almond/plugins
 
