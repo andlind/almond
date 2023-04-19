@@ -1,11 +1,13 @@
 import subprocess
 import json
 import shutil
+import re
 import os.path
 from os import walk
 from flask import Blueprint
 from flask_httpauth import HTTPBasicAuth
 from flask import render_template, session, request, make_response, redirect
+import matplotlib.pyplot as plt
 from werkzeug.security import check_password_hash, generate_password_hash
 
 admin_page = Blueprint('admin_page', __name__, template_folder='templates')
@@ -15,10 +17,12 @@ conf = []
 api_conf = []
 scheduler_conf = []
 extra_conf = []
+graph_names = {}
 api_available_conf = ['api.bindPort', 'api.enableFile',' data.jsonFile', 'data.metricsFile', 'api.enableFile', 'api.dataDir', 'api.useSSL', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.useGUI', 'api.adminUser', 'api.adminPassword', 'api.userFile', 'api.stateType', 'api.multiServer', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
 scheduler_available_conf = ['data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'plugins.directory', 'plugins.declaration', 'scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'gardener.CleanUpTime']
 
 users = {}
+current_version = '0.4.0'
 
 enable_gui = True
 standalone = True
@@ -96,7 +100,6 @@ def load_conf(isGlobal):
         if conf_count == 0:
             api_conf_file = "/etc/almond/almond.conf"
     conf.pop()
-    print (conf)
 
 def load_scheduler_conf():
     global conf
@@ -230,14 +233,10 @@ def read_conf():
 
     load_conf(False)
     for x in conf:
-        print (x)
         if (x.find('data') == 0):
-            print ("Find data")
             if (x.find('jsonFile') > 0):
-                print ("Find jsonFile")
                 pos = x.find('=')
                 json_file = x[pos+1:].rstrip()
-                print (json_file)
             if (x.find('metricsFile') > 0):
                 pos = x.find('=')
                 metrics_file_name = x[pos+1:].rstrip()
@@ -295,10 +294,7 @@ def read_conf():
                 pos = x.find('=')
                 delcaration_file = x[pos+1:].rstrip()
 
-    print ("data_dir")
-    print (data_dir)
     jasonFile = data_dir + '/' + json_file
-    print (jasonFile)
     if (len(admin_user) > 0) and (len(admin_password) > 4):
         set_new_password(admin_user, admin_password)
         delete_user_entries()
@@ -315,7 +311,6 @@ def list_available_plugins():
 
 def load_status_data():
     global jasonFile
-    print (jasonFile)
 
     if os.path.isfile(jasonFile):
         f = open(jasonFile, "r")
@@ -364,7 +359,6 @@ def add_plugin_object(description, plugin, arguments, interval, active):
         write_active = "1"
     # Check description
     write_str = description + ";" + plugin + " " + arguments + ";" + write_active + ";" + interval +  "\n"
-    print (write_str)
     f = open(declaration_file, "a")
     f.write(write_str)
     f.close()
@@ -397,6 +391,78 @@ def compare_lists(list1, list2):
         if element not in list2:
             return_list.append(element)
     return return_list
+
+def set_graph_names():
+    global plugins, graph_names
+
+    graph_names = {}
+    load_plugins()
+    for plugin in plugins:
+        this_name = ''
+        this_val = ''
+        try:
+           end_pos = plugin.index(']')
+        except ValueError:
+            end_pos = -1
+        if end_pos > 0:
+            this_val = plugin[1:end_pos].strip()
+            if not 'service_name' in this_val:
+                pos = plugin.find(';')
+                this_name = plugin[end_pos+1:pos].strip()
+                graph_names[this_name] = this_val
+
+def get_graph_data(name):
+    global graph_names
+
+    # enabled?
+    # where?
+    data_name = graph_names[name];
+    filename = '/opt/almond/data/metrics/' + data_name;
+    if os.path.isfile(filename):
+        graph_file = open(filename, 'r')
+        d_dates = []
+        d_lines = []
+        for line in graph_file:
+            l_data = line.split("|")
+            d_data = {}
+            if (len(l_data) > 1):
+                d_key = ''
+                d_value = ''
+                l_date = l_data[0].split(",")[0]
+                d_dates.append(l_date)
+                l_stats = l_data[1]
+                data_lines = l_stats.split("=")
+                if not data_lines[0].isnumeric():
+                    d_key = data_lines[0]
+                    d_val = data_lines[1].split(";")[0]
+                    d_float = re.findall(r'\d+\.\d+', d_val)
+                    try:
+                        d_data[d_key] = d_float[0]
+                    except IndexError:
+                        d_int = re.sub('[^0-9]','', d_val)
+                        if not d_int.isnumeric():
+                            d_int = "0"
+                        d_data[d_key] = d_int
+                    d_lines.append(d_data)
+            else:
+                # Does not have metrics
+                l_date = l_data[0].split(",")[0]
+                l_output = l_data[0].split(",")[2]
+                l_output = l_output.lower().strip()
+                if ('ok') in l_output:
+                    ret_val = 0
+                elif ('warning') in l_output:
+                    ret_val = 1
+                elif ('critical') in l_output:
+                    ret_val = 2
+                else:
+                    ret_val = -1
+                d_dates.append(l_date)
+                d_data['returnValue'] = ret_val
+                d_lines.append(d_data)
+    else:
+        print ("Not found")
+    return d_dates, d_lines 
 
 def restart_api():
     p = subprocess.Popen(['/opt/almond/www/api/rs.sh'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -454,6 +520,7 @@ def index():
     global api_conf_file
     global store_dir
     global metrics_file_name
+    global current_version
     global plugins_directory
     
     if not enable_gui:
@@ -495,7 +562,7 @@ def index():
             set_new_password(username.strip(), password.strip())
             howru_state = check_service_state("howru-api")
             almond_state = check_service_state("almond")
-            return render_template('admin.html', info = info, username=username, passwd=password, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
+            return render_template('admin.html', info = info, version=current_version, username=username, passwd=password, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
         if action_type == 'plugins':
             if 'delete_line' in request.form:
                 line_id = request.form['delete_line']
@@ -533,7 +600,6 @@ def index():
                 write_conf=rewrite_config(almond_conf_file, update_lines)
             else:
                 write_conf=scheduler_conf.copy()
-            print (write_conf)
             return render_template('conf.html', conf = write_conf, info="Config was rewritten", user_image=image_file, avatar=almond_avatar)
         if action_type == 'restart_almond':
             if state_type == "systemctl":
@@ -549,7 +615,7 @@ def index():
                 info = "Could not start Almond. Wrong config?"
             howru_state = check_service_state("howru-api")
             almond_state = check_service_state("almond")
-            return render_template('admin.html', info=info, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
+            return render_template('admin.html', version=current_version, info=info, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
         if action_type == 'restart_scheduler':
             if state_type == "systemctl":
                 return_code = subprocess.call(["/bin/systemctl", "restart", "almond.service"])
@@ -582,7 +648,6 @@ def index():
                         move_value = True
                     if not (val == 'false' or val == 'true'):
                         line = key + "=" + val
-                        print (line)
                         update_lines.append(line)
             if standalone:
                 info = "Config was rewritten"
@@ -600,7 +665,6 @@ def index():
                 write_conf = rewrite_config(api_conf_file, update_lines)
             else:
                 write_conf = api_conf.copy()
-            print (write_conf)
             return render_template('howruconf.html', conf=write_conf, user_image=image_file, avatar=almond_avatar, info=info)
         if action_type == "restart_api":
             #return "You need to run systemctl restart howru-api.service"
@@ -697,15 +761,12 @@ def index():
             metric_selection = ''
             file_name = ''
             return_list = []
-            print (request.form)
             if not enable_gui:
                 return render_template("403.html")
             metric_selection = request.form['metric']
-            print (metric_selection)
             if not metric_selection == '-1':
                 is_metrics = True
                 file_name = store_dir + '/' +  metric_selection
-                print (file_name)
                 if metric_selection == 'Current metrics':
                     file_name = store_dir + '/' + metrics_file_name
                 with open(file_name) as f:
@@ -723,7 +784,7 @@ def index():
             session['login'] = 'true'
             howru_state = check_service_state("howru-api")
             almond_state = check_service_state("almond")
-            return render_template('admin.html', logo_image=image_file, username=username, password=password, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
+            return render_template('admin.html', version=current_version, logo_image=image_file, username=username, password=password, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
         else:
             return render_template('login_a.html', logon_image=logon_img)
     else:
@@ -794,6 +855,7 @@ def index():
         available_conf = compare_lists(available_conf, add_names)
         return render_template('howruconf_a.html', item_names=item_names, item_values=item_values, add_names=add_names, add_values=add_values, conf = api_conf, aconf=available_conf, user_image=image_file, avatar=almond_avatar, info=info)
     elif page == 'status':
+        set_graph_names()
         this_data = load_status_data()
         image_name = '/static/almond_small.png'
         hostname = this_data['host']['name']
@@ -801,16 +863,24 @@ def index():
         info = ''
         if not standalone:
             info = "The API is running in multimode but status will only show info for single node"
-        return render_template('status_admin.html', user_image=image_file, server=hostname, monitoring=monitoring, avatar=almond_avatar, info=info)
+        return render_template('status_admin.html', version=current_version, user_image=image_file, server=hostname, monitoring=monitoring, avatar=almond_avatar, info=info)
     elif page == 'api':
-        return render_template('api.html', logo_image=image_file, avatar=almond_avatar)
+        load_plugins()
+        item_names = []
+        for x in plugins:
+            pos = x.find(';')
+            item = x[0:pos]
+            pos = item.find(' ');
+            item_name = item[pos+1:]
+            item_names.append(item_name.strip())
+        item_names.pop(0)
+        amount = len(item_names)
+        return render_template('api.html', logo_image=image_file, avatar=almond_avatar, amount=amount, plugins=item_names)
     elif page == 'docs':
         return render_template('documentation_a.html', user_image=image_file, avatar=almond_avatar) 
     elif page == 'metrics':
         metrics_list = []
         for f in os.listdir(store_dir):
-            print (f)
-            print (metrics_file_name)
             if (f == metrics_file_name):
                 f = "Current metrics"
             metrics_list.append(f)
@@ -820,6 +890,50 @@ def index():
         else:
             info = ""
         return render_template('metrics_a.html', user_image=image_file, avatar=almond_avatar, metrics_list=metrics_list, info=info)
+    elif page == 'graph':
+        key_list = []
+        key_vals = []
+        graph_name = request.args.get("name")
+        plot_dates, plot_data = get_graph_data(graph_name)
+        x_axis =[10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+        data = [22.35, 21.15, 35.42, 88.12, 27.95, 28.35, 42, 75.33, 93.12, 25.87]
+        for data in plot_data:
+            for key, value in data.items():
+                key_list.append(key)
+                key_vals.append(float(value))
+        #key_list = list(plot_data.keys())
+        #key_vals = list(plot_data.values())
+        #plt.plot(x_axis, data)
+        while (len(key_vals) > 40):
+            del key_vals[::2]
+            del plot_dates[::2]
+        print (plot_dates)
+        print (key_vals)
+        plt.plot(plot_dates, key_vals)
+        #plt.scatter(plot_dates, key_vals)
+        plt.title(graph_name)
+        #plt.ylim([min(key_vals), max(key_vals)])
+        #plt.xlim([min(plot_dates), max(plot_dates)])
+        #ax = plt.axes()
+        #ax.set_facecolor("#491c0f")
+        plt.xlabel('Timestamp')
+        plt.ylabel(key_list[0])
+        #fig = plt.figure()
+        #fig.autofmt_xdate(rotation=45)
+        plt.xticks(fontsize=6, rotation=90, ha='right')
+        #plt.gcf().autofmt_xdate()
+        #plt.draw()
+        graph_file_name = graph_name
+        graph_file_name.replace(" ", "")
+        graph_file_name.replace("/", "_")
+        print (graph_file_name)
+        save_name = 'static/charts/' + graph_file_name + '.png'
+        save_name = 'static/charts/graph.png'
+        print (save_name)
+        plt.savefig(save_name)
+        plt.clf()
+        save_name = '/' + save_name
+        return render_template("graph.html", user_image = image_file, name="Memory usage", url=save_name)
     elif page == 'logout':
         almond_img = '/static/almond.png'
         session.pop('login', None)
