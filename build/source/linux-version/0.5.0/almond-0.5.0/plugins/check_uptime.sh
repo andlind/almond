@@ -5,10 +5,10 @@ DAYS=0
 if [ "$WARN_VALUE" == "" ] || [ "$CRIT_VALUE" == "" ]
 then
   # if any parameter is missing it will print it out and exit.
-        echo "No argument supplied or argument missing."
-        echo "Usage: ./cu2.sh <warning value in days> <critical value in days>"
-        echo "Example: ./cu2.sh 200 300"
-        exit 1
+	echo "No argument supplied or argument missing."
+	echo "Usage: ./cu2.sh <warning value in days> <critical value in days>"
+	echo "Example: ./cu2.sh 200 300"
+	exit 1
 else
   TA=`uptime`
   NUM=`echo $TA | grep -aob 'day' | grep -oE '[0-9]+'`
@@ -33,3 +33,4 @@ else
     fi
   fi
 fi
+
