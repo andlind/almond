@@ -1,5 +1,5 @@
 Package: almond-monitor
-Version: 0.4.0
+Version: 0.4.1
 Maintainer: Andreas Lindell
 Architecture: all
 Depends: python3, python3-flask, nagios-plugins, ksh, sysstat, libsys-statistics-linux-perl
