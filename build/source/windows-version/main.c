@@ -124,6 +124,7 @@ void collectJsonData(int);
 void initScheduler(int, int);
 void runPlugin(int, int);
 void runPluginThreads(int);
+void runPluginArgs(int, int, int);
 void initNewPlugin(int index);
 void collectMetrics(int, int);
 void scheduleChecks();
@@ -138,12 +139,12 @@ static INT WINAPI console_ctrl_handler(DWORD dwCtrlType){
         case CTRL_CLOSE_EVENT: // Closing the console window
         case CTRL_LOGOFF_EVENT: // User logs off. Passed only to services!
         case CTRL_SHUTDOWN_EVENT: // System is shutting down. Passed only to services!
-            	//closejsonfile();
-		closeSocket();
-		fclose(fptr);
-		free(declarations);
-		free(outputs);
-            	break;
+            //closejsonfile();
+			closeSocket();
+			fclose(fptr);
+			free(declarations);
+			free(outputs);
+            break;
     }
 
     return 1;
@@ -210,15 +211,15 @@ void removeChar(char *str, char garbage) {
 }*/
 
 DWORD WINAPI apiThread(void* data){
-    	long storeIndex = (long)data;
-	if (createSocket(server_fd) != 0) {
-        	writeLog("Could not create socket.", 1);
+    long storeIndex = (long)data;
+    if (createSocket(server_fd) != 0) {
+        writeLog("Could not create socket.", 1);
     }
     return 0;
 }
 
 /*DWORD WINAPI gardenerExeThread(void* data) {
-	int threadid = (int) data;
+    int threadid = (int) data;
 	runGardener();
 	WaitForSingleObject(hGardener, INFINITE);
 	CloseHandle(hGardener);
@@ -226,65 +227,65 @@ DWORD WINAPI apiThread(void* data){
 }*/
 
 /*DWORD WINAPI pluginExeThread(void* data){
-    	long storeIndex = (long)data;
+    long storeIndex = (long)data;
 	runPlugin(storeIndex, 0);
-    	WaitForSingleObject(hPluginThread, INFINITE);
-    	CloseHandle(hPluginThread);
+    WaitForSingleObject(hPluginThread, INFINITE);
+    CloseHandle(hPluginThread);
 }*/
 
 void apiDryRun(int plugin_id) {
 	char* pluginName;
 	char message[500];
-    	char command[100];
-    	char retString[2280];
-    	char ch = '/';
-    	PluginOutput output;
-    	char info[295];
-    	int rc = 0;
+    char command[100];
+    char retString[2280];
+    char ch = '/';
+    PluginOutput output;
+    char info[295];
+    int rc = 0;
 	FILE *fp;
 
 	memset(message, 0, sizeof message);
-    	//printf("Dry running plugin with id %d\n", plugin_id);
-    	pluginName = malloc(strlen(declarations[plugin_id].name)+1);
-    	strcpy(pluginName, declarations[plugin_id].name);
-    	removeChar(pluginName, '[');
-    	removeChar(pluginName, ']');
-    	strcpy(message, "{\n     \"dryExecutePlugin\":\"");
-    	strcat(message, pluginName);
-    	strcat(message, "\"");
-    	strcat(message, ",\n");
+    //printf("Dry running plugin with id %d\n", plugin_id);
+    pluginName = malloc(strlen(declarations[plugin_id].name)+1);
+    strcpy(pluginName, declarations[plugin_id].name);
+    removeChar(pluginName, '[');
+    removeChar(pluginName, ']');
+    strcpy(message, "{\n     \"dryExecutePlugin\":\"");
+    strcat(message, pluginName);
+    strcat(message, "\"");
+    strcat(message, ",\n");
 
-    	strcpy(command, pluginDir);
-    	strncat(command, &ch, 1);
-    	strcat(command, declarations[plugin_id].command);
-    	snprintf(info, 295, "Running: %s.", declarations[plugin_id].command);
-    	writeLog(trim(info), 0);
-    	fp = popen(command, "r");
-    	if (fp == NULL) {
-        	printf("Failed to run command\n");
-        	writeLog("Failed to run command.", 2);
-    	}
-    	while (fgets(retString, sizeof(retString), fp) != NULL) {
-        	// VERBOSE  printf("%s", retString);
-   	 }	
-    	rc = pclose(fp);
-    	if (rc > 0) {
-        	if (rc == 256)
-            		output.retCode = 1;
-        	else if (rc == 512)
-            		output.retCode = 2;
-       		else
-            		output.retCode = rc;
-    	}
-    	else
-        	output.retCode = rc;
-	strcpy(output.retString, trim(retString));
-    	strcat(message, "     \"pluginOutput:\":\"");
+    strcpy(command, pluginDir);
+    strncat(command, &ch, 1);
+    strcat(command, declarations[plugin_id].command);
+    snprintf(info, 295, "Running: %s.", declarations[plugin_id].command);
+    writeLog(trim(info), 0);
+    fp = popen(command, "r");
+    if (fp == NULL) {
+        printf("Failed to run command\n");
+        writeLog("Failed to run command.", 2);
+    }
+    while (fgets(retString, sizeof(retString), fp) != NULL) {
+        // VERBOSE  printf("%s", retString);
+    }
+    rc = pclose(fp);
+    if (rc > 0) {
+        if (rc == 256)
+            output.retCode = 1;
+        else if (rc == 512)
+            output.retCode = 2;
+        else
+            output.retCode = rc;
+    }
+    else
+        output.retCode = rc;
+    strcpy(output.retString, trim(retString));
+    strcat(message, "     \"pluginOutput:\":\"");
 	strcat(message, trim(output.retString));
-	strcat(message, "\"");
+    strcat(message, "\"");
 	strcat(message, "\n}\n");
-    	socket_message = malloc(strlen(message)+1);
-    	strcpy(socket_message, message);
+    socket_message = malloc(strlen(message)+1);
+    strcpy(socket_message, message);
 }
 
 void apiRunPlugin(int plugin_id, int flags) {
@@ -294,9 +295,9 @@ void apiRunPlugin(int plugin_id, int flags) {
 	memset(message, 0, sizeof message);
 	//printf("Executing plugin with id %d\n", plugin_id);
 	pluginName = malloc(strlen(declarations[plugin_id].name)+1);
-	strcpy(pluginName, declarations[plugin_id].name);
-    	removeChar(pluginName, '[');
-    	removeChar(pluginName, ']');
+    strcpy(pluginName, declarations[plugin_id].name);
+    removeChar(pluginName, '[');
+    removeChar(pluginName, ']');
 	runPlugin(plugin_id, 0);
 	strcpy(message, "{\n     \"executePlugin\":\"");
 	strcat(message, pluginName);
@@ -307,185 +308,187 @@ void apiRunPlugin(int plugin_id, int flags) {
 		strcat(message, "     \"pluginOutput:\":\"");
 		strcat(message, trim(outputs[plugin_id].retString));
 		strcat(message, "\"");
-    	}
+    }
 	strcat(message, "\n}\n");
 	socket_message = malloc(strlen(message)+1);
 	strcpy(socket_message, message);
 }
 
-/*void runPluginArgs(int id, int aflags, int api_action) {
+void runPluginArgs(int id, int aflags, int api_action) {
 	const char space[1] = " ";
 	char* command;
 	char* newcmd;
 	char* pluginName;
 	int pos;
 	FILE *fp;
-        char retString[2280];
-        char ch = '/';
-        PluginOutput output;
-        //clock_t t;
-        char currTime[20];
-        char info[295];
+    char retString[2280];
+    char ch = '/';
+    PluginOutput output;
+    //clock_t t;
+    char currTime[20];
+    char info[295];
 	char message[2000];
 	char rCode[3];
-        int rc = 0;
+    int rc = 0;
 
-        //t = clock();
+    //t = clock();
 	memset(message, 0, sizeof message);
 	newcmd = malloc(200);
 	command = malloc(strlen(declarations[id].command)+1);
 	pluginName = malloc(strlen(declarations[id].name)+1);
-        strcpy(pluginName, declarations[id].name);
-        removeChar(pluginName, '[');
-        removeChar(pluginName, ']');
+    strcpy(pluginName, declarations[id].name);
+    removeChar(pluginName, '[');
+    removeChar(pluginName, ']');
 	strcpy(command, declarations[id].command);
-        strcpy(newcmd, pluginDir);
-        strncat(newcmd, &ch, 1);
+    strcpy(newcmd, pluginDir);
+    strncat(newcmd, &ch, 1);
 	char * token = strtok(command, " ");
 	strcat(newcmd, token);
 	strcat(newcmd, space);
 	strcat(newcmd, api_args);
 
 	fp = popen(newcmd, "r");
-        if (fp == NULL) {
-                printf("Failed to run command\n");
-                writeLog("Failed to run command.", 2);
+    if (fp == NULL) {
+        printf("Failed to run command\n");
+        writeLog("Failed to run command.", 2);
 		strcpy(message, "\n{ \"failedToRun\":\"");
 	 	strcat(message, newcmd);
 		strcat(message, "\"}");
-                socket_message = malloc(strlen(message)+1);
-        	strcpy(socket_message, message);
+        socket_message = malloc(strlen(message)+1);
+        strcpy(socket_message, message);
 		free(api_args);
 		free(command);
 		memset(&newcmd[0], 0, sizeof(newcmd));
 		free(newcmd);
 		free(pluginName);
 		return;
-        }
-        while (fgets(retString, sizeof(retString), fp) != NULL) {
-                // VERBOSE  printf("%s", retString);
-        }
-        rc = pclose(fp);
-        if (rc > 0)
-        {
-                if (rc == 256)
-                        output.retCode = 1;
-                else if (rc == 512)
-                        output.retCode = 2;
-                else
-                        output.retCode = rc;
-        }
-        else
-                output.retCode = rc;
-        strcpy(output.retString, trim(retString));
-	size_t dest_size = 20;
-        time_t t = time(NULL);
-        struct tm tm = *localtime(&t);
-        snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    }
+    while (fgets(retString, sizeof(retString), fp) != NULL) {
+        // VERBOSE  printf("%s", retString);
+    }
+    rc = pclose(fp);
 
-        if (api_action == API_DRY_RUN)
+    if (rc > 0) {
+        if (rc == 256)
+            output.retCode = 1;
+        else if (rc == 512)
+            output.retCode = 2;
+        else
+            output.retCode = rc;
+    }
+    else
+        output.retCode = rc;
+    strcpy(output.retString, trim(retString));
+	size_t dest_size = 20;
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    if (api_action == API_DRY_RUN)
 		strcpy(message, "{\n     \"dryExecutePlugin\":\"");
 	else {
-                if (output.retCode != outputs[id].retCode){
-                	strcpy(declarations[id].statusChanged, "1");
-                	strcpy(declarations[id].lastChangeTimestamp, currTime);
+        if (output.retCode != outputs[id].retCode){
+            strcpy(declarations[id].statusChanged, "1");
+            strcpy(declarations[id].lastChangeTimestamp, currTime);
 		}
-                else {
-                	strcpy(declarations[id].statusChanged, "0");
-                }
+        else {
+            strcpy(declarations[id].statusChanged, "0");
+        }
 		strcpy(message, "{\n     \"executePlugin\":\"");
 		strcpy(declarations[id].lastRunTimestamp, currTime);
-                time_t nextTime = t + (declarations[id].interval * 60);
-                struct tm tNextTime;
-                memset(&tNextTime, '\0', sizeof(struct tm));
-                localtime_r(&nextTime, &tNextTime);
-                snprintf(declarations[id].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
-                declarations[id].nextRun = nextTime;
-                output.prevRetCode = output.retCode;
-                outputs[id] = output;
+        time_t nextTime = t + (declarations[id].interval * 60);
+        //struct tm tNextTime;
+        //memset(&tNextTime, '\0', sizeof(struct tm));
+        //localtime_r(&nextTime, &tNextTime);
+        //struct tm *tNextTime;
+        struct tm *tNextTime;
+        tNextTime = localtime(&nextTime);
+        snprintf(declarations[id].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime->tm_year + 1900, tNextTime->tm_mon +1, tNextTime->tm_mday, tNextTime->tm_hour, tNextTime->tm_min, tNextTime->tm_sec);
+        declarations[id].nextRun = nextTime;
+        output.prevRetCode = output.retCode;
+        outputs[id] = output;
 	}
+    strcat(message, pluginName);
+    strcat(message, "\",\n");
+    strcat(message, "      \"result\": {\n");
+    if (aflags == API_FLAGS_VERBOSE || aflags == API_DRY_RUN) {
+        strcat(message, "          \"name\":\"");
         strcat(message, pluginName);
+        free(pluginName);
         strcat(message, "\",\n");
-        strcat(message, "      \"result\": {\n");
-        if (aflags == API_FLAGS_VERBOSE || aflags == API_DRY_RUN) {
-                strcat(message, "          \"name\":\"");
-                strcat(message, pluginName);
-                free(pluginName);
-                strcat(message, "\",\n");
-                strcat(message, "          \"description\":\"");
-                strcat(message, declarations[id].description);
-                strcat(message, "\",\n");
-                switch (output.retCode) {
-                	case 0:
-                        	strcat(message, "          \"pluginStatus\":\"OK\",\n");
-                                break;
-                        case 1:
-                                strcat(message, "          \"pluginStatus\":\"WARNING\",\n");
-                                break;
-                        case 2:
-                                strcat(message, "          \"pluginStatus\":\"CRITICAL\",\n");
-                                break;
-                        default:
-                                strcat(message, "          \"pluginStatus\":\"UNKNOWN\",\n");
-                                break;
-                }
-                strcat(message, "          \"pluginStatusCode\":\"");
-                sprintf(rCode, "%d", output.retCode);
-                strcat(message, trim(rCode));
-                strcat(message,  "\",\n");
-                strcat(message, "          \"pluginOutput\":\"");
-                strcat(message, trim(output.retString));
-                strcat(message, "\",\n");
+        strcat(message, "          \"description\":\"");
+        strcat(message, declarations[id].description);
+        strcat(message, "\",\n");
+        switch (output.retCode) {
+            case 0:
+                strcat(message, "          \"pluginStatus\":\"OK\",\n");
+                break;
+            case 1:
+                strcat(message, "          \"pluginStatus\":\"WARNING\",\n");
+                break;
+            case 2:
+                strcat(message, "          \"pluginStatus\":\"CRITICAL\",\n");
+                break;
+            default:
+                strcat(message, "          \"pluginStatus\":\"UNKNOWN\",\n");
+                break;
+        }
+        strcat(message, "          \"pluginStatusCode\":\"");
+        sprintf(rCode, "%d", output.retCode);
+        strcat(message, trim(rCode));
+        strcat(message,  "\",\n");
+        strcat(message, "          \"pluginOutput\":\"");
+        strcat(message, trim(output.retString));
+        strcat(message, "\",\n");
 		if (aflags == API_FLAGS_VERBOSE) {
-                	strcat(message, "          \"pluginStatusChanged\":\"");
-                	strcat(message, declarations[id].statusChanged);
-                	strcat(message, "\",\n");
-                	strcat(message, "          \"lastChange\":\"");
-                	strcat(message, declarations[id].lastChangeTimestamp);
-                	strcat(message, "\",\n");
+            strcat(message, "          \"pluginStatusChanged\":\"");
+            strcat(message, declarations[id].statusChanged);
+            strcat(message, "\",\n");
+            strcat(message, "          \"lastChange\":\"");
+            strcat(message, declarations[id].lastChangeTimestamp);
+            strcat(message, "\",\n");
 		}
-                strcat(message, "          \"lastRun\":\"");
-                strcat(message, currTime);
-                strcat(message, "\",\n");
+        strcat(message, "          \"lastRun\":\"");
+        strcat(message, currTime);
+        strcat(message, "\",\n");
 		if (aflags == API_FLAGS_VERBOSE) {
-                	strcat(message, "          \"nextScheduledRun\":\"");
-                	strcat(message, declarations[id].nextRunTimestamp);
-                	strcat(message, "\"\n     }\n");
+            strcat(message, "          \"nextScheduledRun\":\"");
+            strcat(message, declarations[id].nextRunTimestamp);
+            strcat(message, "\"\n     }\n");
 		}
 		else {
 			strcat(message, "     }\n");
 		}
-        }
-        else {
-                strcat(message, "          \"returnString\":\"");
-                strcat(message, trim(outputs[id].retString));
-                strcat(message, "\"\n     }\n");
-        }
-        strcat(message, "}\n");
-        socket_message = malloc(strlen(message)+1);
-        strcpy(socket_message, message);
+    }
+    else {
+        strcat(message, "          \"returnString\":\"");
+        strcat(message, trim(outputs[id].retString));
+        strcat(message, "\"\n     }\n");
+    }
+    strcat(message, "}\n");
+    socket_message = malloc(strlen(message)+1);
+    strcpy(socket_message, message);
 	free(api_args);
 	free(command);
 	memset(&newcmd[0], 0, sizeof(newcmd));
 	free(newcmd);
 }
-*/
+
 void apiRunAndRead(int plugin_id, int flags) {
 	char* pluginName;
 	char rCode[3];
-    	char message[2000];
+    char message[2000];
 
 	memset(message, 0, sizeof message);
-    	//printf("Executing plugin with id %d\n", plugin_id);
-    	pluginName = malloc(strlen(declarations[plugin_id].name)+1);
-    	strcpy(pluginName, declarations[plugin_id].name);
-    	removeChar(pluginName, '[');
-    	removeChar(pluginName, ']');
-    	runPlugin(plugin_id, 0);
+    //printf("Executing plugin with id %d\n", plugin_id);
+    pluginName = malloc(strlen(declarations[plugin_id].name)+1);
+    strcpy(pluginName, declarations[plugin_id].name);
+    removeChar(pluginName, '[');
+    removeChar(pluginName, ']');
+    runPlugin(plugin_id, 0);
 	strcpy(message, "{\n     \"executePlugin\":\"");
-    	strcat(message, pluginName);
-    	strcat(message, "\",\n");
-    	strcat(message, "      \"result\": {\n");
+    strcat(message, pluginName);
+    strcat(message, "\",\n");
+    strcat(message, "      \"result\": {\n");
 	sleep(10);
 	if (flags == API_FLAGS_VERBOSE) {
 		strcat(message, "          \"name\":\"");
@@ -493,41 +496,41 @@ void apiRunAndRead(int plugin_id, int flags) {
 		free(pluginName);
 		strcat(message, "\",\n");
 		strcat(message, "          \"description\":\"");
-        	strcat(message, declarations[plugin_id].description);
-        	strcat(message, "\",\n");
-        	switch (outputs[plugin_id].retCode) {
-            		case 0:
-                		strcat(message, "          \"pluginStatus\":\"OK\",\n");
-                		break;
-            		case 1:
-                		strcat(message, "          \"pluginStatus\":\"WARNING\",\n");
-                		break;
-            		case 2:
-                		strcat(message, "          \"pluginStatus\":\"CRITICAL\",\n");
-                		break;
-            		default:
-                		strcat(message, "          \"pluginStatus\":\"UNKNOWN\",\n");
-                		break;
-		}
-        	strcat(message, "          \"pluginStatusCode\":\"");
-        	sprintf(rCode, "%d", outputs[plugin_id].retCode);
-        	strcat(message, trim(rCode));
-        	strcat(message,  "\",\n");
-        	strcat(message, "          \"pluginOutput\":\"");
-        	strcat(message, trim(outputs[plugin_id].retString));
-        	strcat(message, "\",\n");
-        	strcat(message, "          \"pluginStatusChanged\":\"");
-        	strcat(message, declarations[plugin_id].statusChanged);
-        	strcat(message, "\",\n");
-        	strcat(message, "          \"lastChange\":\"");
-        	strcat(message, declarations[plugin_id].lastChangeTimestamp);
-        	strcat(message, "\",\n");
-        	strcat(message, "          \"lastRun\":\"");
-        	strcat(message, declarations[plugin_id].lastRunTimestamp);
-        	strcat(message, "\",\n");
-        	strcat(message, "          \"nextScheduledRun\":\"");
-        	strcat(message, declarations[plugin_id].nextRunTimestamp);
-        	strcat(message, "\"\n     }\n");
+        strcat(message, declarations[plugin_id].description);
+        strcat(message, "\",\n");
+        switch (outputs[plugin_id].retCode) {
+            case 0:
+                strcat(message, "          \"pluginStatus\":\"OK\",\n");
+                break;
+            case 1:
+                strcat(message, "          \"pluginStatus\":\"WARNING\",\n");
+                break;
+            case 2:
+                strcat(message, "          \"pluginStatus\":\"CRITICAL\",\n");
+                break;
+            default:
+                strcat(message, "          \"pluginStatus\":\"UNKNOWN\",\n");
+                break;
+        }
+        strcat(message, "          \"pluginStatusCode\":\"");
+        sprintf(rCode, "%d", outputs[plugin_id].retCode);
+        strcat(message, trim(rCode));
+        strcat(message,  "\",\n");
+        strcat(message, "          \"pluginOutput\":\"");
+        strcat(message, trim(outputs[plugin_id].retString));
+        strcat(message, "\",\n");
+        strcat(message, "          \"pluginStatusChanged\":\"");
+        strcat(message, declarations[plugin_id].statusChanged);
+        strcat(message, "\",\n");
+        strcat(message, "          \"lastChange\":\"");
+        strcat(message, declarations[plugin_id].lastChangeTimestamp);
+        strcat(message, "\",\n");
+        strcat(message, "          \"lastRun\":\"");
+        strcat(message, declarations[plugin_id].lastRunTimestamp);
+        strcat(message, "\",\n");
+        strcat(message, "          \"nextScheduledRun\":\"");
+        strcat(message, declarations[plugin_id].nextRunTimestamp);
+        strcat(message, "\"\n     }\n");
 	}
 	else {
 		strcat(message, "          \"returnString\":\"");
@@ -543,51 +546,51 @@ void apiReadFile(char fileName[100], int type) {
 	FILE *f;
 	char info[70];
 	char * message;
-	long length;
-    	int err = 0;
+    long length;
+    int err = 0;
 
 	f = fopen(fileName, "r");
-    	if (f) {
-        	fseek(f, 0, SEEK_END);
-        	length = ftell(f);
-        	fseek(f, 0, SEEK_SET);
-        	message = malloc(length);
-        	if (message) {
-            		fread(message, 1, length, f);
-        	}
-        	fclose(f);
-    	}
-    	else err++;
+    if (f) {
+        fseek(f, 0, SEEK_END);
+        length = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        message = malloc(length);
+        if (message) {
+            fread(message, 1, length, f);
+        }
+        fclose(f);
+    }
+    else err++;
 
-    	if (message) {
-        	socket_message = malloc(strlen(message)+1);
-        	strcpy(socket_message, message);
-    	}
-    	else err++;
-    	if (err > 0) {
-        	if (type == 2)
-            		snprintf(info, 70, "{ \"return_info\":\"Could not read metrics file. No results found.\"}\n");
+    if (message) {
+        socket_message = malloc(strlen(message)+1);
+        strcpy(socket_message, message);
+    }
+    else err++;
+    if (err > 0) {
+        if (type == 2)
+            snprintf(info, 70, "{ \"return_info\":\"Could not read metrics file. No results found.\"}\n");
 		else
 			snprintf(info, 70, "{ \"return_info\":\"Could not read almond file. No results found.\"}\n");
-        	socket_message = malloc(71);
-        	strcpy(socket_message, info);
-    	}
-    	free(message);
+        socket_message = malloc(71);
+        strcpy(socket_message, info);
+    }
+    free(message);
 }
 
 void apiGetMetrics() {
 	char ch = '/';
-    	char storeName[100];
+    char storeName[100];
 
-    	strcpy(storeName, storeDir);
-    	strncat(storeName, &ch, 1);
-    	strcat(storeName, metricsFileName);
+    strcpy(storeName, storeDir);
+    strncat(storeName, &ch, 1);
+    strcat(storeName, metricsFileName);
 	apiReadFile(storeName, 2);
 }
 
 void apiReadAll() {
 	char ch = '/';
-    	char fileName[100];
+    char fileName[100];
 
 	strcpy(fileName, dataDir);
 	strncat(fileName, &ch, 1);
@@ -596,22 +599,22 @@ void apiReadAll() {
 }
 
 void apiReadData(int plugin_id, int flags){
-    	char* pluginName;
+    char* pluginName;
 	char rCode[3];
 	char message[2000];
 
-    	memset(message, 0, sizeof message);
+    memset(message, 0, sizeof message);
 	printf("Collecting data from plugin id %d\n", plugin_id);
 	pluginName = malloc(strlen(declarations[plugin_id].name)+1);
-    	strcpy(pluginName, declarations[plugin_id].name);
-    	removeChar(pluginName, '[');
-    	removeChar(pluginName, ']');
+    strcpy(pluginName, declarations[plugin_id].name);
+    removeChar(pluginName, '[');
+    removeChar(pluginName, ']');
 	if (flags == API_FLAGS_VERBOSE) {
-        	strcat(message,"{\n     \"name\":\"");
-        	strcat(message, pluginName);
-        	strcat(message, "\",\n");
+        strcat(message,"{\n     \"name\":\"");
+        strcat(message, pluginName);
+        strcat(message, "\",\n");
 		strcat(message, "     \"description\":\"");
-        	strcat(message, declarations[plugin_id].description);
+        strcat(message, declarations[plugin_id].description);
 		strcat(message, "\",\n");
 		switch (outputs[plugin_id].retCode) {
 			case 0:
@@ -643,84 +646,86 @@ void apiReadData(int plugin_id, int flags){
 		strcat(message, "     \"lastRun\":\"");
 		strcat(message, declarations[plugin_id].lastRunTimestamp);
 		strcat(message, "\",\n");
-        	strcat(message, "     \"nextScheduledRun\":\"");
+        strcat(message, "     \"nextScheduledRun\":\"");
 		strcat(message, declarations[plugin_id].nextRunTimestamp);
 		strcat(message, "\"\n");
 	}
-    	else {
+    else {
 		strcat(message,"{\n     \"");
-        	strcat(message, pluginName);
-        	strcat(message, "\":\"");
-        	strcat(message, trim(outputs[plugin_id].retString));
-        	strcat(message, "\"\n");
+        strcat(message, pluginName);
+        strcat(message, "\":\"");
+        strcat(message, trim(outputs[plugin_id].retString));
+        strcat(message, "\"\n");
 	}
-	strcat(message, "}\n");
+	strcat(message, "}");
 	free(pluginName);
 	socket_message = malloc(strlen(message)+1);
 	strcpy(socket_message, message);
 }
 
 void send_socket_message(int socket, int id, int aflags) {
-    	char header[100] = "HTTP/1.1 200 OK\nContent-Type:application/txt\nContent-Length: ";
-    	char message[60];
-    	char* send_message;
+    char header[100] = "HTTP/1.1 200 OK\nContent-Type:application/txt\nContent-Length: ";
+    char message[60];
+    char* send_message;
 	int content_length;
 	char len[4];
 
 	printf("DEBUG: api_action = %d\n", api_action);
 
 	switch (api_action) {
-        	case API_READ:
-        		printf("DEBUG: API_READ\n");
-            		apiReadData(id, aflags);
-            		break;
-        	case API_RUN:
-            		//strcat(socket_message, apiRunPlugin(id, aflags));
-            		apiRunPlugin(id, aflags);
-            		break;
-        	case API_DRY_RUN:
-            		//strcat(socket_message, apiRunPlugin(id, aflags));
-            		apiDryRun(id);
-            		break;
-        	case API_EXECUTE_AND_READ:
-            		//strcat(socket_message, apiRunAndRead(id, aflags));
-            		apiRunAndRead(id, aflags);
-            		break;
-        	case API_GET_METRICS:
-            		apiGetMetrics();
-            		break;
-        	case API_READ_ALL:
-            		apiReadAll();
-            		break;
-        	default:
-            		socket_message = malloc(61);
-            		strcat(message, "{     \"return\":\"The request did not trigger any action\" }\n");
-            		strcpy(socket_message, message);
+        case API_READ:
+            printf("DEBUG: API_READ\n");
+            apiReadData(id, aflags);
+            break;
+        case API_RUN:
+            //strcat(socket_message, apiRunPlugin(id, aflags));
+            apiRunPlugin(id, aflags);
+            break;
+        case API_DRY_RUN:
+            //strcat(socket_message, apiRunPlugin(id, aflags));
+            apiDryRun(id);
+            break;
+        case API_EXECUTE_AND_READ:
+            //strcat(socket_message, apiRunAndRead(id, aflags));
+            apiRunAndRead(id, aflags);
+            break;
+        case API_GET_METRICS:
+            apiGetMetrics();
+            break;
+        case API_READ_ALL:
+            apiReadAll();
+            break;
+        default:
+            printf("DEBUG: No action\n");
+            socket_message = malloc(61);
+            strcat(message, "{     \"return\":\"The request did not trigger any action\" }\n");
+            strcpy(socket_message, message);
 	}
 
-    	printf("socket message = %s\n", socket_message);
+    printf("socket message = %s\n", socket_message);
 
-    	content_length = strlen(socket_message);
+    content_length = strlen(socket_message);
 	sprintf(len, "%d", content_length);
-	strcat(header, trim(len));
-    	strcat(header, "\n\n");
+    strcat(header, trim(len));
+    strcat(header, "\n\n");
 	content_length += strlen(header);
 	send_message = malloc(content_length+1);
-    	strcpy(send_message, header);
+    strcpy(send_message, header);
 	strcat(send_message, socket_message);
 	printf("send_message = %s\n", send_message);
-    	if (send(socket, send_message, strlen(send_message), 0) < 0) {
-        	writeLog("Could not send message to client.", 1);
-    	}
+    if (send(socket, send_message, strlen(send_message), 0) < 0) {
+        writeLog("Could not send message to client.", 1);
+    }
 	writeLog("Message sent on socket. Closing connection.", 0);
-    	closesocket(socket);
-    	//WSACleanup();
+    closesocket(socket);
+    //WSACleanup();
 	free(send_message);
 	memset(&socket_message[0], 0, sizeof(socket_message));
+	socket_message[0] = (char) 0;
 	free(socket_message);
 	CloseHandle(hApiThread);
 	flushLog();
-    	startApiSocket();
+    startApiSocket();
 }
 
 int checkPluginFileStat(const char *path, time_t oldMTime, int set) {
@@ -744,35 +749,35 @@ void runGardener() {
 	int rc = 0;
 
 	fp = popen(gardenerScript, "r");
-    	if (fp == NULL) {
-        	printf("Failed to run gardener script\n");
-        	writeLog("Failed to run gardener script.", 2);
-    	}
-    	while (fgets(retString, sizeof(retString), fp) != NULL) {
-        	// VERBOSE  printf("%s", retString);
-    	}
-    	rc = pclose(fp);
-    	snprintf(info, 225, "Gardener script executed with return code %i.", rc);
-    	if (rc > 1) {
-        	writeLog(trim(info), 2);
-    	}
-    	else writeLog(trim(info), rc);
+    if (fp == NULL) {
+        printf("Failed to run gardener script\n");
+        writeLog("Failed to run gardener script.", 2);
+    }
+    while (fgets(retString, sizeof(retString), fp) != NULL) {
+            // VERBOSE  printf("%s", retString);
+    }
+    rc = pclose(fp);
+    snprintf(info, 225, "Gardener script executed with return code %i.", rc);
+    if (rc > 1) {
+        writeLog(trim(info), 2);
+    }
+    else writeLog(trim(info), rc);
 }
 
 void executeGardener() {
-    	char logInfo[200];
-    	//DWORD lpThreadId;
-    	// This should run in thread
-    	/*hGardener = CreateThread(NULL, 0, gardenerExeThread, NULL, 0, &lpThreadId);
-    	if (hApiThread == NULL){
-        	writeLog("Error creating API thread.", 2);
-    	}
-    	else {
-        	snprintf(logInfo, 200, "Created new thread (%lu) truncating metricd logs (gardener) %d \n", lpThreadId);
-        	writeLog(trim(logInfo), 0);
-    	}*/
-    	runGardener();
-    	flushLog();
+    char logInfo[200];
+    //DWORD lpThreadId;
+    // This should run in thread
+    /*hGardener = CreateThread(NULL, 0, gardenerExeThread, NULL, 0, &lpThreadId);
+    if (hApiThread == NULL){
+        writeLog("Error creating API thread.", 2);
+    }
+    else {
+        snprintf(logInfo, 200, "Created new thread (%lu) truncating metricd logs (gardener) %d \n", lpThreadId);
+        writeLog(trim(logInfo), 0);
+    }*/
+    runGardener();
+    flushLog();
 }
 
 int fileExists(const char *checkFile) {
@@ -783,109 +788,126 @@ int fileExists(const char *checkFile) {
 }
 
 int initSocket() {
-    	printf("Init Winsock...\n");
-    	if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
-        	printf("Failed. Error code :%d\n", WSAGetLastError());
-        	writeLog("Could not initiate Winsock.", 2);
-        	return -1;
-    	}
-    	printf("Initialised");
-    	if (( s = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET){
-        	printf("Could not create socket: %d\n", WSAGetLastError());
-        	writeLog("Could not create socket.", 2);
-        	return -1;
-    	}
-    	printf("Socket created.\n");
-    	server.sin_family = AF_INET;
-    	server.sin_addr.s_addr = INADDR_ANY;
-    	server.sin_port = htons(9165);
-    	if (local_port == ALMOND_API_PORT){
-        	server.sin_port = htons(ALMOND_API_PORT);
-    	}
-    	else
-        	server.sin_port = htons(local_port);
-    	if (bind(s, (struct sockaddr *)&server, sizeof(server)) == SOCKET_ERROR){
-        	printf("Bind failed with error code: %d\n", WSAGetLastError());
-        	writeLog("Failed to bind port.", 2);
-        	return -1;
-	}
-    	puts("Bind done");
-    	writeLog("Almond socket initialized.", 0);
-    	socket_is_ready = 1;
-    	return socket_is_ready;
+    printf("Init Winsock...\n");
+    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
+        printf("Failed. Error code :%d\n", WSAGetLastError());
+        writeLog("Could not initiate Winsock.", 2);
+        return -1;
+    }
+    printf("Initialised");
+    if (( s = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET){
+        printf("Could not create socket: %d\n", WSAGetLastError());
+        writeLog("Could not create socket.", 2);
+        return -1;
+    }
+    printf("Socket created.\n");
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(9165);
+    if (local_port == ALMOND_API_PORT){
+        server.sin_port = htons(ALMOND_API_PORT);
+    }
+    else
+        server.sin_port = htons(local_port);
+    if (bind(s, (struct sockaddr *)&server, sizeof(server)) == SOCKET_ERROR){
+        printf("Bind failed with error code: %d\n", WSAGetLastError());
+        writeLog("Failed to bind port.", 2);
+        return -1;
+    }
+    puts("Bind done");
+    writeLog("Almond socket initialized.", 0);
+    socket_is_ready = 1;
+    return socket_is_ready;
 }
 
 int createSocket(int server_fd) {
-    	struct sockaddr_in client;
-    	int c;
-    	char info[100];
-    	char buffer[1024] = { 0 };
-    	char server_message[2000], client_message[2000];
-    	char message[100];
-    	char *e;
-    	int index;
-    	int params[2];
-    	int iResult;
+    struct sockaddr_in client;
+    int c;
+    char info[100];
+    char buffer[1024] = { 0 };
+    char server_message[2000], client_message[2000];
+    char message[100];
+    char *e;
+    int index;
+    int params[2];
+    int iResult;
 
-    	api_action = 0;
-    	memset(server_message, '\0', sizeof(server_message));
-    	memset(client_message, '\0', sizeof(client_message));
-    	if (listen(s, 1) < 0) {
-        	writeLog("Failed listening..", 2);
-        	socket_is_ready = 0;
-        	return -1;
-    	}
-    	puts("Wait for incomming connections.");
-    	snprintf(info, 100, "Ready listening on port %d.", local_port);
-    	writeLog(trim(info), 0);
-    	c = sizeof(struct sockaddr_in);
-    	client_socket = accept(s, (struct sockaddr *)&client, &c);
-    	if (client_socket == INVALID_SOCKET){
-        	printf("Accept failed with error code: %d\n", WSAGetLastError());
-        	writeLog("Could not accept client socket. ", 1);
-        	return -1;
-    	}
-    	printf("Client connected at IP: %s and port: %i\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-    	snprintf(info, 100, "Client connected at IP: %s and port: %i\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-    	writeLog(trim(info), 0);
-    	//parseClientMessage(message, params);
-   	 writeLog("Message received on socket.", 0);
-    	iResult = recv(client_socket, client_message, sizeof(client_message), 0);
-    	if (iResult > 0){
-        	e = strchr(client_message, '{');
-        	index = (int)(e - client_message);
-        	if (index > 0)
-            		strncpy(message, client_message + index, strlen(client_message) - index);
-        	else
-            		strncpy(message, client_message, strlen(client_message));
-        	printf("Bytes received: %d\n", iResult);
-    	}
-    	else if (iResult == 0)
-        	printf("Connection closing...\n");
-    	else {
-        	printf("recv failed with error: %d\n", WSAGetLastError());
-    	}
-    	flushLog();
-    	api_action = parseMessage(message, params);
+    api_action = 0;
+    memset(server_message, '\0', sizeof(server_message));
+    memset(client_message, '\0', sizeof(client_message));
+    if (listen(s, 1) < 0) {
+        writeLog("Failed listening..", 2);
+        socket_is_ready = 0;
+        return -1;
+    }
+    puts("Wait for incomming connections.");
+    snprintf(info, 100, "Ready listening on port %d.", local_port);
+    writeLog(trim(info), 0);
+    c = sizeof(struct sockaddr_in);
+    client_socket = accept(s, (struct sockaddr *)&client, &c);
+    if (client_socket == INVALID_SOCKET){
+        printf("Accept failed with error code: %d\n", WSAGetLastError());
+        writeLog("Could not accept client socket. ", 1);
+        return -1;
+    }
+    printf("Client connected at IP: %s and port: %i\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+    snprintf(info, 100, "Client connected at IP: %s and port: %i\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+    writeLog(trim(info), 0);
+    /*if (recv(client_socket, client_message, sizeof(client_message), 0) < 0){
+        printf("Couldn't receive\n");
+        writeLog("Recv failed.\n", 2);
+        writeLog("Could not receieve client message on socket.", 1);
+        flushLog();
+        //return -1;
+    }
+    e = strchr(client_message, '{');
+    index = (int)(e - client_message);
+    strncpy(message, client_message + index, strlen(client_message) - index);
+    printf("Message: %s\n", message);*/
+    //parseClientMessage(message, params);
+    writeLog("Message received on socket.", 0);
+    //do {
+    iResult = recv(client_socket, client_message, sizeof(client_message), 0);
+    if (iResult > 0){
+        e = strchr(client_message, '{');
+        index = (int)(e - client_message);
+        if (index > 0)
+            strncpy(message, client_message + index, strlen(client_message) - index);
+        else
+            strncpy(message, client_message, strlen(client_message));
+        printf("Bytes received: %d\n", iResult);
+    }
+    else if (iResult == 0)
+        printf("Connection closing...\n");
+    else {
+        printf("recv failed with error: %d\n", WSAGetLastError());
+    }
+    //} while (iResult > 0);
+    flushLog();
+    //printf("Message: %s\n", message);
+    api_action = parseMessage(message, params);
+    printf("DEBUG: Return action = %d", api_action);
 	int id = params[0];
 	int aflags = params[1];
-    	send_socket_message(client_socket, id, aflags);
-    	return 0;
+	printf("DEBUG : id = %d, aflags = %d\n", id, aflags);
+    send_socket_message(client_socket, id, aflags);
+    return 0;
 }
 
 void startApiSocket() {
-    	char logInfo[200];
-    	DWORD lpThreadId;
-    	// This should run in thread
-    	hApiThread = CreateThread(NULL, 0, apiThread, NULL, 0, &lpThreadId);
-    	if (hApiThread == NULL){
-        	writeLog("Error creating API thread.", 2);
-    	}
-    	else {
-        	snprintf(logInfo, 200, "Created new thread (%lu) listening for connections on port %d \n", lpThreadId, local_port);
-        	writeLog(trim(logInfo), 0);
-	}
-    	flushLog();
+    char logInfo[200];
+    DWORD lpThreadId;
+    // This should run in thread
+    hApiThread = CreateThread(NULL, 0, apiThread, NULL, 0, &lpThreadId);
+    if (hApiThread == NULL){
+        writeLog("Error creating API thread.", 2);
+    }
+    else {
+        snprintf(logInfo, 200, "Created new thread (%lu) listening for connections on port %d \n", lpThreadId, local_port);
+        writeLog(trim(logInfo), 0);
+        //printf("New thread accepting socket created.\n");
+    }
+    flushLog();
 }
 
 int countDeclarations(char *file_name) {
@@ -895,19 +917,21 @@ int countDeclarations(char *file_name) {
 
 	writeLog("Count declarations.", 0);
 
-	fp = fopen(file_name, "r");
+    fp = fopen(file_name, "r");
 	if (fp == NULL)
-    	{
-        	perror("Error while opening the file.\n");
+    {
+        perror("Error while opening the file.\n");
 		writeLog("Error opening and counting declarations file.", 2);
-        	exit(EXIT_FAILURE);
-    	}
+        exit(EXIT_FAILURE);
+    }
 	for (c = getc(fp); c != EOF; c = getc(fp)){
+        //printf("Count = %d\n", i);
 		if (c == '\n')
 			i++;
 	}
 	fclose(fp);
 	return i-1;
+	//return i;
 }
 
 int loadPluginDeclarations(char *pluginDeclarationsFile, int reload) {
@@ -919,71 +943,75 @@ int loadPluginDeclarations(char *pluginDeclarationsFile, int reload) {
 	char *name;
 	char *description;
 	char loginfo[60];
-    	FILE *fp;
+    FILE *fp;
 	char *saveptr;
 	PluginItem item;
 	char line[CONF_BUFFER_LENGTH];
 
-    	fp = fopen(pluginDeclarationsFile, "r");
+    fp = fopen(pluginDeclarationsFile, "r");
 	if (fp == NULL)
-    	{
-        	perror("Error while opening the file.\n");
+    {
+        perror("Error while opening the file.\n");
 		writeLog("Error opening the plugin declarations file.", 2);
-        	exit(EXIT_FAILURE);
-    	}
+        exit(EXIT_FAILURE);
+    }
+	//while ((read = getline(&line, &len, fp)) != -1) {
 	i = 0;
-    	while (fgets(line, CONF_BUFFER_LENGTH, fp)) {
+    while (fgets(line, CONF_BUFFER_LENGTH, fp)) {
 		index++;
 		if (strchr(line, '#') == NULL){
-        		char* strline;
-            		strline = malloc(CONF_BUFFER_LENGTH);
-            		strncpy(strline, line, strlen(line));
-            		for (i = 1, strline;; i++, strline=NULL) {
-                		token = strtok_r(strline, ";", &saveptr);
-                		if (token == NULL)
-                    			break;
-                		switch(i) {
-                    			case 1:
-                        			name = strtok(token, " ");
-                        			strcpy(item.name, name);
-                        			token = strtok(NULL, "?");
-                        			strcpy(item.description, token);
-                        			break;
-                    			case 2: strcpy(item.command, token);
-                        			break;
-                    			case 3: item.active = atoi(token);
-                        			break;
-                    			case 4: item.interval = atoi(token);
-                        			item.id = index-1;
-                		}
-            		}
-           		strcpy(item.lastRunTimestamp, "");
-            		strcpy(item.nextRunTimestamp, "");
-            		strcpy(item.lastChangeTimestamp, "");
-            		strcpy(item.statusChanged, "");
-            		snprintf(loginfo, 60, "Declaration with index %d is created.\n", counter);
-            		writeLog(trim(loginfo), 0);
-            		if (reload == 0)
-                		declarations[counter] = item;
-            		else
-                		update_declarations[counter] = item;
-            		counter++;
+            char* strline;
+            strline = malloc(CONF_BUFFER_LENGTH);
+            strncpy(strline, line, strlen(line));
+            for (i = 1, strline;; i++, strline=NULL) {
+                token = strtok_r(strline, ";", &saveptr);
+                if (token == NULL)
+                    break;
+                //printf("%d: %s\n", i, token);
+                switch(i) {
+                    case 1:
+                        name = strtok(token, " ");
+                        strcpy(item.name, name);
+                        token = strtok(NULL, "?");
+                        strcpy(item.description, token);
+                        break;
+                    case 2: strcpy(item.command, token);
+                        break;
+                    case 3: item.active = atoi(token);
+                        break;
+                    case 4: item.interval = atoi(token);
+                        item.id = index-1;
+                }
+            }
+            strcpy(item.lastRunTimestamp, "");
+            strcpy(item.nextRunTimestamp, "");
+            strcpy(item.lastChangeTimestamp, "");
+            strcpy(item.statusChanged, "");
+            snprintf(loginfo, 60, "Declaration with index %d is created.\n", counter);
+            writeLog(trim(loginfo), 0);
+            if (reload == 0)
+                declarations[counter] = item;
+            else
+                update_declarations[counter] = item;
+            counter++;
 		}
 	}
-    	fclose(fp);
+    fclose(fp);
 	return 0;
 }
 
 void flushLog() {
-    	char logFile[100];
-    	char ch = '\\';
+    char logFile[100];
+    char ch = '\\';
 
-    	strcpy(logFile, logDir);
-    	strncat(logFile, &ch, 1);
-    	strcat(logFile, "almond.log");
-    	fclose(fptr);
-    	sleep(0.10);
-    	fptr = fopen("almond.log", "a");
+    strcpy(logFile, logDir);
+    strncat(logFile, &ch, 1);
+    strcat(logFile, "almond.log");
+    fclose(fptr);
+    //printf("%s\n", logFile);
+    sleep(0.10);
+    //fptr = fopen(logFile, "a");
+    fptr = fopen("almond.log", "a");
 }
 
 int getConfigurationValues() {
@@ -992,26 +1020,27 @@ int getConfigurationValues() {
 	FILE *fp;
 	int index = 0;
 	file_name = "conf/almond.conf";
-    	fp = fopen(file_name, "r");
+    fp = fopen(file_name, "r");
 	char confName[MAX_STRING_SIZE] = "";
-    	char confValue[MAX_STRING_SIZE] = "";
+    char confValue[MAX_STRING_SIZE] = "";
 
 	if (fp == NULL)
    	{
-        	perror("Error while opening the file.\n");
+        perror("Error while opening the file.\n");
 		writeLog("Error opening configuration file", 2);
-        	exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
    	}
 
 	//while ((read = getline(&line, &len, fp)) != -1) {
 	while (fgets(line, CONF_BUFFER_LENGTH, fp)) {
-        	line[strcspn(line, "\n")] = 0;
-        	char * token = strtok(line, "=");
-        	while (token != NULL)
-        	{
-            		if (index == 0)
-            		{
-                		strcpy(confName, token);
+        line[strcspn(line, "\n")] = 0;
+        char * token = strtok(line, "=");
+        while (token != NULL)
+        {
+            if (index == 0)
+            {
+                strcpy(confName, token);
+                //printf("%s\n", confName);
             }
             else
             {
@@ -2433,4 +2462,3 @@ int main() {
     flushLog();
     return 0;
 }
-

@@ -67,6 +67,21 @@ int getStringId(char string[]){
     return atoi(subbuf);
 }
 
+void parseArgs(char args[]) {
+    printf("DEBUG: [parseArgs] instring = %s\n", args);
+    char subbuf[8];
+    if (strlen(args) >= 15) {
+        memcpy(subbuf, &args[10], 7);
+    }
+    for (int i = 0; i < 7; i++){
+        if (subbuf[i] == '"'){
+            subbuf[i] = '\0';
+            break;
+        }
+    }
+    printf("DEBUG: [parseArgs] subbuf = %s\n", subbuf);
+}
+
 int parseFlagOptions(char opts[]) {
     printf("DEBUG: [parseFlagOptions] instring = %s\n", opts);
     char subbuf[8];
@@ -117,6 +132,7 @@ int parseMessage(const char * message, int arr[]) {
     int action = 0;
     int id = 0;
     int aflags = 0;
+    int args_set = 0;
 
     printf("%s\n", message);
     char *pr = strstr(message, "read");
@@ -130,28 +146,21 @@ int parseMessage(const char * message, int arr[]) {
     char *fid = strstr(message, "id");
     char *fname = strstr(message, "name");
     char *flags = strstr(message, "flags");
+    char *args = strstr(message, "args");
     if ((pr) || (pg))  {
-        printf("Found read");
         action += API_READ;
     }
     if ((pe) || (pn)) {
-        printf("Found execute");
         action += API_RUN;
     }
     if ((prr) || (per))  {
-        printf("Found run read");
         action += API_EXECUTE_AND_READ;
     }
     if ((pm) || (pgm)) {
-        printf("Found metrics");
         action += API_GET_METRICS;
     }
-
-    printf("DEBUG: fid = %s\n", fid);
     if (fid){
-        printf("DEBUG: = fid is true\n");
         id = getStringId(fid);
-        printf("DEBUG: id = %d\n", id);
     }
     else if (fname) {
         getStringNameId(fname);
@@ -166,6 +175,10 @@ int parseMessage(const char * message, int arr[]) {
     }
     else
         printf("DEBUG: flags are not set.\n");
+    if (args){
+        parseArgs(args);
+        args_set++;
+    }
 
     if (aflags == API_DRY_RUN) action = API_DRY_RUN;
 
