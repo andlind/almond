@@ -7,7 +7,7 @@ AS_MKDIR_P(/opt/almond/data)
 # Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS([arpa/inet.h sys/socket.h sys/types.h sys/stat.h math.h signal.h pthread.h time.h netdb.h unistd.h ctype.h string.h errno.h dirent.h stdlib.h stdio.h json-c/json.h])
+AC_CHECK_HEADERS([arpa/inet.h sys/socket.h sys/types.h sys/stat.h math.h signal.h pthread.h time.h netdb.h unistd.h ctype.h string.h errno.h dirent.h stdlib.h stdio.h json-c/json.h librdkafka/rdkafka.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
