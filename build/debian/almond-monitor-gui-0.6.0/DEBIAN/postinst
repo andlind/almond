@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Set file ownership
+/bin/chown -R root:root /opt/almond/www/api
+
+# Update howru
+/usr/bin/mv /opt/almond/www/api/howru_a.py /opt/almond/www/api/howru.py
+
+# Enable service
+systemctl restart howru-api.service
+
+exit 0
