@@ -238,7 +238,7 @@ int getIdFromName(char *plugin_name) {
 }
 
 void* apiThread(void* data) {
-        long storeIndex = (long)data;
+        //long storeIndex = (long)data;
         pthread_detach(pthread_self());
         if (createSocket(server_fd) != 0) {
 		//printf("Could not create socket!\n");
@@ -276,6 +276,7 @@ void send_socket_message(int socket, int id, int aflags) {
 	
 	//printf("Api action = %d\n", api_action);
 	//printf("aflags = %d\n", aflags);
+	strcpy(message, "");
 	if (args_set == 0) {
 		switch (api_action) {
         		case API_READ:
@@ -361,7 +362,7 @@ void send_socket_message(int socket, int id, int aflags) {
 	writeLog("Message sent on socket. Closing connection.", 0);
         close(socket);
 	free(send_message);
-	memset(&socket_message[0], 0, sizeof(socket_message));
+	memset(&socket_message[0], 0, sizeof(*socket_message));
 	free(socket_message);
         startApiSocket();
 }
@@ -574,7 +575,7 @@ void parseClientMessage(char str[], int arr[]) {
 
 int initSocket () {
         int opt = 1;
-        int addrlen = sizeof(address);
+        //int addrlen = sizeof(address);
         if ((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
                 perror("socket failed");
                 writeLog("Could not initiate socket.", 2);
@@ -602,13 +603,14 @@ int initSocket () {
 }
 
 int createSocket(int server_fd) {
-        int client_socket, client_size;
+        int client_socket;
+	socklen_t client_size;
         struct sockaddr_in client_addr;
-        int new_socket, valread;
+        //int new_socket, valread;
         char info[100];
-        char buffer[1024] = { 0 };
+        //char buffer[1024] = { 0 };
         char server_message[2000], client_message[2000];
-        int addrlen = sizeof(address);
+        //int addrlen = sizeof(address);
 	int params[2];
 
         memset(server_message, '\0', sizeof(server_message));
@@ -1281,14 +1283,14 @@ void runPluginArgs(int id, int aflags, int api_action) {
 	char* command;
 	char* newcmd;
 	char* pluginName;
-	int pos;
+	//int pos;
 	FILE *fp;
         char retString[2280];
         char ch = '/';
         PluginOutput output;
         //clock_t t;
         char currTime[20];
-        char info[295];
+        //char info[295];
 	char message[2000];
 	char rCode[3];
         int rc = 0;
@@ -1320,7 +1322,7 @@ void runPluginArgs(int id, int aflags, int api_action) {
         	strcpy(socket_message, message);
 		free(api_args);
 		free(command);
-		memset(&newcmd[0], 0, sizeof(newcmd));
+		memset(&newcmd[0], 0, sizeof(*newcmd));
 		free(newcmd);
 		free(pluginName);
 		return;
@@ -1429,7 +1431,7 @@ void runPluginArgs(int id, int aflags, int api_action) {
         strcpy(socket_message, message);
 	free(api_args);
 	free(command);
-	memset(&newcmd[0], 0, sizeof(newcmd));
+	memset(&newcmd[0], 0, sizeof(*newcmd));
 	free(newcmd);
 }
 
@@ -1627,7 +1629,7 @@ void apiReadAll() {
 
 
 void collectJsonData(int decLen){
-	int retVal = 0;
+	//int retVal = 0;
 	char ch = '/';
 	char fileName[100];
 	char* pluginName;
@@ -1700,7 +1702,7 @@ void collectMetrics(int decLen, int style) {
         char ch = '/';
 	char* pluginName;
 	char* serviceName;
-        char fileName[100];
+        //char fileName[100];
 	char storeName[100];
 	FILE *mf;
         clock_t t;
@@ -1968,8 +1970,8 @@ void runPlugin(int storeIndex, int update) {
 		char checkName[20];
 		char timestr[35];
 		char ch = '/';
-		char csv = ',';
-		FILE *fpt;
+		//char csv = ',';
+		//FILE *fpt;
 
 		if (update == 0)
 			strcpy(checkName, declarations[storeIndex].name);
@@ -2103,14 +2105,14 @@ int countDeclarations(char *file_name) {
 }
 
 int loadPluginDeclarations(char *pluginDeclarationsFile, int reload) {
-	int hasFaults = 0;
+	//int hasFaults = 0;
 	int counter = 0;
 	int i;
 	int index = 0;
         char* line;
 	char *token;
 	char *name;
-	char *description;
+	//char *description;
 	char loginfo[60];
         size_t len = 0;
         ssize_t read;
@@ -2487,7 +2489,7 @@ int updatePluginDeclarations() {
                        		strcpy(item.nextRunTimestamp, "");
                        		strcpy(item.lastChangeTimestamp, "");
                        		strcpy(item.statusChanged, "");
-				int x = 0;
+				//int x = 0;
 				if (strcmp(declarations[counter].name, item.name) != 0) {
 					snprintf(loginfo, 300, "Declaration name for item %i changed from %s to %s.", counter, declarations[counter].name, item.name);
 					strncpy(declarations[counter].name, item.name, strlen(item.name) + 1);
