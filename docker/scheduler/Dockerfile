@@ -1,20 +1,17 @@
-FROM ubuntu:latest
-MAINTAINER andreas_li@hotmail.com
+FROM andreaslindell72/almond-monitor:latest
+MAINTAINER Andreas Lindell version: 0.6
 
-RUN apt update && apt install -y python3-flask
+RUN apt-get update && apt-get install -y python3 libwww-perl
 
-RUN apt install -y supervisor
-RUN apt install -y nagios-plugins
-RUN apt install -y wget
+RUN chmod +x /opt/almond/howru-api
 
-RUN wget https://github.com/andlind/howru/raw/main/packages/debian/howru-monitor_0.3.1.deb
-
-RUN dpkg -i howru-monitor_0.3.1.deb && apt install -f
-
-RUN mkdir -p /var/log/supervisor
-
+COPY plugins.conf /etc/almond/plugins.conf
+COPY almond.conf /etc/almond/almond.conf
+COPY plugins/* /opt/almond/plugins
 COPY supervisord.conf /etc/supervisor/supervisord.conf
-COPY howruc.conf /etc/howru/howruc.conf
-COPY plugins.conf /etc/howru/plugins.conf
+COPY apps.conf /etc/supervisor/conf.d/apps.conf
+RUN chmod +x /opt/almond/plugins/* && chown -R almond:almond /opt/almond/plugins
 
-CMD ["/usr/bin/supervisord"]
+EXPOSE 80
+
+ENTRYPOINT ["/usr/bin/supervisord"]
