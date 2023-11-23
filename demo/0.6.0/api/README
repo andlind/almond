@@ -1,0 +1,2 @@
+docker build -t howruapi .
+docker run --rm --name howru_api -platform linux/amd64 -d -v ~/almond_demo/data:/opt/almond/data -p 8080:80 howruapi
