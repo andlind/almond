@@ -30,3 +30,5 @@
 
 * When finished exploring the demo you can run stop to stop all containers and deleting them.
   - stop.sh
+
+* To take a look at Kafka export functionality take a look at the README in the Kafka directory
