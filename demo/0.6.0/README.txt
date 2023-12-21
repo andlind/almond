@@ -7,7 +7,7 @@
   mkdir -p almond_data/data
 
 * Finally start the demo stages running the shell scripts
-  - stage1	starts a application sceleton with an app, a database and a webgui.
+  - stage1	starts an application sceleton with an app, a database and a webgui.
 		Each component also run Almond to monitor itself.
                 The app component also runs a local Almond Admin on local port 80.
   - stage2	This stage starts a howru-api exposing monitoring data and metrics 
@@ -30,3 +30,5 @@
 
 * When finished exploring the demo you can run stop to stop all containers and deleting them.
   - stop.sh
+
+* To take a look at Kafka export functionality take a look at the README in the Kafka directory
