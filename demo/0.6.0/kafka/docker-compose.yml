@@ -81,7 +81,7 @@ services:
       - | 
         chmod +x /opt/almond/howru-api && cp -rp /opt/almond/plugins/extra/* /opt/almond/plugins && chmod +x /opt/almond/plugins/* && /usr/bin/supervisord
     ports:
-      - 80:8099
+      - 8099:8099
       - 9909:9909   
     depends_on:
       - redpanda-10
