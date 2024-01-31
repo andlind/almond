@@ -1,4 +1,5 @@
 # Almond
+
 Nagios plugin compatible local scheduler with api.
 
 The software exposes plugin output as json-objects, metrics and as Kafka streams.
