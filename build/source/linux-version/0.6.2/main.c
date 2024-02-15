@@ -59,6 +59,7 @@ char metricsOutputPrefix[30] = "almond";
 char* socket_message;
 char* kafka_brokers;
 char* kafka_topic;
+char* kafka_tag;
 char* kafkaCACertificate;
 char* kafkaSSLKey;
 char* kafkaProducerCertificate;
@@ -85,6 +86,7 @@ int enableGardener = 0;
 int kafkaexportreqs = 0;
 int enableKafkaExport = 0;
 int enableKafkaSSL = 0;
+int enableKafkaTag = 0;
 int enableTimeTuner = 0;
 int timeTunerMaster = 1;
 int timeTunerCycle = 15;
@@ -1103,6 +1105,15 @@ int getConfigurationValues() {
 			   enableKafkaExport = 1;
 		   }
 	   }
+           if (strcmp(confName, "scheduler.enableKafkaTag") == 0) {
+                   if (atoi(confValue) == 0) {
+                           writeLog("Use of tag to Kafka message is not enabled.", 0);
+                   }
+                   else {
+                           writeLog("Use of tag to Kafka message is enabled.", 0);
+                           enableKafkaTag = 1;
+                  }
+           }
 	   if (strcmp(confName, "scheduler.kafkaBrokers") == 0) {
 		   char info[300];
 		   kafkaexportreqs++;
@@ -1119,6 +1130,13 @@ int getConfigurationValues() {
 		   snprintf(info, 300, "Kafka export topic is set to '%s'", kafka_topic);
 		   writeLog(trim(info), 0);
 	   }
+           if (strcmp(confName, "scheduler.kafkaTag") == 0) {
+                  char info[100];
+                  kafka_tag = malloc(strlen(confValue)+1);
+                  strcpy(kafka_tag, trim(confValue)+1);
+                  snprintf(info, 300, "Kafka tag is set to '%s'", kafka_tag);
+                  writeLog(trim(info), 0);
+           }
 	   if (strcmp(confName, "scheduler.enableKafkaSSL") == 0) {
 		   if (atoi(confValue) == 0) {
 			   writeLog("Kafka producer will connect with plain text", 0);
@@ -2073,9 +2091,19 @@ void runPlugin(int storeIndex, int update) {
 		/*if (strcmp(pluginStatus, "UNKNOWN") != 0) {
 			count_bytes -= 2;
 		}*/
+                if (enableKafkaTag > 0) {
+			count_bytes += strlen(kafka_tag);
+                        count_bytes += 11; // {"tag":""}
+		}
 		payload = malloc(count_bytes);
 		//printf("Allocated payload: %d\n", count_bytes);
-		sprintf(payload, "{\"name\":\"%s\"}, {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}", hostName, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, output.retString, pluginStatus, declarations[storeIndex].statusChanged, output.retCode);
+                if (enableKafkaTag < 1) {
+			sprintf(payload, "{\"name\":\"%s\"}, {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}", hostName, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, output.retString, pluginStatus, declarations[storeIndex].statusChanged, output.retCode);
+                }
+                else {
+
+			sprintf(payload, "{\"name\":\"%s\"}, {\"tag\":\"%s\"}, {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}", hostName, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, output.retString, pluginStatus, declarations[storeIndex].statusChanged, output.retCode);
+                }
 		//printf("Length of payload: %ld\n", strlen(payload));
 		//printf("%s\n", payload);
 		free(pluginName);
