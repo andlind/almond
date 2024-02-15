@@ -1,5 +1,5 @@
 Package: almond-monitor-gui
-Version: 0.6.0
+Version: 0.6.2
 Maintainer: Andreas Lindell
 Architecture: all
 Depends: almond-monitor, python3-flask-httpauth, python3-matplotlib
