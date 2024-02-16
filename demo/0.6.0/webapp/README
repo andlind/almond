@@ -1,2 +1,2 @@
-docker build -t webdmo .
+docker build -t webdemo .
 docker run --rm --platform linux/amd64 -d -v ~/almond_demo/data:/opt/almond/data -p 88:88 -p 8075:80 webdemo

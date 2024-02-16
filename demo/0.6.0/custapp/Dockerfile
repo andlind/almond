@@ -1,6 +1,6 @@
 FROM andreaslindell72/almond-monitor:latest
 
-RUN apt-get update && apt-get install -y python3 libwww-perl
+RUN apt-get update && apt-get install -y python3 libwww-perl python3-redis
 
 RUN chmod +x /opt/almond/howru-api 
 

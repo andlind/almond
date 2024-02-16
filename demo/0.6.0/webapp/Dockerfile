@@ -1,23 +1,22 @@
 FROM andreaslindell72/almond-monitor:latest
 
-RUN apt-get update && apt-get install -y apache2 python3 libwww-perl
-
-RUN chmod +x /opt/almond/howru-api 
+RUN apt-get update && apt-get install -y python3 libwww-perl python3-redis
 
 COPY plugins.conf /etc/almond/plugins.conf
 COPY almond.conf /etc/almond/almond.conf
-COPY ./source.sh / 
-COPY ./startup.sh /
+COPY supervisord.conf /etc/supervisor/supervisord.conf
+COPY apps.conf /etc/supervisor/conf.d/apps.conf
 COPY plugins/* /opt/almond/plugins
-RUN chown -R almond:almond /opt/almond/plugins
-
-RUN /usr/sbin/useradd apache -d /usr/share/apache2 -s /sbin/nologin
-
+RUN chmod +x /opt/almond/plugins/* && chown -R almond:almond /opt/almond/plugins
+RUN mkdir /webapp
+COPY webapp/ /webapp
+RUN chmod +x /webapp/start_app.sh
+COPY ./source.sh /
+COPY ./startup.sh /
 RUN chmod +x /source.sh && chmod +x /startup.sh
 
 EXPOSE 80
 EXPOSE 88
 
-ENTRYPOINT ["/startup.sh"]
-
-
+#ENTRYPOINT ["/usr/bin/supervisord"]
+ENTRYPOINT ["./startup.sh"]
