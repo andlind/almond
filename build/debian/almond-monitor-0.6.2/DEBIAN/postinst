@@ -18,6 +18,7 @@
 /bin/chmod 655 /lib/systemd/system/howru-api.service
 /bin/chmod 655 /lib/systemd/system/almond.service
 /bin/chmod 755 /opt/almond/gardener.py
+/bin/chmod 750 /opt/almond/utilities/almond-token-generator
 
 # Add almond to nagios group if exists
 if [ $(getent group admin) ]; then
