@@ -2857,7 +2857,7 @@ int main() {
 		fclose(fptr);
 		return EXIT_FAILURE;
 	}
-        writeLog("Starting almond (0.6.1)...", 0);
+        writeLog("Starting almond (0.6.2)...", 0);
         printf("Starting almond version %s.\n", VERSION);	
 	int retVal = getConfigurationValues();	
 	if (retVal == 0) {
