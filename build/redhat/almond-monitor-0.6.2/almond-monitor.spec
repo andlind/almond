@@ -1,5 +1,5 @@
 %define name almond-monitor
-%define version 0.6.0
+%define version 0.6.2
 
 Summary:	Almond monitoring scheduler and api
 Name:		%{name}	
@@ -39,6 +39,7 @@ mkdir -p %{buildroot}/opt/almond/www
 mkdir -p %{buildroot}/lib/systemd/system/
 cp almond.conf %{buildroot}/etc/almond/
 cp plugins.conf %{buildroot}/etc/almond/ 
+cp aliases.conf %{buildroot}/etc/almond/
 cp gardener.py %{buildroot}/opt/almond/
 cp howru-api %{buildroot}/opt/almond/
 cp metrics.template %{buildroot}/opt/almond/templates/
@@ -50,6 +51,7 @@ cp -r plugins/* %{buildroot}/opt/almond/plugins/
 %files
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/almond.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/plugins.conf
+%attr(0644,almond,almond) %config(noreplace) /etc/almond/aliases.conf
 %attr(0755,almond,almond) /opt/almond/gardener.py
 %attr(0755,almond,almond) /opt/almond/howru-api
 %attr(0755,almond,almond) /opt/almond/www/api/rs.sh
@@ -74,6 +76,11 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Tue Feb 20 2024 Version 0.6.2
+<andreas.lindell@hotmail.com>
+- Kafka producer SSL
+- Kafka tags 
+- Buggfixes
 * Thu Aug 10 2023 Version 0.6
 <andreas.lindell@hotmail.com>
 - Kafka producer functionality
