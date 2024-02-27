@@ -369,7 +369,7 @@ def api_old_json():
         servername = request.args['server']
         return redirect(url_for('api_json', server=servername))
 
-@app.route('/api/status', methods=['GET']
+@app.route('/api/status', methods=['GET'])
 @app.route('/api/summary', methods=['GET'])
 @app.route('/api/howru', methods=['GET'])
 @app.route('/api/howareyou', methods=['GET'])
@@ -826,7 +826,8 @@ def api_old_changes():
 
 @app.route('/api/search', methods=['GET'])
 @app.route('/api/querysearch', methods=['GET'])
-@app.route('howru/api/search', methods=['GET']):
+@app.route('howru/api/search', methods=['GET'])
+def api_search_plugin():
     return api_show_plugin(1)
 
 @app.route('/api/query', methods=['GET'])
