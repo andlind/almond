@@ -826,7 +826,7 @@ def api_old_changes():
 
 @app.route('/api/search', methods=['GET'])
 @app.route('/api/querysearch', methods=['GET'])
-@app.route('howru/api/search', methods=['GET'])
+@app.route('/howru/api/search', methods=['GET'])
 def api_search_plugin():
     return api_show_plugin(1)
 
