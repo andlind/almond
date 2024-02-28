@@ -1,8 +1,7 @@
 FROM jasonrivers/nagios:latest
 
-RUN apt-get update && apt-get install -y libjsoncpp-dev python3-requests python3-schedule supervisor 
+RUN apt-get update && apt-get install -y libjsoncpp-dev python3-requests python3-schedule 
 
-COPY supervisord.conf /etc/supervisor/supervisord.conf
 RUN mkdir /opt/almond
 COPY integration.py /opt/almond/
 COPY almond-collector /opt/almond/
