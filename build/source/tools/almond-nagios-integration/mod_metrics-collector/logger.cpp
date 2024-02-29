@@ -2,7 +2,7 @@
 #include "logger.h"
 #include "logger.h"
 #include "logutils.h"
-const string CLogger::m_sFileName = "/var/log/metrics_collector.log";
+const string CLogger::m_sFileName = "/var/log/almond_collector.log";
 CLogger* CLogger::m_pThis = NULL;
 ofstream CLogger::m_Logfile;
 CLogger::CLogger()
