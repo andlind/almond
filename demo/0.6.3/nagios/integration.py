@@ -5,6 +5,8 @@ import shutil
 import schedule
 import time
 import functools
+import subprocess
+import os
 
 host_list = []
 inventory_host_list = []
@@ -151,6 +153,20 @@ def createNewConfig(file):
             f.write("\n}\n\n")
     f.close()
 
+def checkNagiosConfig():
+    print ("Checking that Nagios configuration is ok.")
+    nagiosProc = subprocess.run(["/opt/nagios/bin/nagios", "-v", "/opt/nagios/etc/nagios.cfg"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    return nagiosProc.returncode
+
+def restartNagios():
+    print ("Restarting Nagios.")
+    restartProc = subprocess.run(["/opt/almond/restart_nagios_process.sh"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if restartProc.returncode == 0:
+        print ("Restarted Nagios process.")
+    else:
+        print ("Failed to restart Nagios process.")
+
+
 def do_integrate(url,file):
     global host_list
     global inventory_list
@@ -162,8 +178,12 @@ def do_integrate(url,file):
     if changes < 1:
         compare_services()
     if changes > 0:
-        print ("Create new config")
+        print ("Creating new config")
         createNewConfig(file)
+        if checkNagiosConfig() < 1:
+            restartNagios()
+        else:
+            print("ERROR\tNagios config error.")
     else:
         print ("Nothing to do")
 
@@ -184,6 +204,7 @@ def main():
     #    createNewConfig(args.file)
     #else:
     #    print ("Nothing to do")
+    print ("Starting integration with runs every " + str(args.sleep) + " minutes.")
     schedule.every(args.sleep).minutes.do(functools.partial(do_integrate, args.url, args.file))
     while True:
         schedule.run_pending()
