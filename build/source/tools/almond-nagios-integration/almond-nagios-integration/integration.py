@@ -2,8 +2,11 @@ import requests
 import argparse
 import sys
 import shutil
-import os
+import schedule
+import time
+import functools
 import subprocess
+import os
 
 host_list = []
 inventory_host_list = []
@@ -38,8 +41,8 @@ params = {
 def get_collector_host_list(url):
     global host_list
     global server_list
-    this_url = "http://" + url
-    response = requests.get(this_url, params=params, headers=headers)
+    print (url)
+    response = requests.get(url, params=params, headers=headers)
     data = response.json()
     server_list = data.get('server')
     for x in server_list:
@@ -51,6 +54,7 @@ def get_collector_host_list(url):
 def get_inventory_host_list(path):
     global inventory_host_list
     global inventory
+    print (path)
     with open(path) as inventory_file:
         inventory = inventory_file.readlines()
         for line in inventory:
@@ -74,8 +78,6 @@ def compare_list(list1, list2, set_order):
         changes += len(temp)
 
 def compare_services():
-    # TODO: Add check if service name and or command values changed as well
-    # Currently we only check if the total number of services differ,
     global inventory
     global server_list
     global changes
@@ -151,77 +153,66 @@ def createNewConfig(file):
             f.write("\n}\n\n")
     f.close()
 
-def check_for_howru_command(cfile):
-    if os.path.isfile(cfile):
-        with open(cfile, 'r') as file:
-            content = file.read()
-            if 'check_howru_service_by_id' in content:
-                return True
-            else: 
-                return False
+def checkCommandExists(file):
+    print("Check if howru command exists")
+    retVal = False
+    with open(file, 'r') as fp:
+        for line in enumerate(fp):
+            if 'check_howru_service_by_id':
+                retVal = True
+                break
+    return retVal
+                
+def checkNagiosConfig(cmd):
+    print ("Checking that Nagios configuration is ok.")
+    print ("Use " + cmd)
+    nagiosProc = subprocess.run(["/opt/nagios/bin/nagios", "-v", "/opt/nagios/etc/nagios.cfg"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    return nagiosProc.returncode
+
+def restartNagios():
+    print ("Restarting Nagios.")
+    restartProc = subprocess.run(["/opt/almond/restart_nagios_process.sh"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if restartProc.returncode == 0:
+        print ("Restarted Nagios process.")
     else:
-        print ("Could not find Nagios command file. Aborting.")
-        sys.exit(1)
+        print ("Failed to restart Nagios process.")
 
-def add_howru_check_command(cfile):
-    with open(cfile, "a") as command_file:
-        command_file.write("################################################################################\n")
-        command_file.write("#\n# HOWRU PLUGIN used by Almond Nagios Integration\n#\n")
-        command_file.write("# Make sure you have the plugin located in $USER2 directory\n#\n")
-        command_file.write("################################################################################\n\n")
-        command_file.write("define command{\n\tcommand_name    check_howru_service_by_id\n")
-        command_file.write("\tcommand_line    $USER2$/check_howru.py -H $ARG1$ -P $ARG2$ -A $ARG3$ -i $ARG4$ -e $ARG5$\n")
-        command_file.write("}\n")
+def do_integrate(url,file, cmd, cfile):
+    global host_list
+    global inventory_list
 
-def check_nagios_config(command, conffile):
-    command_sp = command.split()
-    result = subprocess.run([command_sp[0], command_sp[1], command_sp[2]], stdout=subprocess.PIPE)
-    if result.returncode != 0:
-        print ("Nagios config has errors")
-        print (result.stdout.decode('utf-8'))
-        print ("Revert to old configuration")
-        backupfile = conffile + ".bak"
-        shutil.copyfile(backupfile, conffile)
-    else:
-        print (result.stdout.decode('utf-8'))
-        print ("New config looks fine :)")
-
-def reload_nagios(cmd):
-    cmd_sp = cmd.split()
-    result = subprocess.run([cmd_sp[0], cmd_sp[1]], stdout.subprocess.PIPE)
-    if result.returncode == 0:
-        print ("Nagios reloaded with new config.")
-    else:
-        print ("Nagios failed to reload...")
-        print (result.stdout.decode('utf-8'))
-
-def main():
-    parser = argparse.ArgumentParser(description='Almond HowRU API Nagios integration')
-    parser.add_argument('-u', '--url', type=str, required=True, help='Url to collector, for an example http://localhost:80')
-    parser.add_argument('-f', '--file', type=str, required=True, help='Path to config file, for an example /opt/nagios/etc/conf.d/almond.cfg')
-    parser.add_argument('-c', '--commands', type=str, required=False, default='/opt/nagios/etc/objects/commands.cfg')
-    parser.add_argument('-n', '--nagioscheck', type=str, required=False, default="/opt/nagios/bin/nagios -v /opt/nagios/etc/nagios.cfg")
-    parser.add_argument('-r', '--reload', action='store_true')
-    parser.add_argument('-x', '--reloadcmd', type=str, required=False, default="/etc/rd.d/init.d/nagios reload")
-    args = parser.parse_args()
-    command_file = args.commands
-    check_command = args.nagioscheck
-    get_collector_host_list(args.url)
-    get_inventory_host_list(args.file)
+    get_collector_host_list(url)
+    get_inventory_host_list(file)
     compare_list(host_list, inventory_host_list, 0)
     compare_list(inventory_host_list, host_list, 1)
     if changes < 1:
         compare_services()
     if changes > 0:
-        print ("Create new config")
-        if not check_for_howru_command(command_file):
-            add_howru_check_command(command_file)
-        createNewConfig(args.file)
-        check_nagios_config(check_command, args.file)
-        if args.reload:
-            reload_nagios(args.reloadcmd)
+        if not checkCommandExists(cfile):
+            print("Check against howru api not found in command file. Aborting integration.")
+            return None
+        print ("Creating new config")
+        createNewConfig(file)
+        if checkNagiosConfig(cmd) < 1:
+            restartNagios()
+        else:
+            print("ERROR\tNagios config error.")
     else:
         print ("Nothing to do")
+
+def main():
+    parser = argparse.ArgumentParser(description='Almond HowRU API Nagios integration')
+    parser.add_argument('-u', '--url', type=str, required=True, help='Url to collector, for an example http://localhost:80')
+    parser.add_argument('-f', '--file', type=str, required=True, help='Path to config file, for an example /opt/nagios/etc/conf.d/almond.cfg')
+    parser.add_argument('-s', '--sleep', type=int, required=False, default=5, help='Number of minutes between integrations. Default is 5')
+    parser.add_argument('-n', '--nagioscheck', type=str, required=False, default='/opt/nagios/bin/nagios -v /opt/nagios/etc/nagios.cfg', help='Command to check Nagios config')
+    parser.add_argument('-c', '--commandfile', type=str, required=False, default='/opt/nagios/etc/objects/commands.cfg', help='Path to Nagios commands file')
+    args = parser.parse_args()
+    print ("Starting integration with runs every " + str(args.sleep) + " minutes.")
+    schedule.every(args.sleep).minutes.do(functools.partial(do_integrate, args.url, args.file, args.nagioscheck, args.commandfile))
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
 if __name__=="__main__":
     sys.exit(main())
