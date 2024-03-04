@@ -7,6 +7,7 @@ import random
 import socket
 import logging
 from venv import logger
+from werkzeug.datastructures import MultiDict
 from admin_page import admin_page
 
 app = flask.Flask(__name__)
@@ -850,6 +851,8 @@ def api_show_plugin(search=0):
         if (search == 0):
             if 'server' in request.args:
                 server = request.args['server']
+            else:
+                server = 'all'
             if 'name' in request.args:
                 name = request.args['name']
             elif 'id' in request.args:
@@ -857,19 +860,21 @@ def api_show_plugin(search=0):
         else:
             if 'server' in request.args:
                 server = request.args['server']
+            else:
+                server = 'all'
             if 'name' in request.args:
-                name = request.args('name')
+                name = request.args.getlist('name')[0]
             elif 'query' in request.args:
-                name = request.args('query')
+                name = request.args.getlist('query')[0]
             elif 'find' in request.args:
-                name = request.args('find')
+                name = request.args.getlist('find')[0]
             if (name == ""):
                 if 'id' in request.args:
                     id = int(request.args['id']) 
         
         for x in data['server']:
             this_server = x['host']['name']
-            if (this_server == server):
+            if (this_server == server) or (server == 'all'):
                 server_found = 1
                 s_name = {
                     'name': this_server
