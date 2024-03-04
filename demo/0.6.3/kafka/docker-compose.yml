@@ -76,10 +76,7 @@ services:
       - ./plugins:/opt/almond/plugins/extra
     networks:
       - redpanda_network
-    command: 
-      - -c 
-      - | 
-        chmod +x /opt/almond/howru-api && cp -rp /opt/almond/plugins/extra/* /opt/almond/plugins && chmod +x /opt/almond/plugins/* && /usr/bin/supervisord
+    entrypoint: /usr/bin/supervisord
     ports:
       - 8099:8099
       - 9909:9909   
