@@ -74,6 +74,7 @@ services:
       - ./almond:/etc/almond
       - ./supervisor:/etc/supervisor
       - ./plugins:/opt/almond/plugins/extra
+      - ./bin:/opt/almond/bin
     networks:
       - redpanda_network
     entrypoint: /usr/bin/supervisord
