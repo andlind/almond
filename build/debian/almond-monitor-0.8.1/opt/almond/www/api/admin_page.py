@@ -25,7 +25,7 @@ api_available_conf = ['api.bindPort', 'api.enableFile',' data.jsonFile', 'data.m
 scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'gardener.CleanUpTime']
 
 users = {}
-current_version = '0.7.1'
+current_version = '0.8.1'
 
 enable_gui = True
 standalone = True
