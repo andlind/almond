@@ -22,7 +22,7 @@
                 </p>
                 <p style="font-family: Verdana; font-size: 12px">You can of course install the service without putting it in a repository, for instance on Ubuntu you type the following (as root) to install the application:</p>
                  <code>
-                dpkg -i almond-monitor_0.6.3.deb
+                dpkg -i almond-monitor_0.8.3.deb
                 </code>
                 <br>
                 <code>
@@ -36,7 +36,7 @@
                 </code>
                 <br>
                 <code>
-                systemctl stop howru-api.service
+                systemctl stop howru.service
                 </code>
 		<p style="font-family: Verdana; font-size: 12px">After stopping the service, check the configuration file for changes and edit the plugins file for your needs. These files are shortly described here below.<br>Finally start the services again and enjoy your API.</p>
                 <code>
@@ -44,7 +44,7 @@
                 </code>
                 <br>
                 <code>
-                systemctl start howru-api.service
+                systemctl start howru.service
                 </code>
 		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">2. Almond Scheduler</p>
                 <p style="font-family: Verdana; font-size: 12px">There are currently two versions of the scheduler, both in developement stages. One version is written in C# and runs with mono on Linux systems. The reason is crossplattform compatability, where you would make the scheduler run on Windows as well. The other version is a native scheduler for Linux, written in C.<br>It should be noted that the native linux version is far ahead of the crossplattform version and should be your first choice.</p>
@@ -65,8 +65,7 @@
                 The scheduler requires two configuration files <i>almond.conf</i> (or <i>howru.conf</i> running mono) and <i>plugins.conf</i> located under /etc/almond.<br>
                 <i>howru.conf</i> is used by the mono-version and <i>almond.conf</i> is used by the native Linux scheduler. 
                 </p>
-                <p style="font-family: Verdana; font-size: 12px">The native Linux scheduler is currently a little ahead of the mono version and its configuration values will be described here below.<br>
-                There are not so many configuration, but if you run the mono version there are some small disparities between its configuration and this documentation.</p>
+                <p style="font-family: Verdana; font-size: 12px">The native Linux scheduler is currently a quite far ahead of the mono version and its configuration values will be described here below.<br>
                 <p style="font-family: Verdana; font-size: 12px; font-weight: bold">2.1 Almond configuration file (almond.conf)</p>
 		<table style="border: 1px solid black">
                 <tr>
@@ -134,6 +133,14 @@ ould look like:</p>
                 <xmp>
                 [check_myservice] Control MyOwnService;my_own_control_script.sh;0;1
                 </xmp>
+		<p style="font-family: Verdana; font-size: 12px; font-weight: bold">2.3 Almond memory allocation configuration file (memalloc.conf)</p>
+		<p style="font-family: Verdana; font-size: 12px">The memalloc.conf file should consist of either the word <i>enabled</i> or the word</i> disabled</i>.<br>
+		By default &quot;disabled&quot; is written in the file. By changing this to <i>enabled</i> Almond will read how much memory the program will allocate to a number of important variables.<br>
+		The file read from is found in:</p>
+		<xmp>
+		/opt/almond/memalloc.alm
+		</xmp>
+		<p style="font-family: Verdana; font-size: 12px"><b>Note! Do not change values in <i>memalloc.alm</i> without knowing the consequences!</b></p>
                 <p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">3. HowRU API</p>
                 <p style="font-family: Verdana; font-size: 12px">The scheduler will run the plugins with the parameters and with the intervals declared in the <i>plugins.conf</i> file briefly described above.<br>
                 The result of the runs will be stored in the <i>data.jsonFile</i>. To access the information through a local web page (or through external calls on the <i>api.bindPort</i> you need to start the API.</p>
@@ -143,9 +150,29 @@ ould look like:</p>
                 </xmp>
                 <p style="font-family: Verdana; font-size: 12px">If you install HowRU with packages you will most likely prefer the to start it with systemd:</p>
                 <xmp>
-                systemctl start howru-api.service
+                systemctl start howru.service
                 </xmp>
-                <p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">4. API CALLS</p>
+		<p style="font-family: Verdana; font-size: 12px; font-weight: bold">3.1 HowRU configuration files</p>
+		<p style="font-family: Verdana; font-size: 12px">By default HowRu uses the same configuration file as almond, namely <i>almond.conf</i>. However if you prefer you can put configuration in an own file called <i>api.conf</i>.<br>
+		The <i>api.conf</i> file should include all parameters from the <i>almond.conf</i>-file prefixed <b>api.</b> as well as the following entries:
+		<ul>
+			<li>data.jsonFile</li>
+			<li>data.metricsFile</li>
+			<li>scheduler.storeDir</li>
+			<li>scheduler.configFile</li>
+			<li>scheduler.dataDir</li>
+			<li>plugins.directory</lI>
+			<li>plugins.declaration</li>
+		</ul></p>
+		<p style="font-family: Verdana; font-size: 12px"><b>Note!</b> If an <i>api.conf</i> file exists alongside <i>almond.conf</i>, HowRU will prefer the values in the <i>api.conf</i>-file.</p>
+		<p style="font-family: Verdana; font-size: 12px">Apart from the standard configuration, HowRU also uses <i>users.conf</i> and <i>aliases.conf</i>.<br>
+		<i>users.conf</i> holds the encrypted allowed logins for the admin page and the <i>aliases.conf</i> holds aliases for API calls.</p>
+                <p style="font-family: Verdana; font-size: 12px">The <i>aliases.conf</i> files containins json entries, for an example </p>
+		<xmp>
+		{"ID":1, "check_name":"check_cpu_stats","alias":"cpu"}
+		</xmp>
+		<p style="font-family: Verdana; font-size: 12px">which will create an api alias for the check that could be used with the parameter<i>name</i> in HowRU API calls.</p>
+                <p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">4. HOWRU API CALLS</p>
                 <p style="font-family: Verdana; font-size: 12px">
                 <p style="font-family: Verdana; font-size: 12px; font-weight: bold">4.1 Available API calls </p>
                 <p style="font-family: Verdana; font-size: 12px">
@@ -153,12 +180,41 @@ ould look like:</p>
                 <table style="border: 1px solid black">
                 <tr>
                 <td style="font-family: Verdana; font-size: 12px; text-decoration: underline">API call</td><td style="font-family: Verdana; font-size: 12px; text-decoration: underline">Description</td></tr>
-                <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/howareyou</td><td style="font-family: Verdana; font-size: 12px">Short compilation of server state.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/status</td><td style="font-family: Verdana; font-size: 12px">Short compilation of server state.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/summary</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/howru</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/howareyou</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/howareyou</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/howareyou</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/criticals</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in critical state.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/criticals</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/criticals</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in critical state.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/warnings</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in warning state.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/warnings</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/warnings</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in warning state.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/ok</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in state ok.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/oks</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/ok</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/ok</td><td style="font-family: Verdana; font-size: 12px">Compilation of all plugins in state ok.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/changes</td><td style="font-family: Verdana; font-size: 12px">Compilation of changes</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/changes</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/changes</td><td style="font-family: Verdana; font-size: 12px">Compilation of changes</td></tr>
-                <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/json</td><td style="font-family: Verdana; font-size: 12px">All plugin results are shown</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/showall</td><td style="font-family: Verdana; font-size: 12px">All plugin results are shown</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/all</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/json</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howeu/api/showall</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/all</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/json</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/json</td><td style="font-family: Verdana; font-size: 12px">All plugin results are shown</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/servers</td><td style="font-family: Verdana; font-size: 12px">Results from specifik server in multimode. <i>id</i> or </i>name</i> must be provided.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/servers</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/<i>alias</i></td><td style="font-family: Verdana; font-size: 12px">Show results from <i>alias</i> as provided in the <i>aliases.conf</i> file.</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/search?name=<i>searchstring</i></td><td style="font-family: Verdana; font-size: 12px">Search results from string</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/querysearch?name=<i>searchstring</i></td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/search?name=<i>searchstring</i></td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/query?id=<i>plugin_id</i></td><td style="font-family: Verdana; font-size: 12px">Search result of a specific plugin id</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/api/plugin?id=<i>plugin_id</i></td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+		<tr><td style="font-family: Verdana; font-size: 12px">/howru/api/plugin?id=<i>plugin_id</i></td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/plugin?id=<i>plugin_id</i></td><td style="font-family: Verdana; font-size: 12px">Result of a specific plugin by id </td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">/howru/monitoring/plugin?name=<i>plugin_name</i></td><td style="font-family: Verdana; font-size: 12px">Result of specific plugin by plugin name</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">/howru/settings/plugins</td><td style="font-family: Verdana; font-size: 12px">Show settings of plugins running on the server</td></tr>
@@ -175,7 +231,8 @@ ould look like:</p>
                 curl url_to_hostserver:port/howru/monitoring/howareyou&server=testserver.test.domain.com
                 </xmp>
                 <p style="font-family: Verdana; font-size: 12px">will only show status from the particular server <i>testserver.test.domain.com</i>.</p>
-		 <p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">5. Tips and recommendations</p>
+		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">5. Using the Almond API</p>
+		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">6. Tips and recommendations</p>
                 <p style="font-family: Verdana; font-size: 12px">If you run the HowRU API on port 80 (default) you get a very simplistic web GUI where you can explore and test the API.<br>
                 If you wish to run the API on another port you can always curl to get API responses in json-format, for instance:</p>
                 <xmp>
