@@ -224,7 +224,7 @@ def read_conf():
     global enable_gui
     global jasonFile
     global store_dir
-    global plugin_directory
+    global plugins_directory
     global declaration_file
     global admin_user_file
     global start_page
@@ -316,7 +316,7 @@ def read_conf():
         if (x.find('plugins') == 0):
             if (x.find('directory') > 0):
                 pos = x.find('=')
-                plugin_directory = x[pos+1:].rstrip()
+                plugins_directory = x[pos+1:].rstrip()
             if (x.find('declarations') > 0):
                 pos = x.find('=')
                 delcaration_file = x[pos+1:].rstrip()
@@ -331,8 +331,10 @@ def list_available_plugins():
 
     #plugin_list = next(walk("/usr/local/nagios/libexec"), (None, None, []))[2]
     plugin_list = next(walk(plugins_directory), (None, None,  []))[2]
-    plugin_list.remove('utils.sh')
-    plugin_list.remove('utils.pm')
+    if 'utils.sh' in plugin_list:
+        plugin_list.remove('utils.sh')
+    if 'utils.pm' in plugin_list:
+        plugin_list.remove('utils.pm')
     plugin_list.sort()
     return plugin_list
 

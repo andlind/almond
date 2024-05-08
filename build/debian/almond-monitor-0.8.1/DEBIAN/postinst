@@ -32,7 +32,7 @@ fi
 systemctl daemon-reload
 systemctl enable almond
 systemctl start almond
-systemctl enable howru-api.service
-systemctl start howru-api.service
+systemctl enable howru.service
+systemctl start howru.service
 
 exit 0
