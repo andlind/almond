@@ -1045,11 +1045,11 @@ def api_show_server():
 @app.route('/howru/monitoring/servers', methods=['GET'])
 def api_old_servers():
     if ('id' in request.args):
-        return redirect(url_for('api_show_servers', id=request.args['id']))
+        return redirect(url_for('api_show_server', id=request.args['id']))
     elif ('host' in request.args):
-        return redirect(url_for('api_show_servers', host=request.args['host']))
+        return redirect(url_for('api_show_server', host=request.args['host']))
     else:
-        return redirect(url_for('api_show_servers'))
+        return redirect(url_for('api_show_server'))
 
 @app.route('/howru/settings/plugins', methods=['GET'])
 def api_show_settings():
