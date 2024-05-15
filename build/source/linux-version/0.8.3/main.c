@@ -156,7 +156,7 @@ unsigned int gardenerInterval = 43200;
 unsigned int clearDataCacheInterval = 300;
 unsigned int dataCacheTimeFrame = 330;
 unsigned int kafka_start_id = 0;
-unsigned int thread_counter = 0;
+unsigned int volatile thread_counter = 0;
 unsigned char output_type = 0;
 time_t tLastUpdate, tnextUpdate;
 time_t tnextGardener;
@@ -174,8 +174,10 @@ unsigned short *threadIds = NULL;
 //char *logmessages[5];
 int logmessage_id[5];
 int logrecord = 0;
+unsigned short volatile is_stopping = 0;
 pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t file_opened = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 //MUTEX NEEDED ALSO FOR runPlugin fprintf
 
 void flushLog();
@@ -489,28 +491,31 @@ int getConstants() {
         for (int i = 0; i < count; i++) {
                 if (strcmp(constants[i], "CONFDIR_SIZE") == 0) {
                         writeLog("Memory for variable 'confDir' will be reallocated by constants file.", 0, 1);
-                        char *temp  = realloc(confDir, (size_t)(values[i] * sizeof(char)+1));
+			size_t newSize = (size_t)(values[i] * sizeof(char)+1);
+                        char *temp  = realloc(confDir, newSize);
 			//confDir = realloc(confDir, values[i] * sizeof(char)+1);
 			if (temp == NULL) {
 				writeLog("Failed to reallocate memory for variable 'confDir'.", 1, 1);
-				free(confDir);
 				return 1;
 			}
-			else
-				//memset(confDir, 0, values[i] * sizeof(char)+1);
+			else {
+				memset(temp, 0, newSize);
+				strncpy(temp, confDir, newSize-1);
+				temp[newSize-1] = '\0';
 				confDir = temp;
+			}
                 }
 		else if (strcmp(constants[i], "DATADIR_SIZE") == 0) {
 			writeLog("Memory for variable 'dataDir' will be reallocated by constants file.", 0, 1);
 			//char *temp = realloc(dataDir, (size_t)(values[i] * sizeof(char)+1));
-			dataDir = realloc(dataDir, (size_t)(values[i] * sizeof(char)+1));
+			size_t newSize = (size_t)(values[i] * sizeof(char) + 1);
+			dataDir = realloc(dataDir, newSize);
 			if (dataDir == NULL) {
 				writeLog("Failed to reallocate memory for variable 'dataDir'.", 1, 1);
-				free(dataDir);
 				return 1;
 			}
 			else
-				memset(dataDir, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(dataDir, 0, newSize);
 			//dataDir = temp;
 		}
 		else if (strcmp(constants[i], "PLUGINDECLARATIONFILE_SIZE") == 0) {
@@ -924,8 +929,10 @@ void* apiThread(void* data) {
 		createSocketRetVal = createSocket(server_fd);
 		retry_count++;
 	}
-	//thread_counter--;
-	//printf("DEBUG: [apiThread] Thread count is now: %i\n", thread_counter);
+	pthread_mutex_lock(&mtx);
+	thread_counter--;
+	pthread_mutex_unlock(&mtx);
+	printf("DEBUG: [apiThread] Thread count is now: %i\n", thread_counter);
         pthread_exit(NULL);
 }
 
@@ -943,8 +950,10 @@ void startApiSocket() {
 		printf("New thread accepting socket created.\n");
                 snprintf(infostr, infostr_size, "Created new thread (%lu) listening for connections on port %d \n", thread_id, local_port);
                 writeLog(trim(infostr), 0, 0);
-		//thread_counter++;
-		//printf("DEBUG: [startApiSocket] Thread count is now: %i\n", thread_counter);
+		pthread_mutex_lock(&mtx);
+		thread_counter++;
+		pthread_mutex_unlock(&mtx);
+		printf("DEBUG: [startApiSocket] Thread count is now: %i\n", thread_counter);
 		//pthread_join(thread_id, NULL);
        }
 
@@ -1644,11 +1653,13 @@ int createSocket(int server_fd) {
 	while(1) {
         	client_socket = accept(server_fd, (struct sockaddr*)&client_addr, &client_size);
         	if (client_socket < 0){
-			perror("ERROR on accept.");
-                	printf("Can't accept any socket requests.\n");
-                	writeLog("Could not accept client socket.", 1, 0);
-                	//return -1;
-			continue;
+			if (is_stopping == 0) {
+				perror("ERROR on accept.");
+                		printf("Can't accept any socket requests.\n");
+                		writeLog("Could not accept client socket.", 1, 0);
+			}
+                	return -1;
+			//continue;
         	}
         	printf("Client connected at IP: %s and port: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         	snprintf(infostr, infostr_size, "Client connected at IP: %s and port: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
@@ -1709,6 +1720,7 @@ int createSocket(int server_fd) {
 			return -2;
 		}
 	}
+	return 0;
 }
 
 void closeSocket() {
@@ -1910,11 +1922,17 @@ void freemem() {
 	}*/
 }
 
+void destroy_mutexes() {
+	pthread_mutex_destroy(&mtx);
+	pthread_mutex_destroy(&file_mutex);
+}
+
 void sig_handler(int signal){
 	int max_try = 60;
 	int try_count = 0;
     	switch (signal) {
         	case SIGINT:
+			is_stopping = 1;
 			writeLog("Caught SIGINT, exiting program.", 0, 0);
 			closejsonfile();
 			closeSocket();
@@ -1931,17 +1949,19 @@ void sig_handler(int signal){
 				try_count++;
 				if (try_count >= max_try) break;
                         }
-			printf("There are %i threads waiting to finish.\n", thread_counter);
+			//printf("There are %i threads waiting to finish.\n", thread_counter);
 			writeLog("Almond says goodbye.", 0, 0);
 			free(logmessage);
 			logmessage = NULL;
 			free(threadIds);
 			freemem();
+			destroy_mutexes();
 			fclose(fptr);
                         fptr = NULL;
 			printf("Exiting application.\n");
             		exit(0);
 		case SIGKILL:
+			is_stopping = 1;
 			writeLog("Caught SIGKILL, exiting progam.", 0, 0);
 			closejsonfile();
 			closeSocket();
@@ -1964,12 +1984,14 @@ void sig_handler(int signal){
 			printf("Let threads finsih...\n");
 			free(threadIds);
 			freemem();
+			destroy_mutexes();
 			fclose(fptr);
 			fptr = NULL;
 			printf("Exiting application.\n");
 			exit(0);
 		case SIGTERM:
 		case SIGSTOP:
+			is_stopping = 1;
 			printf("Caught signal to quit program.\n");
 			closejsonfile();
 			closeSocket();
@@ -1990,6 +2012,7 @@ void sig_handler(int signal){
 			}
                         free(threadIds);
                         freemem();
+			destroy_mutexes();
 			writeLog("Almond says goodbye.", 0, 0);
 			free(logmessage);
 			logmessage = NULL;
@@ -3241,6 +3264,11 @@ void collectMetrics(int decLen, int style) {
         strncat(storeName, &ch, 1);
         strcat(storeName, metricsFileName);
         mf = fopen(storeName, "w");
+	if (mf == NULL) {
+		writeLog("Failed to open metrics file", 1, 0);
+		fprintf(stderr, "Failed to open metrics file\n");
+		return;
+	}
         snprintf(infostr, infostr_size, "Collecting metrics to file: %s", storeName);
         writeLog(trim(infostr), 0, 0);
 	for (int i = 0; i < decLen; i++) {
@@ -3388,12 +3416,13 @@ void collectMetrics(int decLen, int style) {
                                         }
 
 					//metricsValue = malloc(strlen(metricsName + index + 1)+1);
-					metricsValue = malloc((size_t)metricsValueLength);
+					metricsValue = malloc((size_t)metricsValueLength+1);
 					if (metricsValue == NULL) {
 						writeLog("Failed to allocate memory [collectMetrics:metricsValue]", 2, 0);
 						return;
 					}
-					strcpy(metricsValue, metricsName + index +1);
+					//strcpy(metricsValue, metricsName + index +1);
+					strncpy(metricsValue, metricsName + index +1, (size_t)metricsValueLength);
 					metricsName[index] = '\0';
 					char *pm;
 					for (pm = metricsName; *pm != '\0'; ++pm) 
@@ -3913,7 +3942,9 @@ void* pluginExeThread(void* data) {
 	// VERBOSE printf("Executing %s in pthread %lu\n", declarations[storeIndex].description, pthread_self());
 	threadIds[(short)storeIndex] = 1;
 	runPlugin(storeIndex, 0);
+	pthread_mutex_lock(&mtx);
 	thread_counter--;
+	pthread_mutex_unlock(&mtx);
 	//printf("DEBUG: [pluginExeThread] Thread count is now: %i\n", thread_counter);
 	pthread_exit(NULL);
 	threadIds[(short)storeIndex] = 0;
@@ -3922,7 +3953,9 @@ void* pluginExeThread(void* data) {
 void* gardenerExeThread(void* data) {
 	pthread_detach(pthread_self());
 	runGardener();
+	pthread_mutex_lock(&mtx);
 	thread_counter--;
+	pthread_mutex_unlock(&mtx);
 	//printf("DEBUG: [gardenerExeThread] Thread count is now: %i\n", thread_counter);
 	pthread_exit(NULL);
 }
@@ -3930,7 +3963,9 @@ void* gardenerExeThread(void* data) {
 void* clearDataCacheThread(void* data) {
 	pthread_detach(pthread_self());
 	runClearDataCache();
+	pthread_mutex_lock(&mtx);
 	thread_counter--;
+	pthread_mutex_unlock(&mtx);
 	//printf("DEBUG: [clearDataCacheThread] Thread count is now: %i\n", thread_counter);
 	pthread_exit(NULL);
 }
@@ -4954,7 +4989,9 @@ void runPluginThreads(int loopVal){
            		else {
                    		snprintf(infostr, infostr_size, "Created new thread (%lu) for plugin %s\n", thread_id, declarations[i].name);
 				writeLog(trim(infostr), 0, 0);
+				pthread_mutex_lock(&mtx);
 				thread_counter++;
+				pthread_mutex_unlock(&mtx);
 				//printf("DEBUG: [runPluginThreads] Thread count is now: %i\n", thread_counter);
 				//pthread_join(thread_id, NULL);
            		}
@@ -4976,7 +5013,9 @@ void executeGardener() {
         else {
         	snprintf(infostr, infostr_size, "Created new thread (%lu) truncating metrics logs (gardener) \n", thread_id);
         	writeLog(trim(infostr), 0, 0);
+		pthread_mutex_lock(&mtx);
 		thread_counter++;
+		pthread_mutex_unlock(&mtx);
 		//printf("DEBUG: [executeGardener] Thread count is now: %i\n", thread_counter);
 		//pthread_join(thread_id, NULL);
        }
@@ -4994,7 +5033,9 @@ void clearDataCache() {
         else {
                 snprintf(infostr, infostr_size, "Created new thread (%lu) clearing old data files (clearDataCache) \n", thread_id);
                 writeLog(trim(infostr), 0, 0);
+		pthread_mutex_lock(&mtx);
 		thread_counter++;
+		pthread_mutex_unlock(&mtx);
 		//printf("DEBUG: [clearDataCache] Thread count is now: %i\n", thread_counter);
 		//pthread_join(thread_id, NULL);
        }
