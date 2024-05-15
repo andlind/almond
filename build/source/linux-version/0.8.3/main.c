@@ -1104,6 +1104,10 @@ void send_socket_message(int socket, int id, int aflags) {
 	char* send_message = NULL;
 	size_t content_length;
 	char len[4];
+
+	printf("DEBUG: socket = %i\n", socket);
+	printf("DEBUG: id = %i\n", id);
+	printf("DEBUG: aflags = %i\n", aflags);
 	
 	if (args_set == 0) {
 		switch (api_action) {
@@ -1635,7 +1639,7 @@ int createSocket(int server_fd) {
                 return -1;
 	}
         memset(server_message, '\0', (size_t)socketservermessage_size);
-        //memset(client_message, '\0', (size_t)socketclientmessage_size);
+        memset(client_message, '\0', (size_t)socketclientmessage_size);
         if (listen(server_fd, 5) < 0) {
                 perror("listen");
                 writeLog("Failed listening...", 2, 0);
@@ -1647,7 +1651,10 @@ int createSocket(int server_fd) {
 	free(infostr);
 	infostr = NULL;
 	infostr = malloc((size_t)infostr_size * sizeof(char));
-	strncpy(infostr, "", 2);
+	if (infostr != NULL)
+		strncpy(infostr, "", 2);
+	else
+		printf("Failed to allocate memory for 'infostr'.\n");
         // Accept incoming connections
         client_size = sizeof(client_addr);
 	while(1) {
@@ -1676,10 +1683,10 @@ int createSocket(int server_fd) {
 				perror("recv failed\n");
                 		printf("Couldn't receive\n");
                 		writeLog("Could not receieve client message on socket.", 1, 0);
-				/*free(server_message);
+				free(server_message);
         			free(client_message);
-        			server_message = client_message = NULL;*/
-                		//return -1;
+        			server_message = client_message = NULL;
+                		return -1;
         		}
 			printf("DEBUG: client_message = %s\n", client_message);
 			if (client_message == NULL) {
@@ -1720,7 +1727,7 @@ int createSocket(int server_fd) {
 			return -2;
 		}
 	}
-	return 0;
+	//return 0;
 }
 
 void closeSocket() {
@@ -2732,7 +2739,7 @@ void runPluginArgs(int id, int aflags, int api_action) {
         int rc = 0;
 	char* message = NULL;
 
-	message = malloc((size_t)apimessage_size * sizeof(char));
+	message = malloc((size_t)apimessage_size * sizeof(char)+1);
 	if (message == NULL) {
 		fprintf(stderr, "Failed to allocate memory in [runPluginArgs:message].\n");
 		writeLog("Failed to allocate memory in [runPluginArgs:message].", 2, 0);
@@ -2906,7 +2913,7 @@ void runPluginArgs(int id, int aflags, int api_action) {
 		writeLog("Failed to allocate memory [runPluginArgs:socket_message]", 2, 0);
 		return;
 	}
-        strcpy(socket_message, message);
+        strncpy(socket_message, message, (size_t)apimessage_size);
 	free(api_args);
 	api_args = NULL;
 	free(command);
@@ -2930,7 +2937,7 @@ void apiReadData(int plugin_id, int flags) {
 		return;
 	}
 
-	message = malloc((size_t)apimessage_size * sizeof(char));
+	message = malloc((size_t)apimessage_size * sizeof(char)+1);
 	if (message == NULL) {
 		writeLog("Failed to allocate memory for api message.", 1, 0);
 	}
@@ -2945,6 +2952,18 @@ void apiReadData(int plugin_id, int flags) {
 		return;
 	}
         //strcpy(pluginName, declarations[plugin_id].name);
+	if (plugin_id == 0 && flags == 0) {
+		printf("This is an invalid check.\n");
+		free(message);
+		free(pluginName);
+		return;
+	}
+	if (plugin_id > decCount || flags > 100) {
+		printf("This is an invalid check.\n");
+                free(message);
+                free(pluginName);
+                return;
+	}	
 	pluginName = strdup(declarations[plugin_id].name);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
@@ -3005,6 +3024,7 @@ void apiReadData(int plugin_id, int flags) {
 		writeLog("Failed to allocate memory in [apiReadData:socket_message]", 2, 0);
 		return;
 	}
+	//strncpy(socket_message, message, (size_t)apimessage_size);
 	strcpy(socket_message, message);
 	free(message);
 	message = NULL;
@@ -3093,7 +3113,7 @@ void apiRunAndRead(int plugin_id, int flags) {
 		writeLog("Failed to allocate memory [apiRunAndRead:socket_message]", 2, 0);
 		return;
 	}
-	strcpy(socket_message, message);
+	strncpy(socket_message, message, (size_t)apimessage_size);
 	free(pluginName);
 	pluginName = NULL;
 	free(message);
