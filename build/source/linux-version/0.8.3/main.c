@@ -217,6 +217,8 @@ void removeChar(char *str, char garbage) {
 
 char *replaceWord(char *sentence, char *find, char *replace) {
 	char *dest = malloc((size_t)strlen(sentence)-strlen(find)+strlen(replace)+1);
+	if (dest != NULL)
+		dest[0] = '\0';
 	strcpy(dest,sentence);
 	char buffer[1024] = { 0 };
 	char *insert_point = &buffer[0];
@@ -412,9 +414,17 @@ void checkCtMemoryAlloc() {
 
 void initConstants() {
 	confDir = malloc((size_t)50 * sizeof(char));
+	if (confDir != NULL)
+		confDir[0] = '\0';
 	dataDir = malloc((size_t)50 * sizeof(char));
+	if (dataDir != NULL)
+		dataDir[0] = '\0';
 	pluginDir = malloc((size_t)50 * sizeof(char));
+	if (pluginDir != NULL)
+		pluginDir[0] = '\0';
 	pluginDeclarationFile = malloc((size_t)75 * sizeof(char));
+	if (pluginDeclarationFile != NULL)
+		pluginDeclarationFile[0] = '\0';
 	jsonFileName = malloc((size_t)50 * sizeof(char));
 	if (jsonFileName == NULL) {
                 fprintf(stderr, "Failed to allocate memory [jsonFileName].\n");
@@ -434,8 +444,19 @@ void initConstants() {
         else
 		strncpy(gardenerScript, "/opt/almond/gardener.py", 24);
 	storeDir = malloc((size_t)50 * sizeof(char));
+	if (storeDir == NULL) {
+		fprintf(stderr, "Failed to allocate memory [storeDir].\n");
+	}
+	else
+		storeDir[0] = '\0';
 	logDir = malloc((size_t)50 * sizeof(char));
+	logDir[0] = '\0';
 	infostr = malloc((size_t)infostr_size * sizeof(char));
+	if (infostr == NULL) {
+		fprintf(stderr, "Failed to allocate memory [infostr].\n");
+	}
+	else
+		infostr[0] = '\0';
 	hostName = malloc((size_t)255 * sizeof(char));
 	if (hostName == NULL) {
 		fprintf(stderr, "Failed to allocate memory [hostName].\n");
@@ -443,6 +464,11 @@ void initConstants() {
 	else
 		strncpy(hostName, "None", 5);
 	fileName = malloc((size_t)filename_size * sizeof(char));
+	if (fileName == NULL) {
+		fprintf(stderr, "Failed to allocate memory [fileName].\n");
+	}
+	else
+		fileName[0] = '\0';
 	metricsOutputPrefix = malloc((size_t)30 * sizeof(char));
 	if (metricsOutputPrefix == NULL) {
 		fprintf(stderr, "Failed to allocate memory [metricsOutputPrefix].\n");
@@ -456,6 +482,11 @@ void initConstants() {
 	else
 		strncpy(logmessage, "", 1);
 	logfile = malloc((size_t)logfile_size * sizeof(char));
+	if (logfile == NULL) {
+		 fprintf(stderr, "Failed to allocate memory [logFile].\n");
+	}
+	else
+		logfile[0] = '\0';
 	dataFileName = malloc((size_t)dataFileNameSize * sizeof(char));
 	memset(dataFileName, 0, (size_t)(100 * sizeof(char)));
 	backupDirectory = malloc((size_t)backupDirectorySize * sizeof(char));
@@ -900,6 +931,8 @@ int getIdFromName(char *plugin_name) {
 			writeLog("Failed to allocate memory [getIdFromName:pluginName]", 2, 0);
 			return -1;
 		}
+		else
+			pluginName[0] = '\0';
                 strncpy(pluginName, declarations[i].name, pluginitemname_size);
 		//pluginName = strdup(declarations[i].name);
 		removeChar(pluginName, '[');
@@ -1102,7 +1135,7 @@ int toggleHostName(char *name) {
 void send_socket_message(int socket, int id, int aflags) {
         char header[100] = "HTTP/1.1 200 OK\nContent-Type:application/txt\nContent-Length: ";
 	char* send_message = NULL;
-	size_t content_length;
+	size_t content_length = 0;
 	char len[4];
 
 	printf("DEBUG: socket = %i\n", socket);
@@ -1218,7 +1251,7 @@ void send_socket_message(int socket, int id, int aflags) {
 		}
         }
 	else args_set = 0;
-	content_length = strlen(socket_message); 
+	content_length = (size_t)strlen(socket_message); 
 	sprintf(len, "%li", content_length);
         strcat(header, trim(len));
         strcat(header, "\n\n");
@@ -1236,6 +1269,8 @@ void send_socket_message(int socket, int id, int aflags) {
 		//startApiSocket();
 		return;
 	}
+	else
+		send_message[0] = '\0';
         strncpy(send_message, header, (size_t)(sizeof(header)));
 	strcat(send_message, socket_message);
         if (send(socket, send_message, strlen(send_message), 0) < 0) {
@@ -2136,6 +2171,8 @@ int getConfigurationValues() {
 	   }
 	   if (strcmp(confName, "scheduler.confDir") == 0) {
 		   confDir = malloc((size_t)50 * sizeof(char));
+		   if (confDir != NULL)
+			   confDir[0] = '\0';
 		   if (directoryExists(confValue, 255) == 0) {
 			   strncpy(confDir,trim(confValue), strlen(confValue));
 			   confDirSet = 1;
@@ -2931,6 +2968,7 @@ void apiReadData(int plugin_id, int flags) {
 	char* pluginName = NULL;
 	char rCode[3];
 	char* message = NULL;
+	unsigned short is_error = 0;
 
 	if (plugin_id < 0) {
 		printf("Strange things happen...\n");
@@ -2941,8 +2979,8 @@ void apiReadData(int plugin_id, int flags) {
 	if (message == NULL) {
 		writeLog("Failed to allocate memory for api message.", 1, 0);
 	}
-       
-	//message[0] = '\0';
+	else
+       		message[0] = '\0';
         //memset(message, 0, apimessage_size);	
 	//pluginName = malloc(strlen(declarations[plugin_id].name)+1);
 	pluginName = malloc((size_t)pluginitemname_size * sizeof(char)+1);
@@ -2954,16 +2992,26 @@ void apiReadData(int plugin_id, int flags) {
         //strcpy(pluginName, declarations[plugin_id].name);
 	if (plugin_id == 0 && flags == 0) {
 		printf("This is an invalid check.\n");
-		free(message);
-		free(pluginName);
-		return;
+		is_error++;
 	}
 	if (plugin_id > decCount || flags > 100) {
 		printf("This is an invalid check.\n");
+		is_error++;
+	}	
+	if (is_error > 0) {
+		strcat(message, "{\n     \"almond\":\"Invalid check - no such plugin or flag\"\n}\n");
+                socket_message = malloc((size_t)strlen(message)+1);
+                if (socket_message == NULL) {
+                        fprintf(stderr, "Failed to allocate memory.\n");
+                        writeLog("Failed to allocate memory in [apiReadData:socket_message]", 2, 0);
+                        return;
+                }
+                strcpy(socket_message, message);
                 free(message);
                 free(pluginName);
-                return;
-	}	
+                message = pluginName = NULL;
+		return;
+	}
 	pluginName = strdup(declarations[plugin_id].name);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
@@ -3034,6 +3082,7 @@ void apiRunAndRead(int plugin_id, int flags) {
 	char* pluginName = NULL;
 	char rCode[3];
         char* message = NULL;
+	unsigned short is_error = 0;
         
 	//message[0] = '\0';
 	//memset(message, 0, apimessage_size);
@@ -3042,6 +3091,30 @@ void apiRunAndRead(int plugin_id, int flags) {
 		writeLog("Could not allocate memory for apimessage", 2, 0);
 		return;
 	}
+	else
+		message[0] = '\0';
+	if (plugin_id == 0 && flags == 0) {
+                printf("This is an invalid check.\n");
+                is_error++;
+        }
+        if (plugin_id > decCount || flags > 100) {
+                printf("This is an invalid check.\n");
+                is_error++;
+        }
+        if (is_error > 0) {
+                strcat(message, "{\n     \"almond\":\"Invalid check - no such plugin or flag\"\n}\n");
+                socket_message = malloc((size_t)strlen(message)+1);
+                if (socket_message == NULL) {
+                        fprintf(stderr, "Failed to allocate memory.\n");
+                        writeLog("Failed to allocate memory in [apiReadData:socket_message]", 2, 0);
+                        return;
+                }
+                strcpy(socket_message, message);
+                free(message);
+                free(pluginName);
+                message = pluginName = NULL;
+                return;
+        }
         //pluginName = malloc(strlen(declarations[plugin_id].name)+1);
 	pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char));
 	if (pluginName == NULL) {
@@ -3277,7 +3350,7 @@ void collectMetrics(int decLen, int style) {
 	FILE *mf = NULL;
         clock_t t;
 	char *p = NULL;
-	int metricsValueLength;
+	int metricsValueLength = 0;
 
         t = clock();
         strncpy(storeName, storeDir, storedir_size);
@@ -5222,18 +5295,24 @@ int main() {
 			writeLog("Failed to allocate declarations.", 2, 0);
 			exit(2);
 		}
+		else
+			declarations[i].name[0] = '\0';
 		declarations[i].description = malloc((size_t)pluginitemdesc_size);
 		if (declarations[i].description == NULL){
 			fprintf(stderr, "Memory allocation failed.\n");
                         writeLog("Failed to allocate declarations.", 2, 0);
                         exit(2);
 		}
+		else
+			declarations[i].description[0] = '\0';
 		declarations[i].command = malloc((size_t)pluginitemcmd_size);
 		if (declarations[i].command == NULL) {
 			fprintf(stderr, "Memory allocation failed.\n");
                         writeLog("Failed to allocate declarations.", 2, 0);
                         exit(2);
 		}
+		else
+			declarations[i].command[0] = '\0';
 	}
 	outputs = malloc((size_t)sizeof(PluginOutput)*decCount);
 	if (!outputs){
@@ -5244,7 +5323,12 @@ int main() {
 	for (int i = 0; i < decCount; i++) {
 		outputs[i].retString = malloc((size_t)pluginoutput_size);
 		if (outputs[i].retString == NULL) {
+			fprintf(stderr, "Memory allocation failed.\n");
+                        writeLog("Failed to allocate outputs.", 2, 0);
+                        exit(2);
 		}
+		else
+			outputs[i].retString[0] = '\0';
 	}
 	output_size = (size_t)decCount;
 	int pluginDeclarationResult = loadPluginDeclarations(pluginDeclarationFile, 0);
