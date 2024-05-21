@@ -1259,6 +1259,7 @@ void send_socket_message(int socket, int id, int aflags) {
 	printf("DEBUG: Content length = %li\n", content_length);
 	if (send_message != NULL) {
 		printf("This is strange...Is it the threads spinning around?\n");
+		free(send_message);
 		send_message = NULL;
 	}
 	//send_message = malloc((size_t)content_length+1);
@@ -1274,7 +1275,7 @@ void send_socket_message(int socket, int id, int aflags) {
 	printf("strncpy(send_message, header, (size_t)(sizeof(header)));\n");
         strncpy(send_message, header, (size_t)(sizeof(header)));
 	printf("DEBUG: send_message = %s\n", send_message);
-	printf(" strcat(send_message, socket_message);\n");
+	printf("DEBUG: strcat(send_message, socket_message);\n");
 	strcat(send_message, socket_message);
         if (send(socket, send_message, strlen(send_message), 0) < 0) {
                 writeLog("Could not send message to client.", 1, 0);
@@ -1745,6 +1746,8 @@ int createSocket(int server_fd) {
         		index = (int)(e - client_message);
         		char message[100];
         		strncpy(message, client_message + index, strlen(client_message) - index);
+			printf("DEBUG: messagfe to parseClientMessage = %s\n", message);
+			printf("DEBUG: params to parseClientMessage = %i\n", params[0]); 
         		parseClientMessage(message, params);
         		writeLog("Message received on socket.", 0, 0);
 			int id = params[0];
@@ -1766,7 +1769,7 @@ int createSocket(int server_fd) {
 			return -2;
 		}
 	}
-	//return 0;
+	return 0;
 }
 
 void closeSocket() {
@@ -2717,6 +2720,7 @@ void apiDryRun(int plugin_id) {
 void apiRunPlugin(int plugin_id, int flags) {
 	char* pluginName = NULL;
 	char* message = NULL;
+	int waitCount = 0;
 
 	//message = malloc((size_t)apimessage_size * sizeof(char));
 	message = (char *) malloc(sizeof(char) * apimessage_size);
@@ -2740,7 +2744,13 @@ void apiRunPlugin(int plugin_id, int flags) {
 	// Check if same plugin is running in thread, in which case wait...
 	while (threadIds[(short)plugin_id] > 0) {
 		writeLog("Waiting for thread to finish...", 0, 0);
-		sleep(0.5);
+		sleep(1);
+		waitCount++;
+		if (waitCount > 10) {
+			writeLog("Reached waitCount threshold. Continue.", 1, 0);
+			printf("DEBUG: waitCount = %i\n", waitCount);
+			break;
+		}
 	}
 	runPlugin(plugin_id, 0);
 	strcpy(message, "{\n     \"executePlugin\":\"");
@@ -2767,14 +2777,14 @@ void apiRunPlugin(int plugin_id, int flags) {
 		printf("DEBUG: Message is larger than size.\n");
 		message[apimessage_size-1] = '\0';
 	}
-	strncpy(socket_message, message, apimessage_size);
+	strncpy(socket_message, message, apimessage_size+1);
 	printf("DEBUG SocketMessage=%s\n", socket_message);
 	free(pluginName);
 	pluginName = NULL;
 	if (message != NULL) {
 		printf("DEBUG: message (free) = %s\n", message);
 		//free(message);
-		message = NULL;
+		//message = NULL;
 	}	
 }
 
@@ -3308,7 +3318,7 @@ void collectJsonData(int decLen){
 	fputs("   },\n", fp);
 	fputs("   \"monitoring\": [\n", fp);
 	for (int i = 0; i < decLen; i++) {
-		pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char));
+		pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
 		if (pluginName == NULL) {
 			fprintf(stderr, "Memory allocation failed.\n");
 			writeLog("Failed to allocate memory [collectJsonData:pluginName]", 2, 0);
@@ -3388,7 +3398,7 @@ void collectMetrics(int decLen, int style) {
         snprintf(infostr, infostr_size, "Collecting metrics to file: %s", storeName);
         writeLog(trim(infostr), 0, 0);
 	for (int i = 0; i < decLen; i++) {
-		pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char));
+		pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
 		if (pluginName == NULL) {
 			fprintf(stderr, "Memory allocation failed.\n");
 			writeLog("Memory allocation failed [collectMetrics:pluginName]", 2, 0);
@@ -3840,7 +3850,7 @@ void runPlugin(int storeIndex, int update) {
 		//char csv = ',';
 		//FILE *fpt;
 		//checkName = malloc(strlen(declarations[storeIndex].name+1));
-		checkName = malloc((size_t)pluginitemname_size * sizeof(char));
+		checkName = malloc((size_t)pluginitemname_size * sizeof(char)+1);
 		if (checkName == NULL) {
 			writeLog("Failed to allocate memory [runPlugin:checkName].", 2, 0);
 			return;
