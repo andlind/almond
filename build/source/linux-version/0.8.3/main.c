@@ -414,30 +414,31 @@ void checkCtMemoryAlloc() {
 
 void initConstants() {
 	confDir = malloc((size_t)50 * sizeof(char));
-	if (confDir != NULL)
-		confDir[0] = '\0';
+	if (confDir != NULL) {
+		memset(confDir, '\0', 50 * sizeof(char));
+	}
 	dataDir = malloc((size_t)50 * sizeof(char));
 	if (dataDir != NULL)
-		dataDir[0] = '\0';
+		memset(dataDir, '\0', 50 * sizeof(char));
 	pluginDir = malloc((size_t)50 * sizeof(char));
 	if (pluginDir != NULL)
-		pluginDir[0] = '\0';
+		memset(pluginDir, '\0', 50 * sizeof(char));
 	pluginDeclarationFile = malloc((size_t)75 * sizeof(char));
 	if (pluginDeclarationFile != NULL)
-		pluginDeclarationFile[0] = '\0';
-	jsonFileName = malloc((size_t)50 * sizeof(char));
+		memset(pluginDeclarationFile, '\0', 75 * sizeof(char));
+	jsonFileName = calloc(50, sizeof(char));
 	if (jsonFileName == NULL) {
                 fprintf(stderr, "Failed to allocate memory [jsonFileName].\n");
         }
 	else
 		strncpy(jsonFileName, "monitor_data.json", 49);
-	metricsFileName = malloc((size_t)50 * sizeof(char));
+	metricsFileName = calloc(50, sizeof(char));
 	if (metricsFileName == NULL) {
 		fprintf(stderr, "Failed to allocate memory [metricsFileName].\n");
 	}
 	else
 		strncpy(metricsFileName, "monitor.metrics", 49);
-	gardenerScript = malloc((size_t)75 * sizeof(char));
+	gardenerScript = calloc(75, sizeof(char));
 	if (gardenerScript == NULL) {
                 fprintf(stderr, "Failed to allocate memory [gardenerScript].\n");
         }
@@ -448,16 +449,17 @@ void initConstants() {
 		fprintf(stderr, "Failed to allocate memory [storeDir].\n");
 	}
 	else
-		storeDir[0] = '\0';
+		memset(storeDir, '\0', 50 * sizeof(char));
 	logDir = malloc((size_t)50 * sizeof(char));
-	logDir[0] = '\0';
+	if (logDir != NULL)
+		memset(logDir, '\0', 50 * sizeof(char));
 	infostr = malloc((size_t)infostr_size * sizeof(char));
 	if (infostr == NULL) {
 		fprintf(stderr, "Failed to allocate memory [infostr].\n");
 	}
 	else
-		infostr[0] = '\0';
-	hostName = malloc((size_t)255 * sizeof(char));
+		memset(infostr, '\0', (size_t)infostr_size * sizeof(char));
+	hostName = calloc(255, sizeof(char));
 	if (hostName == NULL) {
 		fprintf(stderr, "Failed to allocate memory [hostName].\n");
 	}
@@ -468,14 +470,14 @@ void initConstants() {
 		fprintf(stderr, "Failed to allocate memory [fileName].\n");
 	}
 	else
-		fileName[0] = '\0';
-	metricsOutputPrefix = malloc((size_t)30 * sizeof(char));
+		memset(fileName, '\0', (size_t)filename_size * sizeof(char));
+	metricsOutputPrefix = calloc(30, sizeof(char));
 	if (metricsOutputPrefix == NULL) {
 		fprintf(stderr, "Failed to allocate memory [metricsOutputPrefix].\n");
 	}
 	else
 		strncpy(metricsOutputPrefix, "almond", 7);
-	logmessage = malloc((size_t)1545 * sizeof(char));
+	logmessage = calloc(1545, sizeof(char));
 	if (logmessage == NULL) {
 		fprintf(stderr, "Failed to allocate memory [logmessage].\n");
 	}
@@ -486,21 +488,21 @@ void initConstants() {
 		 fprintf(stderr, "Failed to allocate memory [logFile].\n");
 	}
 	else
-		logfile[0] = '\0';
+		memset(logfile, '\0', (size_t)logfile_size * sizeof(char));
 	dataFileName = malloc((size_t)dataFileNameSize * sizeof(char));
-	memset(dataFileName, 0, (size_t)(100 * sizeof(char)));
+	memset(dataFileName, '\0', (size_t)(100 * sizeof(char)));
 	backupDirectory = malloc((size_t)backupDirectorySize * sizeof(char));
-	memset(backupDirectory, 0, (size_t)(100 * sizeof(char)));
+	memset(backupDirectory, '\0', (size_t)(100 * sizeof(char)));
 	newFileName = malloc((size_t)newFileNameSize * sizeof(char));
-	memset(newFileName, 0, (size_t)(150 * sizeof(char)));
+	memset(newFileName, '\0', (size_t)(150 * sizeof(char)));
 	gardenerRetString = malloc((size_t)gardenermessage_size * sizeof(char));
-	memset(gardenerRetString, 0, (size_t)(sizeof(char) * gardenermessage_size));
+	memset(gardenerRetString, '\0', (size_t)(sizeof(char) * gardenermessage_size));
 	pluginCommand = malloc((size_t)100 * sizeof(char));
-	memset(pluginCommand, 0, sizeof(char) * 100);
+	memset(pluginCommand, '\0', sizeof(char) * 100);
 	pluginReturnString = malloc((size_t)pluginmessage_size * sizeof(char));
-	memset(pluginReturnString, 0, (size_t)(pluginmessage_size * sizeof(char)));
+	memset(pluginReturnString, '\0', (size_t)(pluginmessage_size * sizeof(char)));
 	storeName = malloc((size_t)storename_size * sizeof(char));
-	memset(storeName, 0, (size_t)(sizeof(char) * storename_size));
+	memset(storeName, '\0', (size_t)(sizeof(char) * storename_size));
 	//apiMessage = malloc(apimessage_size * sizeof(char));
 	checkCtMemoryAlloc();
 }
@@ -530,7 +532,7 @@ int getConstants() {
 				return 1;
 			}
 			else {
-				memset(temp, 0, newSize);
+				memset(temp,'\0', newSize);
 				strncpy(temp, confDir, newSize-1);
 				temp[newSize-1] = '\0';
 				confDir = temp;
@@ -546,7 +548,7 @@ int getConstants() {
 				return 1;
 			}
 			else
-				memset(dataDir, 0, newSize);
+				memset(dataDir, '\0', newSize);
 			//dataDir = temp;
 		}
 		else if (strcmp(constants[i], "PLUGINDECLARATIONFILE_SIZE") == 0) {
@@ -559,7 +561,7 @@ int getConstants() {
 				return 1;
 			}
 			else
-				memset(pluginDeclarationFile, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(pluginDeclarationFile, '\0', (size_t)(values[i] * sizeof(char)+1));
 			//pluginDeclarationFile = temp;
 		}
 		else if (strcmp(constants[i], "JSONFILENAME_SIZE") == 0) {
@@ -573,7 +575,7 @@ int getConstants() {
 				return 1;
 			}
 			else {
-				memset(jsonFileName, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(jsonFileName, '\0', (size_t)(values[i] * sizeof(char)+1));
 				strncpy(jsonFileName, "monitor_data.json", 18);
 			}
 		}
@@ -588,7 +590,7 @@ int getConstants() {
                                 return 1;
                         }
                         else {
-				memset(metricsFileName, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(metricsFileName,'\0', (size_t)(values[i] * sizeof(char)+1));
                         	strncpy(metricsFileName, "monitor_data.json", 18);
 			}
                 }
@@ -603,7 +605,7 @@ int getConstants() {
                                 return 1;
                         }
                         else {
-				memset(gardenerScript, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(gardenerScript, '\0', (size_t)(values[i] * sizeof(char)+1));
                         	strncpy(gardenerScript, "/opt/almond/gardener.py", 24); 
 			}
 		} 
@@ -618,7 +620,7 @@ int getConstants() {
 				return 1;
 			}
 			else {
-				memset(hostName, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(hostName, '\0', (size_t)(values[i] * sizeof(char)+1));
                         	strncpy(hostName, "None", 5);
 			}
 		}
@@ -633,7 +635,7 @@ int getConstants() {
                                 return 1;
                         }       
                         else {
-				memset(metricsOutputPrefix, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(metricsOutputPrefix, '\0', (size_t)(values[i] * sizeof(char)+1));
                         	strncpy(metricsOutputPrefix, "almond", 7);
 			}
                 }
@@ -648,7 +650,7 @@ int getConstants() {
 				return 1;
 			}
 			else {
-				memset(storeDir, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(storeDir, '\0', (size_t)(values[i] * sizeof(char)+1));
                         	//storeDir = temp;
 			}
                 }
@@ -662,7 +664,7 @@ int getConstants() {
                                 return 1;
                         }
 			else {
-				memset(logDir, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(logDir, '\0', (size_t)(values[i] * sizeof(char)+1));
                         	//logDir = temp;
 			}
                 }
@@ -677,7 +679,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(infostr, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(infostr, '\0', (size_t)(values[i] * sizeof(char)+1));
 			//infostr = temp;
 		}
 		else if (strcmp(constants[i], "PLUGINDIR_SIZE") == 0) {
@@ -690,7 +692,7 @@ int getConstants() {
 				return 1;
 			}
 			else
-				memset(pluginDir, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(pluginDir, '\0', (size_t)(values[i] * sizeof(char)+1));
                         //pluginDir = temp;
                 }
 		else if (strcmp(constants[i], "FILENAME_SIZE") == 0) {
@@ -703,7 +705,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(fileName, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(fileName, '\0', (size_t)(values[i] * sizeof(char)+1));
 			filename_size = values[i];
                 }
 		else if (strcmp(constants[i], "LOGMESSAGE_SIZE") == 0) {
@@ -716,7 +718,7 @@ int getConstants() {
 				return 1;
 			}
 			else
-				memset(logmessage, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(logmessage, '\0', (size_t)(values[i] * sizeof(char)+1));
 			logmessage_size = (size_t)values[i];
 			logmessage[0] = '\0';
 		}
@@ -730,7 +732,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(logfile, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(logfile, '\0', (size_t)(values[i] * sizeof(char)+1));
 			logfile_size = (size_t)values[i];
 		}
 		else if (strcmp(constants[i], "DATAFILENAME_SIZE") == 0) {
@@ -744,7 +746,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(dataFileName, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(dataFileName, '\0', (size_t)(values[i] * sizeof(char)+1));
 			dataFileName[0] = '\0';
                 }
 		else if (strcmp(constants[i], "BACKUPDIRECTORY_SIZE") == 0) {
@@ -758,7 +760,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(backupDirectory, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(backupDirectory, '\0', (size_t)(values[i] * sizeof(char)+1));
                 }
 		else if (strcmp(constants[i], "NEWFILENAME_SIZE") == 0) {
                         writeLog("Memory for variable 'newFileName' will be reallocated by constants file.", 0, 1);
@@ -771,7 +773,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(newFileName, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(newFileName, '\0', (size_t)(values[i] * sizeof(char)+1));
 			newFileName[0] = '\0';
                 }
 		else if (strcmp(constants[i], "GARDENERMESSAGE_SIZE") == 0) {
@@ -785,7 +787,7 @@ int getConstants() {
 				return 1;
 			}
 			else
-				memset(gardenerRetString, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(gardenerRetString, '\0', (size_t)(values[i] * sizeof(char)+1));
 		}
 		else if (strcmp(constants[i], "PLUGINCOMMAND_SIZE") == 0) {
 			writeLog("Memory for plugin command size will be reallocated by constants file.", 0, 1);
@@ -798,7 +800,7 @@ int getConstants() {
 				return 1;
 			}
 			else
-				memset(pluginCommand, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(pluginCommand, '\0', (size_t)(values[i] * sizeof(char)+1));
 		}
 		else if (strcmp(constants[i], "PLUGINMESSAGE_SIZE") == 0) {
                         writeLog("Memory for plugin message size will be reallocated by constants file.", 0, 1);
@@ -811,7 +813,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(pluginReturnString, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(pluginReturnString, '\0', (size_t)(values[i] * sizeof(char)+1));
                 }
 		else if (strcmp(constants[i], "STORENAME_SIZE") == 0) {
                         writeLog("Memory for variable 'storeName' will be reallocated by constants file.", 0, 1);
@@ -824,7 +826,7 @@ int getConstants() {
                                 return 1;
                         }
 			else
-				memset(storeName, 0, (size_t)(values[i] * sizeof(char)+1));
+				memset(storeName, '\0', (size_t)(values[i] * sizeof(char)+1));
                 }
 		else if (strcmp(constants[i], "APIMESSAGE_SIZE") == 0) {
                         writeLog("Memory for API messages will dynamically be allocated by size inconstants file.", 0, 1);
@@ -877,6 +879,8 @@ void constructSocketMessage(const char* action, const char* message) {
 		writeLog("Memory allocation failed [constructSocketMessage:socket_message]", 2, 0);
         	return;
     	}
+	else
+		memset(socket_message, '\0', (size_t)size * sizeof(char));
     	snprintf(socket_message, (size_t)size, "{ \"%s\":\"%s\" }\n", action, message);
     	//printf("%s", socket_message);
 }
@@ -932,7 +936,7 @@ int getIdFromName(char *plugin_name) {
 			return -1;
 		}
 		else
-			pluginName[0] = '\0';
+			memset(pluginName, '\0', (size_t)pluginitemname_size+1 * sizeof(char));
                 strncpy(pluginName, declarations[i].name, pluginitemname_size);
 		//pluginName = strdup(declarations[i].name);
 		removeChar(pluginName, '[');
@@ -1149,6 +1153,7 @@ void send_socket_message(int socket, int id, int aflags) {
                         	break;
 			case API_RUN:
 				apiRunPlugin(id, aflags);
+				//constructSocketMessage("return", "Currently run has problems.");
 				break;
                 	case API_DRY_RUN:
 				apiDryRun(id);	
@@ -1272,6 +1277,8 @@ void send_socket_message(int socket, int id, int aflags) {
 		//startApiSocket();
 		return;
 	}
+	else
+		memset(send_message, '\0', (content_length+1) * sizeof(char));
 	printf("strncpy(send_message, header, (size_t)(sizeof(header)));\n");
         strncpy(send_message, header, (size_t)(sizeof(header)));
 	printf("DEBUG: send_message = %s\n", send_message);
@@ -1386,6 +1393,8 @@ void parseClientMessage(char str[], int arr[]) {
 		if (token == NULL) {
 			writeLog("Could not allocate memory for execute token", 1, 0);
 		}
+		else
+			memset(token, '\0', 30 * sizeof(char));
                 strncpy(token, json_object_to_json_string_ext(jtoken, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 30);
                 removeChar(token, '"');
 		trim(token);
@@ -1403,6 +1412,8 @@ void parseClientMessage(char str[], int arr[]) {
 						writeLog("Could not allocate message [parseClientMessage:fname]", 2, 0);
 						return;
 					}
+					else
+						memset(fname, '\0', (size_t)sizeof(line)+1 * sizeof(char));
 					strncpy(fname, trim(line), sizeof(line));
                                 }
                                 if (i == 2){
@@ -1411,6 +1422,8 @@ void parseClientMessage(char str[], int arr[]) {
 						writeLog("Could not allocate memory [parseClientMessage:lname]", 2, 0);
 						return;
 					}
+					else
+						memset(lname, '\0', (size_t)sizeof(line)+1 * sizeof(char));
 					strncpy(lname, trim(line), sizeof(line));
                                 }
                                 i++;
@@ -1527,6 +1540,8 @@ void parseClientMessage(char str[], int arr[]) {
 				free(kafka_tag);
 				kafka_tag = NULL;
                   		kafka_tag = malloc((size_t)strlen(sval)+1);
+				if (kafka_tag != NULL)
+					memset(kafka_tag, '\0', (size_t)strlen(sval)+1 * sizeof(char));
                   		strncpy(kafka_tag, trim(sval), sizeof(sval));
                   		snprintf(infostr, infostr_size, "Kafka tag is set to '%s'", kafka_tag);
 				writeLog("Kafka tag is toggled through API call.", 0, 0);
@@ -1604,6 +1619,8 @@ void parseClientMessage(char str[], int arr[]) {
 				writeLog("Could not allocate memory [parseClientMessage:api_args]", 2, 0);
 				return;
 			}
+			else
+				memset(api_args, '\0', (size_t)strlen(args)+1 * sizeof(char));
 			strncpy(api_args, args, strlen(args));
 			runPluginArgs(id, aflags, api_action);
 			free(api_args);
@@ -1689,8 +1706,10 @@ int createSocket(int server_fd) {
 	free(infostr);
 	infostr = NULL;
 	infostr = malloc((size_t)infostr_size * sizeof(char));
-	if (infostr != NULL)
+	if (infostr != NULL) {
+		memset(infostr, '\0', infostr_size * sizeof(char));
 		strncpy(infostr, "", 2);
+	}
 	else
 		printf("Failed to allocate memory for 'infostr'.\n");
         // Accept incoming connections
@@ -2179,7 +2198,7 @@ int getConfigurationValues() {
 	   if (strcmp(confName, "scheduler.confDir") == 0) {
 		   confDir = malloc((size_t)50 * sizeof(char));
 		   if (confDir != NULL)
-			   confDir[0] = '\0';
+		   	   memset(confDir, '\0', 50 * sizeof(char));
 		   if (directoryExists(confValue, 255) == 0) {
 			   strncpy(confDir,trim(confValue), strlen(confValue));
 			   confDirSet = 1;
@@ -2474,6 +2493,8 @@ int getConfigurationValues() {
 			   writeLog("Failed to allocate memory [kafka_brokers]", 2, 1);
 			   return 2;
 		   }
+		   else
+			   memset(kafka_brokers, '\0', (size_t)(strlen(confValue)+1) * sizeof(char));
 		   strncpy(kafka_brokers, trim(confValue), strlen(confValue));
 		   snprintf(infostr, infostr_size, "Kafka export brokers is set to '%s'", kafka_brokers);
 		   writeLog(trim(infostr), 0, 1);
@@ -2486,6 +2507,8 @@ int getConfigurationValues() {
 			   writeLog("Failed to allocate memory [kafka_topic]", 2, 1);
 			   return 2;
 		   }
+		   else
+			   memset(kafka_topic, '\0', (size_t)(strlen(confValue)+1) * sizeof(char));
 		   strncpy(kafka_topic, trim(confValue), strlen(confValue));
 		   snprintf(infostr, infostr_size, "Kafka export topic is set to '%s'", kafka_topic);
 		   writeLog(trim(infostr), 0, 1);
@@ -3220,10 +3243,14 @@ void apiRunAndRead(int plugin_id, int flags) {
 		message[apimessage_size-1] = '\0';
 	}
 	strncpy(socket_message, message, (size_t)apimessage_size);
-	free(pluginName);
-	pluginName = NULL;
-	free(message);
-	message = NULL;
+	if (pluginName != NULL) {
+		free(pluginName);
+		pluginName = NULL;
+	}
+	if (message != NULL) {
+		free(message);
+		message = NULL;
+	}
 }
 
 void apiReadFile(char *fileName, int type) {
@@ -3399,6 +3426,7 @@ void collectMetrics(int decLen, int style) {
         writeLog(trim(infostr), 0, 0);
 	for (int i = 0; i < decLen; i++) {
 		pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
+		memset(pluginName, '\0', pluginitemname_size+1 * sizeof(char));
 		if (pluginName == NULL) {
 			fprintf(stderr, "Memory allocation failed.\n");
 			writeLog("Memory allocation failed [collectMetrics:pluginName]", 2, 0);
@@ -3428,6 +3456,7 @@ void collectMetrics(int decLen, int style) {
 					writeLog("Failed to allocate memory [collectMetrics:serviceName]", 2, 0);
 					return;
 				}
+				memset(serviceName, '\0', pluginitemdesc_size * sizeof(char));
 				strcpy(serviceName, declarations[i].description);
 				fprintf(mf, "%s_%s{hostname=\"%s\", service=\"%s\", value=\"%s\"} %d\n", trim(metricsOutputPrefix), pluginName, hostName, serviceName, trim(outputs[i].retString), outputs[i].retCode);
 				free(serviceName);
@@ -3480,6 +3509,7 @@ void collectMetrics(int decLen, int style) {
 					writeLog("Failed to allocate memory [collectMetrics:serviceName]", 2, 0);
 					return;
 				}
+				memset(serviceName, '\0', pluginitemdesc_size * sizeof(char));
 				strcpy(serviceName, declarations[i].description);
 				// We need to loop through metrics
 				char * token = strtok(metrics, " ");
@@ -3492,6 +3522,7 @@ void collectMetrics(int decLen, int style) {
 						writeLog("Failed to allocate memory [collectMetrics:metricsToken]", 2, 0);
 						return;
 					}
+					memset(metricsToken, '\0', (size_t)strlen(token)+1 * sizeof(char));
 					int do_cut = 0;
 					const char *haystring = ";";
 					char *c = token;
