@@ -5,6 +5,7 @@ import re
 import os.path
 import os
 import socket
+import logging
 from os import walk
 from flask import Blueprint
 from flask_httpauth import HTTPBasicAuth
