@@ -1255,13 +1255,15 @@ void send_socket_message(int socket, int id, int aflags) {
 	sprintf(len, "%li", content_length);
         strcat(header, trim(len));
         strcat(header, "\n\n");
-	content_length += strlen(header);
+	content_length += (size_t)strlen(header);
 	printf("DEBUG: Content length = %li\n", content_length);
 	if (send_message != NULL) {
-		free(send_message);
+		printf("This is strange...Is it the threads spinning around?\n");
 		send_message = NULL;
 	}
-	send_message = malloc(content_length+1);
+	//send_message = malloc((size_t)content_length+1);
+	printf("send_message = (char *) malloc((content_length+1) * sizeof(char));\n");
+	send_message = (char *) malloc((content_length+1) * sizeof(char));
 	if (send_message == NULL) {
 		//fprintf(stderr, "Could not allocate memory.\n");
 		perror("Failed to allocate memory for send_message");
@@ -1269,21 +1271,20 @@ void send_socket_message(int socket, int id, int aflags) {
 		//startApiSocket();
 		return;
 	}
-	else
-		send_message[0] = '\0';
+	printf("strncpy(send_message, header, (size_t)(sizeof(header)));\n");
         strncpy(send_message, header, (size_t)(sizeof(header)));
+	printf("DEBUG: send_message = %s\n", send_message);
+	printf(" strcat(send_message, socket_message);\n");
 	strcat(send_message, socket_message);
         if (send(socket, send_message, strlen(send_message), 0) < 0) {
                 writeLog("Could not send message to client.", 1, 0);
         }
 	writeLog("Message sent on socket. Closing connection.", 0, 0);
         close(socket);
-	if (send_message != NULL) {
-		free(send_message);
-		send_message = NULL;
-	}
+	free(send_message);
+	send_message = NULL;
 	if (socket_message != NULL) {
-		memset(&socket_message[0], 0, (size_t)(sizeof(*socket_message)));
+		//memset(&socket_message[0], 0, (size_t)(sizeof(*socket_message)));
 		free(socket_message);
 		socket_message = NULL;
 	}
@@ -1313,12 +1314,13 @@ void parseClientMessage(char str[], int arr[]) {
         char username[40];
         char* token = NULL;
         char line[100];
-        int id;
+        int id = -1;
 	int aflags = 0;
 	int bExecute = 0;
         enum json_tokener_error jerr;
 
 	args_set = 0;
+	//strncpy(sid, "-1", 3);
         json_tokener *tok = json_tokener_new();
         jobj = json_tokener_parse_ex(tok, str, (size_t)(strlen(str)));
         jerr = json_tokener_get_error(tok);
@@ -1748,8 +1750,10 @@ int createSocket(int server_fd) {
 			int id = params[0];
 			int aflags = params[1];
         		send_socket_message(client_socket, id, aflags);
-			free(server_message);
-			free(client_message);
+			if (server_message != NULL)
+				free(server_message);
+			if (client_message != NULL)
+				free(client_message);
 			server_message = client_message = NULL;
 			close(client_socket);
         		return 0;
@@ -2714,11 +2718,14 @@ void apiRunPlugin(int plugin_id, int flags) {
 	char* pluginName = NULL;
 	char* message = NULL;
 
-	message = malloc((size_t)apimessage_size * sizeof(char));
+	//message = malloc((size_t)apimessage_size * sizeof(char));
+	message = (char *) malloc(sizeof(char) * apimessage_size);
 	if (message == NULL) {
 		writeLog("Failed to allocate memory for api message", 1, 0);
 		return;
 	}
+	else
+		message[0] = '\0';
 	//pluginName = malloc(strlen(declarations[plugin_id].name)+1);
 	pluginName = malloc((size_t)pluginitemname_size * sizeof(char));
 	if (pluginName == NULL) {
@@ -2753,14 +2760,22 @@ void apiRunPlugin(int plugin_id, int flags) {
                 writeLog("Failed to allocate memory [apiRunPlugin: socket_message]", 2, 0);
                 return;
         }
+	else
+		socket_message[0] = '\0';
+	printf("DEBUG: message_size=%li\n", strlen(message));
+	if (strlen(message) > apimessage_size) {
+		printf("DEBUG: Message is larger than size.\n");
+		message[apimessage_size-1] = '\0';
+	}
 	strncpy(socket_message, message, apimessage_size);
+	printf("DEBUG SocketMessage=%s\n", socket_message);
 	free(pluginName);
 	pluginName = NULL;
-	/*if (message != NULL) {
-		printf("DEBUG: message = %s\n", message);
-		free(message);
+	if (message != NULL) {
+		printf("DEBUG: message (free) = %s\n", message);
+		//free(message);
 		message = NULL;
-	}*/
+	}	
 }
 
 void runPluginArgs(int id, int aflags, int api_action) {
@@ -2776,12 +2791,15 @@ void runPluginArgs(int id, int aflags, int api_action) {
         int rc = 0;
 	char* message = NULL;
 
-	message = malloc((size_t)apimessage_size * sizeof(char)+1);
+	//message = malloc((size_t)apimessage_size * sizeof(char)+1);
+	message = (char *) malloc(sizeof(char) * apimessage_size);
 	if (message == NULL) {
 		fprintf(stderr, "Failed to allocate memory in [runPluginArgs:message].\n");
 		writeLog("Failed to allocate memory in [runPluginArgs:message].", 2, 0);
 		return;
 	}
+	else
+		message[0] = '\0';
 	newcmd = malloc(200);
 	if (newcmd == NULL) {
 		fprintf(stderr, "Failed to allocate memory in runPluginArgs.\n");
@@ -3185,6 +3203,11 @@ void apiRunAndRead(int plugin_id, int flags) {
 		fprintf(stderr, "Failed to allocate memory.\n");
 		writeLog("Failed to allocate memory [apiRunAndRead:socket_message]", 2, 0);
 		return;
+	}
+	printf("DEBUG: strlen(message) = %li\n", strlen(message));
+	if (strlen(message) > apimessage_size) {
+		printf("Message is to big. Try increase apimessage_size.\n");
+		message[apimessage_size-1] = '\0';
 	}
 	strncpy(socket_message, message, (size_t)apimessage_size);
 	free(pluginName);
