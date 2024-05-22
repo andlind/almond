@@ -1284,6 +1284,7 @@ void send_socket_message(int socket, int id, int aflags) {
 	printf("DEBUG: send_message = %s\n", send_message);
 	printf("DEBUG: strcat(send_message, socket_message);\n");
 	strcat(send_message, socket_message);
+	//strncat(send_message, socket_message, (size_t)content_length+1 * sizeof(char));
         if (send(socket, send_message, strlen(send_message), 0) < 0) {
                 writeLog("Could not send message to client.", 1, 0);
         }
@@ -1681,13 +1682,13 @@ int createSocket(int server_fd) {
         char* client_message = NULL;*/
 	int params[2];
 
-	server_message = malloc((size_t)socketservermessage_size);
+	server_message = malloc((size_t)socketservermessage_size+1);
 	if (server_message == NULL) {
 		fprintf(stderr, "Failed to allocate memory for servermessage.\n");
 		writeLog("Failed to allocate memory [createSocket:servermessage].", 1, 0);
 		return -1;
 	}
-	client_message = malloc((size_t)socketclientmessage_size);
+	client_message = malloc((size_t)socketclientmessage_size+1);
 	if (client_message == NULL) {
 		fprintf(stderr, "Failed to allocate memory for clientmessage.\n");
                 writeLog("Failed to allocate memory [createSocket:clientmessage].", 1, 0);
@@ -1763,9 +1764,15 @@ int createSocket(int server_fd) {
        	 		int index;
         		e = strchr(client_message, '{');
         		index = (int)(e - client_message);
-        		char message[100];
-        		strncpy(message, client_message + index, strlen(client_message) - index);
-			printf("DEBUG: messagfe to parseClientMessage = %s\n", message);
+        		char message[150];
+        		//strncpy(message, client_message + index, (size_t)(strlen(client_message) - index));
+			strncpy(message, client_message + index, strlen(client_message) - index);
+			printf("DEBUG: Message size = %li, sent chars = %li\n", sizeof(message),strlen(client_message) - index);
+			if ((strlen(client_message)-index) > sizeof(message)) {
+				writeLog("Client message is longer than expected. [createSocket]", 1, 1);
+				message[150] = '\0';
+			}
+			printf("DEBUG: message to parseClientMessage = %s\n", message);
 			printf("DEBUG: params to parseClientMessage = %i\n", params[0]); 
         		parseClientMessage(message, params);
         		writeLog("Message received on socket.", 0, 0);
