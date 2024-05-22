@@ -1138,7 +1138,7 @@ int toggleHostName(char *name) {
 
 void send_socket_message(int socket, int id, int aflags) {
         char header[100] = "HTTP/1.1 200 OK\nContent-Type:application/txt\nContent-Length: ";
-	char* send_message = NULL;
+	char * send_message = NULL;
 	size_t content_length = 0;
 	char len[4];
 
@@ -1269,7 +1269,8 @@ void send_socket_message(int socket, int id, int aflags) {
 	}
 	//send_message = malloc((size_t)content_length+1);
 	printf("send_message = (char *) malloc((content_length+1) * sizeof(char));\n");
-	send_message = (char *) malloc((content_length+1) * sizeof(char));
+	//send_message = (char *) malloc((content_length+1) * sizeof(char));
+	send_message = malloc((size_t)content_length+1 * sizeof(char));
 	if (send_message == NULL) {
 		//fprintf(stderr, "Could not allocate memory.\n");
 		perror("Failed to allocate memory for send_message");
@@ -1284,6 +1285,7 @@ void send_socket_message(int socket, int id, int aflags) {
 	printf("DEBUG: send_message = %s\n", send_message);
 	printf("DEBUG: strcat(send_message, socket_message);\n");
 	strcat(send_message, socket_message);
+	printf("DEBUG: send_message = %s\n", send_message);
 	//strncat(send_message, socket_message, (size_t)content_length+1 * sizeof(char));
         if (send(socket, send_message, strlen(send_message), 0) < 0) {
                 writeLog("Could not send message to client.", 1, 0);
@@ -1784,10 +1786,12 @@ int createSocket(int server_fd) {
 			if (client_message != NULL)
 				free(client_message);
 			server_message = client_message = NULL;
+			printf("Close client socket %i\n", pid);
 			close(client_socket);
         		return 0;
 		}
 		else if (pid > 0) {
+			printf("Close client socket %i\n", pid);
 			close(client_socket);
 		}
 		else {
@@ -2753,7 +2757,7 @@ void apiRunPlugin(int plugin_id, int flags) {
 	int waitCount = 0;
 
 	//message = malloc((size_t)apimessage_size * sizeof(char));
-	message = (char *) malloc(sizeof(char) * apimessage_size);
+	message = (char *) malloc(sizeof(char) * apimessage_size+1);
 	if (message == NULL) {
 		writeLog("Failed to allocate memory for api message", 1, 0);
 		return;
@@ -2807,14 +2811,14 @@ void apiRunPlugin(int plugin_id, int flags) {
 		printf("DEBUG: Message is larger than size.\n");
 		message[apimessage_size-1] = '\0';
 	}
-	strncpy(socket_message, message, apimessage_size+1);
+	strncpy(socket_message, message, (size_t)apimessage_size);
 	printf("DEBUG SocketMessage=%s\n", socket_message);
 	free(pluginName);
 	pluginName = NULL;
 	if (message != NULL) {
 		printf("DEBUG: message (free) = %s\n", message);
-		//free(message);
-		//message = NULL;
+		free(message);
+		message = NULL;
 	}	
 }
 
@@ -3144,13 +3148,15 @@ void apiRunAndRead(int plugin_id, int flags) {
         
 	//message[0] = '\0';
 	//memset(message, 0, apimessage_size);
-	message = malloc((size_t)apimessage_size * sizeof(char));
+	message = malloc((size_t)apimessage_size+1 * sizeof(char));
 	if (message == NULL) {
 		writeLog("Could not allocate memory for apimessage", 2, 0);
 		return;
 	}
-	else
-		message[0] = '\0';
+	else {
+		//message[0] = '\0';
+		memset(message, '\0', (size_t)apimessage_size+1 * sizeof(char));
+	}
 	if (plugin_id == 0 && flags == 0) {
                 printf("This is an invalid check.\n");
                 is_error++;
@@ -3174,7 +3180,7 @@ void apiRunAndRead(int plugin_id, int flags) {
                 return;
         }
         //pluginName = malloc(strlen(declarations[plugin_id].name)+1);
-	pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char));
+	pluginName = (char *)malloc((size_t)pluginitemname_size+1 * sizeof(char));
 	if (pluginName == NULL) {
 		fprintf(stderr, "Memory allocation failed.\n");
 		writeLog("Failed to allocate memory [apiRunAndRead:pluginName]", 2, 0);
@@ -3238,6 +3244,10 @@ void apiRunAndRead(int plugin_id, int flags) {
 		strcat(message, "\"\n     }\n");
 	}
 	strcat(message, "}\n");
+	if (socket_message != NULL) {
+		free(socket_message);
+		socket_message = NULL;
+	}
 	socket_message = malloc((size_t)strlen(message)+1);
 	if (socket_message == NULL) {
 		fprintf(stderr, "Failed to allocate memory.\n");
