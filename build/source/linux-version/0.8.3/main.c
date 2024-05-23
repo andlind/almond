@@ -1160,6 +1160,7 @@ void send_socket_message(int socket, int id, int aflags) {
                        	 	break;
                 	case API_EXECUTE_AND_READ:
 				apiRunAndRead(id, aflags);
+				//constructSocketMessage("return", "Currently run has problems.");
                         	break;
 			case API_GET_METRICS:
 				apiGetMetrics();
@@ -3180,13 +3181,15 @@ void apiRunAndRead(int plugin_id, int flags) {
                 return;
         }
         //pluginName = malloc(strlen(declarations[plugin_id].name)+1);
-	pluginName = (char *)malloc((size_t)pluginitemname_size+1 * sizeof(char));
+	pluginName = (char *)malloc((size_t)(pluginitemname_size+1) * sizeof(char));
 	if (pluginName == NULL) {
 		fprintf(stderr, "Memory allocation failed.\n");
 		writeLog("Failed to allocate memory [apiRunAndRead:pluginName]", 2, 0);
 		return;
 	}
-        strcpy(pluginName, declarations[plugin_id].name);
+	else
+		memset(pluginName, '\0', (size_t)(pluginitemname_size+1) * sizeof(char));
+        strncpy(pluginName, declarations[plugin_id].name, (size_t)pluginitemname_size);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
         runPlugin(plugin_id, 0);
@@ -3248,7 +3251,8 @@ void apiRunAndRead(int plugin_id, int flags) {
 		free(socket_message);
 		socket_message = NULL;
 	}
-	socket_message = malloc((size_t)strlen(message)+1);
+	//socket_message = malloc((size_t)strlen(message)+1);
+	socket_message = malloc((size_t)(apimessage_size+1) * sizeof(char)); 
 	if (socket_message == NULL) {
 		fprintf(stderr, "Failed to allocate memory.\n");
 		writeLog("Failed to allocate memory [apiRunAndRead:socket_message]", 2, 0);
