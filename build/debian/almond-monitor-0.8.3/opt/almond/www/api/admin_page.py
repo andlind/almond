@@ -607,7 +607,7 @@ def index():
         logger.setLevel(logging.DEBUG)
         logger.info('Logger for  admin (version:' + current_version + ') enabled')
         logger_enabled = True
-    use_port = load_conf()
+    use_port = load_conf(True)
     
     if not enable_gui:
         return render_template("403.html")
