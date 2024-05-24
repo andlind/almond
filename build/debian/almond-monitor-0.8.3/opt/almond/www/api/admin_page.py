@@ -607,7 +607,7 @@ def index():
         logger.setLevel(logging.DEBUG)
         logger.info('Logger for  admin (version:' + current_version + ') enabled')
         logger_enabled = True
-    use_port = load_conf()
+    use_port = load_conf(True)
     
     if not enable_gui:
         return render_template("403.html")
@@ -825,7 +825,7 @@ def index():
                 except subprocess.CalledProcessError as e:
                     #raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
                     out = e.output
-                    logger.warning("CalledProcessError: " + out)
+                    logger.warning("CalledProcessError: " + out.decode('utf-8'))
                 logger.info("Rendering template testplugin.html")
                 return render_template('testplugin.html', description=description.strip(), output=out.decode('UTF-8').strip(), plugin=plugin.strip(), args=plugin_args.strip(), active=plugin_active, interval=interval, user_image=image_file, avatar=almond_avatar)
             else:
