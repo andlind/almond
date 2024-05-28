@@ -12,7 +12,7 @@ purple = "\033[0;35m"
 
 consumer = KafkaConsumer(
    bootstrap_servers='localhost:19092',
-   value_deserializer = lambda v: json.loads(v.decode('utf-8')),
+   value_deserializer = lambda v: json.loads(v.decode('utf-8'), strict=False),
    auto_offset_reset = 'earliest'
 )
 consumer.subscribe(topics='almond_monitoring')
