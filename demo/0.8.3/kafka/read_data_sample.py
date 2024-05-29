@@ -28,10 +28,10 @@ for message in consumer:
    plugin = data.get("pluginName")
    status = data.get("pluginStatus")
    if (status == "OK"):
-   	print(green + status + "     " + black + "\t\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin) 
+   	print(green + status + black +  "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin) 
    elif (status == "WARNING"):
-        print(yellow + status + " " + black + "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
+        print(yellow + status + black +  "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
    elif (status == "UNKNOWN"):
-        print(purple + status + "\t" + black + "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
+        print(purple + status + black +  "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
    else:
-        print(red + status + black + "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
+        print(red + status + black +  "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
