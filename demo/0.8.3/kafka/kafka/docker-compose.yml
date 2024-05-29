@@ -1,4 +1,4 @@
-version: "0.8"
+version: "0.6"
 name: almond-redpanda-quickstart
 networks:
   redpanda_network:
@@ -68,7 +68,7 @@ services:
       - redpanda-10
   almond:
     container_name: almond_kafka
-    image: andreaslindell72/almond-monitor:0.6
+    image: andreaslindell72/almond-monitor:latest
     platform: linux/amd64
     volumes:
       - ./almond:/etc/almond
