@@ -1,0 +1,2 @@
+docker build -t custapp .
+docker run --rm --name custom_application -platform linux/amd64 -d -v ~/almond_demo/data:/opt/almond/data custapp
