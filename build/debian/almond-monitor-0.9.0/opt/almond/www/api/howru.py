@@ -1,17 +1,20 @@
-import json
-import flask 
-from flask import request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
-import os, os.path
 import glob
 import random
 import socket
 import logging
+import json
+import flask 
+import time
+import threading
+import os, os.path
 from venv import logger
+from flask import request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
 from werkzeug.datastructures import MultiDict
 from admin_page import admin_page
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+app_started = False
 data = None
 settings = None
 bindPort = None
@@ -33,7 +36,11 @@ full_metrics_file_name="monitor.metrics"
 start_page = 'api'
 ssl_certificate="/opt/almond/www/api/certificate.pem"
 ssl_key="/opt/almond/www/api/certificate.key"
+almond_conf_file="/etc/almond/almond.conf"
+howru_conf_file="/etc/almond/api.conf"
 enable_scraper=False
+stop_background_thread = False
+sleep_time = 5
 aliases = []
 valid_aliases = []
 
@@ -41,7 +48,7 @@ ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
-current_version = '0.9.0'
+current_version = '0.9.1'
 
 app.secret_key = 'BAD_SECRET_KEY'
 app.register_blueprint(admin_page)
@@ -49,6 +56,51 @@ app.register_blueprint(admin_page)
 def findPos(entry):
     pos = entry.find('=')
     return pos + 1
+
+def check_config():
+    """Background thread to monitor the configuration file."""
+    global stop_background_thread
+    global almond_conf_file
+    global howru_conf_file
+    global sleep_time
+    global logger
+    use_api_conf = False
+    logger.info("[Check_conf_thread] Starting...")
+    howru_last_modified = 0
+    threshold = 5
+    almond_last_modified = os.path.getmtime(almond_conf_file)
+    if (os.path.isfile(howru_conf_file)):
+        use_api_conf = True
+        howru_last_modified = os.path.getmtime(howru_conf_file)
+    while not stop_background_thread:
+
+        change_detected = False
+        logger.info("[Check_conf_thread] Check for configuration changes in almond.conf")
+        try:
+            current_modified = os.path.getmtime(almond_conf_file)
+            if abs(current_modified != almond_last_modified) > threshold:
+                print("Config change detected. Reload config.")
+                logger.info("Change of configuration detected.")
+                change_detected = True
+                almond_last_modified = current_modified
+        except Exception as e:
+            logger.error(f"Failed to access {almond_conf_file}: {e}")
+
+        if use_api_conf:
+            logger.info("[Check_conf_thread] Check for configuration changes in api.conf")
+            try:
+                current_modified = os.path.getmtime(howru_conf_file)
+                if abs(current_modified != howru_last_modified) > threshold:
+                    logger.info("[Check_conf_thread] Change in api.conf detected")
+                    change_detected = True
+                    howru_last_modified = current_modified
+            except:
+                logger.error(f"Failed to access {howru_conf_file}: {e}")
+        
+        if change_detected:
+            logger.info("[Check_conf_thread] Reload configurations")
+            change_detected = False
+        time.sleep(sleep_time)  
 
 def load_aliases():
     global aliases, logger
@@ -85,7 +137,7 @@ def load_conf():
                 metrics_dir = line[findPos(line):].rstrip()
             if (line.find('Port') > 0):
                 port = line[findPos(line):]
-                logger.info("Howru will use port " + port)
+                logger.info("Howru will use port " + port.strip())
                 if (isinstance(int(port), int)):
                    bindPort = int(port)
                 else:
@@ -173,6 +225,56 @@ def getCertificates():
     global ssl_certificate, ssl_key
     ret_val = "('" + ssl_certificate + "', '" + ssl_key + "')"
     return eval(ret_val)
+
+def check_config():
+    """Background thread to monitor the configuration file."""
+    global stop_background_thread
+    global almond_conf_file
+    global howru_conf_file
+    global sleep_time
+    global logger
+    use_api_conf = False
+    is_reloading = False
+    logger.info("[Check_conf_thread] Starting...")
+    howru_last_modified = 0
+    almond_last_modified = os.path.getmtime(almond_conf_file)
+    if (os.path.isfile(howru_conf_file)):
+        use_api_conf = True
+        howru_last_modified = os.path.getmtime(howru_conf_file)
+    while not stop_background_thread:
+        change_detected = False
+        if is_reloading:
+            is_reloading = False
+        logger.info("[Check_conf_thread] Check for configuration changes in almond.conf")
+        try:
+            current_modified = os.path.getmtime(almond_conf_file)
+            if current_modified != almond_last_modified:
+                print("Config change detected. Reload config.")
+                logger.info("Change of configuration detected.")
+                change_detected = True
+                almond_last_modified = current_modified
+        except Exception as e:
+            logger.error(f"Failed to access {almond_conf_file}: {e}")
+
+        if use_api_conf:
+            logger.info("[Check_conf_thread] Check for configuration changes in api.conf")
+            try:
+                current_modified = os.path.getmtime(howru_conf_file)
+                if current_modified != howru_last_modified:
+                    logger.info("[Check_conf_thread] Change in api.conf detected")
+                    change_detected = True
+                    howru_last_modified = current_modified
+            except:
+                logger.error(f"Failed to access {howru_conf_file}: {e}")
+
+        if change_detected and not is_reloading:
+            logger.info("[Check_conf_thread] Reload configurations")
+            change_detected = False
+            load_conf()
+            logger.info("Configuration reloaded")
+            time.sleep(0.2)
+            is_reloading = True
+        time.sleep(sleep_time)
 
 def load_data():
     global data, data_dir, multi_server, enable_file, file_name, data_file, file_found, logger
@@ -1378,6 +1480,8 @@ def api_show_alias(Alias):
 def main():
     global logger
     global current_version
+    global sleep_time
+    global app_started
     logging.basicConfig(filename='/var/log/almond/howru.log', filemode='a', format='%(asctime)s | %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -1386,12 +1490,26 @@ def main():
     logger.info("Configuration read.")
     use_ssl = useCertificate()
     context = getCertificates()
-    if (use_ssl):
-        logger.info("Running application in ssl_context")
-        app.run(host='0.0.0.0', port=use_port, ssl_context=context, threaded=True)
-    else:
-        logger.info("Running application without encryption")
-        app.run(host='0.0.0.0', port=use_port)
+    tCheck = threading.Thread(target=check_config, daemon=True)
+    tCheck.start()
+    try:
+        while True:
+            if (app_started == False):
+                logger.info("Starting application")
+                if (use_ssl):
+                    logger.info("Running application in ssl_context")
+                    app.run(host='0.0.0.0', port=use_port, ssl_context=context, threaded=True)
+                else:
+                    logger.info("Running application without encryption")
+                    app.run(host='0.0.0.0', port=use_port)
+                app_started = True
+            time.sleep(sleep_time)
+    except (KeyboardInterrupt,SystemExit):
+        logger.info("Caught info to stop program")
+        stop_background_thread = True
+        logger.info("Stopping thread checking for configurations changes.")
+        time.sleep(1)
+        logger.info("Main thread exits now. Goodbye :)")
 
 if __name__ == '__main__':
     main()
