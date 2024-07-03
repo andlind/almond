@@ -1,0 +1,22 @@
+almond_check_ping_rta{hostname="redpanda10.demo.com", service="Its alive", key="rta"} 0.061000
+almond_check_ping_pl{hostname="redpanda10.demo.com", service="Its alive", key="pl"} 0
+almond_check_load_load1{hostname="redpanda10.demo.com", service="Check load", key="load1"} 1.140
+almond_check_load_load5{hostname="redpanda10.demo.com", service="Check load", key="load5"} 0.640
+almond_check_load_load15{hostname="redpanda10.demo.com", service="Check load", key="load15"} 0.480
+almond_check_boot_{hostname="redpanda10.demo.com", service="Check /boot", key=""} 36714840064
+almond_check_home_{hostname="redpanda10.demo.com", service="Check /home", key=""} 36714840064
+almond_check_opt_{hostname="redpanda10.demo.com", service="Check /opt", key=""} 36714840064
+almond_check_usr_{hostname="redpanda10.demo.com", service="Check /usr", key=""} 36714840064
+almond_check_var_{hostname="redpanda10.demo.com", service="Check /", key=""} 36714840064
+almond_check_root_{hostname="redpanda10.demo.com", service="Check /", key=""} 36714840064
+almond_check_var_log_{hostname="redpanda10.demo.com", service="Check /var/log", key=""} 36714840064
+almond_check_users_users{hostname="redpanda10.demo.com", service="Check users", key="users"} 0
+almond_check_uptime_uptime_days{hostname="redpanda10.demo.com", service="Check uptime", key="uptime_days"} 0
+almond_check_cpu_stats{hostname="redpanda10.demo.com", service="CPU Statistics", value="UNKNOWN: iostat not found or is not executable by the nagios user."} 768
+almond_check_all_procs_procs{hostname="redpanda10.demo.com", service="Check all processes", key="procs"} 3
+almond_check_open_files_opened_files{hostname="redpanda10.demo.com", service="Check open files", key="opened_files"} 1312
+almond_check_memory{hostname="redpanda10.demo.com", service="Check memory usage", value="OK (Percent free: 69.3%, Total: 5922.95703125 MB, Used: 1107.2578125 MB, Buffers: 235.2265625 MB, Cached: 2413.08203125 MB)"} 0
+almond_check_almond_procs{hostname="redpanda10.demo.com", service="Check Almond process", key="procs"} 1
+almond_check_redpanda_procs{hostname="redpanda10.demo.com", service="Check Redpanda process", key="procs"} 1
+almond_check_apt_available_upgrades{hostname="redpanda10.demo.com", service="Check APT upgrades", key="available_upgrades"} 23
+almond_check_apt_critical_updates{hostname="redpanda10.demo.com", service="Check APT upgrades", key="critical_updates"} 9

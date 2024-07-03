@@ -1,0 +1,1 @@
+Tue Jul  2 21:00:54 2024, [check_cpu_stats], UNKNOWN: iostat not found or is not executable by the nagios user.
