@@ -301,7 +301,7 @@ def load_data():
                       ]
               }
 
-       for file in glob.glob("*.json"):
+       for file in glob.glob("*.json") + glob.glob("*.prom"):
             f = open(file, "r")
             data_set = json.loads(f.read())
             data["server"].append(data_set)
