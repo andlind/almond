@@ -1,0 +1,223 @@
+{
+   "host": {
+      "name":"redpanda10.demo.com"
+   },
+   "monitoring": [
+      {
+         "name":"check_ping",
+         "pluginName":"Its alive",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"PING OK - Packet loss = 0%, RTA = 0.06 ms|rta=0.061000ms;100.000000;500.000000;0.000000 pl=0%;20;60;0;",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:02:00", 
+         "nextRun":"2024-07-02 21:03:00"
+      },
+      {
+         "name":"check_load",
+         "pluginName":"Check load",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"LOAD OK - total load average: 1.14, 0.64, 0.48|load1=1.140;70.000;90.000;0; load5=0.640;70.000;90.000;0; load15=0.480;70.000;90.000;0;",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:02:05", 
+         "nextRun":"2024-07-02 21:03:05"
+      },
+      {
+         "name":"check_boot",
+         "pluginName":"Check /boot",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"DISK OK - free space: / 60069MiB (63% inode=85%);| /=36714840064B;94578514329;99832876236;0;105087238144",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:02:10", 
+         "nextRun":"2024-07-02 21:03:10"
+      },
+      {
+         "name":"check_home",
+         "pluginName":"Check /home",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"DISK OK - free space: / 60069MiB (63% inode=85%);| /=36714840064B;94578514329;99832876236;0;105087238144",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:02:16"
+      },
+      {
+         "name":"check_opt",
+         "pluginName":"Check /opt",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"DISK OK - free space: / 60069MiB (63% inode=85%);| /=36714840064B;94578514329;99832876236;0;105087238144",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:02:23"
+      },
+      {
+         "name":"check_usr",
+         "pluginName":"Check /usr",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"DISK OK - free space: / 60069MiB (63% inode=85%);| /=36714840064B;94578514329;99832876236;0;105087238144",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:02:30"
+      },
+      {
+         "name":"check_var",
+         "pluginName":"Check /",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"DISK OK - free space: / 60069MiB (63% inode=85%);| /=36714840064B;94578514329;99832876236;0;105087238144",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:02:37"
+      },
+      {
+         "name":"check_root",
+         "pluginName":"Check /",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"DISK OK - free space: / 60069MiB (63% inode=85%);| /=36714840064B;94578514329;99832876236;0;105087238144",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:02:44"
+      },
+      {
+         "name":"check_var_log",
+         "pluginName":"Check /var/log",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"DISK OK - free space: / 60069MiB (63% inode=85%);| /=36714840064B;94578514329;99832876236;0;105087238144",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:02:51"
+      },
+      {
+         "name":"check_users",
+         "pluginName":"Check users",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"USERS OK - 0 users currently logged in |users=0;75;100;0",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:06:58"
+      },
+      {
+         "name":"check_uptime",
+         "pluginName":"Check uptime",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"OK. Uptime is 0 days. | uptime_days=0;30;60",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 22:02:05"
+      },
+      {
+         "name":"check_cpu_stats",
+         "pluginName":"CPU Statistics",
+         "pluginStatus":"UNKNOWN",
+         "pluginStatusCode":"768",
+         "pluginOutput":"UNKNOWN: iostat not found or is not executable by the nagios user.",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:04:12"
+      },
+      {
+         "name":"check_all_procs",
+         "pluginName":"Check all processes",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"PROCS OK: 3 processes | procs=3;;;0;",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:03:19"
+      },
+      {
+         "name":"check_open_files",
+         "pluginName":"Check open files",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"OK: 1312 open files (0% of max 605166)|opened_files=1312;181549;302583",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:03:26"
+      },
+      {
+         "name":"check_memory",
+         "pluginName":"Check memory usage",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"OK (Percent free: 69.3%, Total: 5922.95703125 MB, Used: 1107.2578125 MB, Buffers: 235.2265625 MB, Cached: 2413.08203125 MB)",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:03:33"
+      },
+      {
+         "name":"check_almond",
+         "pluginName":"Check Almond process",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"PROCS OK: 1 process with command name 'almond' | procs=1;;1:5;0;",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:03:40"
+      },
+      {
+         "name":"check_redpanda",
+         "pluginName":"Check Redpanda process",
+         "pluginStatus":"OK",
+         "pluginStatusCode":"0",
+         "pluginOutput":"PROCS OK: 1 process with command name 'redpanda' | procs=1;;1:3;0;",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:54",
+         "lastRun":"2024-07-02 21:00:54", 
+         "nextRun":"2024-07-02 21:03:47"
+      },
+      {
+         "name":"check_apt",
+         "pluginName":"Check APT upgrades",
+         "pluginStatus":"CRITICAL",
+         "pluginStatusCode":"2",
+         "pluginOutput":"APT CRITICAL: 23 packages available for upgrade (9 critical updates). |available_upgrades=23;;;0 critical_updates=9;;;0",
+         "pluginStatusChanged":"0",
+         "maintenance":"false",
+         "lastChange":"2024-07-02 21:00:55",
+         "lastRun":"2024-07-02 21:00:55", 
+         "nextRun":"2024-07-02 21:22:55"
+      }
+   ]
+}

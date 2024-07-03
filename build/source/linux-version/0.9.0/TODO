@@ -1,0 +1,4 @@
+0.9.0.2 -> fix bugg in run_plugin (ex check_redis.pl)
+0.9.1	-> handle of memalloc.alm without realloc
+	-> Check core dumps in container
+	-> All API checks should be controlled to work
