@@ -46,6 +46,8 @@ services:
   console:
     container_name: redpanda-console-10
     image: docker.redpanda.com/redpandadata/console:v2.3.7
+    volumes:
+      - ~/almond_demo/data:/opt/almond/data
     networks:
       - almond-demo
     entrypoint: /bin/sh
