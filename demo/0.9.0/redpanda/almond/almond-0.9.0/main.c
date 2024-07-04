@@ -4531,12 +4531,10 @@ int countDeclarations(char *file_name) {
 	//char c;
         int ch;
 
-        printf ("Running count declarations...\n");
 	if (file_name == NULL || strlen(file_name) == 0) {
 		writeLog("Filename is not initialized or is empty.", 2, 0);
 		fprintf(stderr, "Filename is uninitialized or empty.\n");
 	}
-        printf("Opening file %s\n", file_name);  
         fp = fopen(file_name, "r");
 	if (fp == NULL)
         {
@@ -4544,7 +4542,6 @@ int countDeclarations(char *file_name) {
 		writeLog("Error opening and counting declarations file.", 2, 0);
                 exit(EXIT_FAILURE);
         }
-        printf("Reading file---\n");
 	/*for (c = getc(fp); c != EOF; c = getc(fp)){
                 printf("%c", c); 
 		if (c == '\n')
@@ -4556,8 +4553,6 @@ int countDeclarations(char *file_name) {
 	}
 	fclose(fp);
 	fp = NULL;
-        printf("Closing file.\n");
-        printf("Declaration count = %i\n", i);
 	return i-1;
 }
 
@@ -5810,7 +5805,6 @@ int main() {
         }
         printf("No errors found in plugins.conf\n");
 	decCount = countDeclarations(pluginDeclarationFile);
-        printf("DEBUG: decCount\n");
         threadIds = (unsigned short*)malloc((size_t)decCount * sizeof(unsigned short));
         for (int i = 0; i < decCount; i++) {
                 threadIds[i] = 0;

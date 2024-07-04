@@ -1,4 +1,5 @@
 #!/bin/bash
+echo "Installing Almond on containter redpanda-10"
 echo "Installing dependencies"
 cd /redpanda/almond
 docker cp almond-0.9.0 redpanda-10:/root
@@ -11,4 +12,15 @@ docker exec -u 0 redpanda-10 /bin/sh -c "cd /root/almond-0.9.0 && ./install_almo
 echo "Installation finished"
 echo "Start Almond"
 docker exec -u 0 redpanda-10 /bin/sh -c "/opt/almond/start_almond.sh &"
+echo "Installing Almond on container redpanda-console-10"
+echo "Installing dependencies"
+docker cp almond-0.9.0.2.alpine.aarch64.tar.gz redpanda-console-10:/tmp
+docker exec -u 0 redpanda-console-10 apk update
+docker exec -u 0 redpanda-console-10 apk add --no-cache perl sysstat bash python3 py3-psutil procps busybox iputils json-c librdkafka
+docker exec -u 0 redpanda-console-10 tar xfvz /tmp/almond-0.9.0.2.alpine.aarch64.tar.gz 
+echo "Installing precompiled Almond"
+docker exec -u 0 redpanda-console-10 /bin/sh -c "cd almond-0.9.0.2.alpine.aarch64 && ./install.sh"
+echo "Installation finished"
+echo "Start Almond"
+docker exec -u 0 redpanda-console-10 /bin/sh -c "/opt/almond/start_almond.sh &"
 echo "Done"

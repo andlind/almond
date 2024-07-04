@@ -1374,7 +1374,7 @@ def api_prometheus_export():
     ret_list = []
     if multi_metrics:
         for file in os.listdir(metrics_dir):
-            if file.endswith('.metrics'):
+            if file.endswith('.metrics') or file.endswith('.prom'):
                 file_name = metrics_dir + '/' + file
                 current_metrics_files.append(file_name)
     else:
