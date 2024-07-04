@@ -301,7 +301,7 @@ def load_data():
                       ]
               }
 
-       for file in glob.glob("*.json") + glob.glob("*.prom"):
+       for file in glob.glob("*.json"):
             f = open(file, "r")
             data_set = json.loads(f.read())
             data["server"].append(data_set)
@@ -1374,7 +1374,7 @@ def api_prometheus_export():
     ret_list = []
     if multi_metrics:
         for file in os.listdir(metrics_dir):
-            if file.endswith('.metrics'):
+            if file.endswith('.metrics') or file.endswith('.prom'):
                 file_name = metrics_dir + '/' + file
                 current_metrics_files.append(file_name)
     else:
