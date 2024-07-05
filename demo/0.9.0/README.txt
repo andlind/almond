@@ -18,7 +18,7 @@
   - 05_stage4_alternative_without_almond	As above but without Almond. Note! You use either of the script starting 05_. Do not execute both.
   - 06_stop					This script stops all containers started in the above script.
 
-* Alternatively you run ./start_all.sh to run all the scripts at once to get the complete demo running.
+* Alternatively you run ./run_all.sh to run all the scripts at once to get the complete demo running.
   ./stop_all.sh will stop the demo from running.
 
 Enjoy :)
