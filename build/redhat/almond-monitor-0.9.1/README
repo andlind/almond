@@ -1,1 +1,5 @@
+# TO BUILD THE ALMOND INSTALL PACKAGE YOU RUN
 rpmbuild -bb rpmbuild/SPECS/almond-monitor.spec
+# To run all supplied Nagios plugins you might need to install additional packages
+# and/or use cpan to install perl dependencies to plugins.
+
