@@ -1,0 +1,39 @@
+#!/bin/sh
+# Create log dir
+/bin/mkdir -p /var/log/almond
+
+# Symlink plugins
+/bin/ln -s /usr/lib/nagios/plugins/* /opt/almond/plugins
+
+# Create almond user
+/usr/sbin/groupadd almond
+/usr/sbin/useradd -s /bin/false -g almond -d /opt/almond almond
+
+# Set file ownership
+/bin/chown -R almond:almond /opt/almond
+/bin/chown -R almond:almond /etc/almond
+/bin/chown -R almond:almond /var/log/almond
+/bin/chown root:root /lib/systemd/system/howru-api.service
+/bin/chown root:root /lib/systemd/system/almond.service
+/bin/chmod 655 /lib/systemd/system/howru.service
+/bin/chmod 655 /lib/systemd/system/almond.service
+/bin/chmod 755 /opt/almond/gardener.py
+/bin/chmod 755 /opt/almond/www/api/rs.sh
+/bin/chmod 750 /opt/almond/utilities/almond-token-generator
+/bin/chmod 750 /opt/almond/utilities/almond-collector
+/bin/chmod 640 /opt/almond/memalloc.alm
+/bin/chmod 640 /opt/almond/api_cmd/apicmd.inf
+
+# Add almond to nagios group if exists
+if [ $(getent group admin) ]; then
+	/usr/sbin/usermod -a -G nagios almond
+fi
+
+# Enable service
+systemctl daemon-reload
+systemctl enable almond
+systemctl start almond
+systemctl enable howru.service
+systemctl start howru.service
+
+exit 0
