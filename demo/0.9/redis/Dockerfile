@@ -1,6 +1,6 @@
 FROM andreaslindell72/almond-monitor:0.9.1
 
-RUN yum update && yum install redis perl-Redis perl-fields -y
+RUN yum update -y && yum install redis perl-Redis perl-fields -y
 
 RUN chmod +x /opt/almond/howru 
 
