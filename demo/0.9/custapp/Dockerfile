@@ -1,6 +1,6 @@
 FROM andreaslindell72/almond-monitor:0.9.1
 
-RUN yum update && yum install python3-redis -y
+RUN yum update -y && yum install python3-redis -y
 
 RUN chmod +x /opt/almond/howru
 RUN mkdir -p /custapp

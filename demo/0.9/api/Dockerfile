@@ -1,7 +1,7 @@
 FROM andreaslindell72/almond-monitor:0.9.1
 MAINTAINER Andreas Lindell version: 0.9.1
 
-RUN yum update && yum upgrade -y
+RUN yum update -y && yum upgrade -y
 
 RUN chmod +x /opt/almond/howru
 

@@ -1,6 +1,6 @@
 FROM andreaslindell72/almond-monitor:0.9.1
 
-RUN yum update && yum install python3-redis -y
+RUN yum update -y && yum install python3-redis -y
 
 COPY plugins.conf /etc/almond/plugins.conf
 COPY almond.conf /etc/almond/almond.conf
