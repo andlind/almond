@@ -89,7 +89,7 @@ ________________________________________________________________________________
    gcc -g -Wall main.c mod_kafka.c -pthread -L/usr/lib/x86_64-linux-gnu -I/usr/include/json_c -I/usr/include/librdkafka -std=c99 -O0 -ljson-c -lrdkafka -lssl -lcrypto -lz -fstack-protector -o almond
 
    To just compile almond without Kafka you need to remove Kafka references in the source code then you write:
-   gcc main.c -lpthread -ljson-c -lssl -lcryptp -o almond
+   gcc main.c -lpthread -ljson-c -lssl -lcrypto -o almond
 
 3. START THE ALMOND PROCESS
    After running the install script you can start Almond with the following command:
