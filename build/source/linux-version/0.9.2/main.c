@@ -33,6 +33,7 @@
 #define HOWRU_API 10
 #define ALMOND_API_PORT 9165
 #define SOCKET_READY 1
+#define NO_SOCKET -1
 #define API_READ 10
 #define API_RUN 15
 #define API_EXECUTE_AND_READ 25
@@ -1575,7 +1576,7 @@ int toggleQuickStart(int on) {
 	return 0;
 }
 
-void send_socket_message(int socket, int id, int aflags) {
+void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
         char header[100] = "HTTP/1.1 200 OK\nContent-Type:application/txt\nContent-Length: ";
 	char * send_message = NULL;
 	size_t content_length = 0;
@@ -1744,9 +1745,16 @@ void send_socket_message(int socket, int id, int aflags) {
 		memset(send_message, '\0', (content_length+1) * sizeof(char));
         strncpy(send_message, header, (size_t)(sizeof(header)));
 	strcat(send_message, socket_message);
-        if (send(socket, send_message, strlen(send_message), 0) < 0) {
-                writeLog("Could not send message to client.", 1, 0);
-        }
+	if (use_ssl > 0) {
+		if (SSL_write(ssl, send_message, strlen(send_message)) <= 0) {
+			writeLog("Could not send ssl message to client", 1, 0);
+		}
+	}
+	else {
+        	if (send(socket, send_message, strlen(send_message), 0) < 0) {
+                	writeLog("Could not send message to client.", 1, 0);
+        	}
+	}
 	writeLog("Message sent on socket. Closing connection.", 0, 0);
         close(socket);
 	free(send_message);
@@ -2146,8 +2154,8 @@ SSL_CTX *create_context() {
     	const SSL_METHOD *method;
     	SSL_CTX *ctx;
 
-   	//method = TLS_server_method();
-	method = SSLv23_client_method();
+   	method = TLS_server_method();
+	//method = SSLv23_client_method();
 
     	ctx = SSL_CTX_new(method);
 	if (!ctx) {
@@ -2160,18 +2168,22 @@ SSL_CTX *create_context() {
 
 void configure_context(SSL_CTX *ctx) {
 	/* Set the key and cert */
-   	/* if (SSL_CTX_use_certificate_file(ctx, "almonds.crt", SSL_FILETYPE_PEM) <= 0) {
-        	ERR_print_errors_fp(stderr);
-        	exit(EXIT_FAILURE);
-    	}*/
-
-    	if (SSL_CTX_use_PrivateKey_file(ctx, "almonds.pem", SSL_FILETYPE_PEM) <= 0 ) {
+   	if (SSL_CTX_use_certificate_file(ctx, almondCertificate, SSL_FILETYPE_PEM) <= 0) {
         	ERR_print_errors_fp(stderr);
         	exit(EXIT_FAILURE);
     	}
-	if (!SSL_CTX_use_certificate_chain_file(ctx, "almonds.crt"))
+    	if (SSL_CTX_use_PrivateKey_file(ctx, almondKey, SSL_FILETYPE_PEM) <= 0 ) {
         	ERR_print_errors_fp(stderr);
+        	exit(EXIT_FAILURE);
+    	}
+	/*if (!SSL_CTX_use_certificate_chain_file(ctx, "almonds.crt"))
+        	ERR_print_errors_fp(stderr);*/
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+
+    	if(!SSL_CTX_check_private_key(ctx)) {
+        	fprintf(stderr, "Private key does not match the certificate public key\n");
+        	exit(EXIT_FAILURE);
+    	}
 }
 
 int initSocket () {
@@ -2187,6 +2199,7 @@ int initSocket () {
                 return -1;
         }
 	bzero((char *)&address, sizeof(address));
+	//memset(&address, 0, sizeof(address);
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
         if (local_port == ALMOND_API_PORT)
@@ -2199,8 +2212,8 @@ int initSocket () {
                 return -1;
         }
 	if (use_ssl > 0) {
-		SSL_load_error_strings();
     		OpenSSL_add_all_algorithms();
+		SSL_load_error_strings();
         	ctx = create_context();
                 configure_context(ctx);
         }
@@ -2269,9 +2282,9 @@ int createSocket(int server_fd) {
 			/*if (SSL_accept(ssl) <= 0) {
 				ERR_print_errorsfp(stderr);
 			}*/
-			if (SSL_connect(ssl) <= 0) {
+			if (SSL_accept(ssl) <= 0) {
 				ERR_print_errors_fp(stderr);
-				writeLog("Error whule authenticating SSL connection.", 0, 0);
+				writeLog("Error while authenticating SSL connection.", 0, 0);
 				return -1;
 			}
 			else
@@ -2283,23 +2296,45 @@ int createSocket(int server_fd) {
 		pid_t pid = fork();
 		if (pid == 0) {
 			close(server_fd);
-			if (use_ssl > 0) SSL_CTX_free(ctx);
 			if (client_message == NULL) return -1;
-        		if (recv(client_socket, client_message, socketclientmessage_size, 0) < 0){
-				perror("recv failed\n");
-                		printf("Couldn't receive\n");
-                		writeLog("Could not receieve client message on socket.", 1, 0);
-				free(server_message);
-        			free(client_message);
-        			server_message = client_message = NULL;
-                		return -1;
-        		}
+			if (use_ssl > 0) {
+			       	SSL_CTX_free(ctx);
+				int bytes = SSL_read(ssl, client_message, socketclientmessage_size);
+				if (bytes > 0)
+				       writeLog("SSL client message received.", 0, 0);
+				else {
+					ERR_print_errors_fp(stderr);
+					writeLog("Failed to receive ssl client message.", 1, 0);
+					free(server_message);
+					free(client_message);
+					server_message = NULL;
+					client_message = NULL;
+					return -1;
+				}
+			}
+			else {	
+        			if (recv(client_socket, client_message, socketclientmessage_size, 0) < 0){
+					perror("recv failed\n");
+                			printf("Couldn't receive\n");
+                			writeLog("Could not receieve client message on socket.", 1, 0);
+					free(server_message);
+        				free(client_message);
+        				server_message = client_message = NULL;
+                			return -1;
+        			}
+			}
 			if (client_message == NULL) {
 				printf("Could not receive client message.\n");
 				char message[100] = "Received empty message. Nothing to reply.";
-                		if (send(client_socket, message, 100, 0) < 0) {
+				if (use_ssl > 0) {
+					SSL_write(ssl, message, strlen(message));
 					writeLog("Could not send message to client.", 1, 0);
-        			}	
+				}
+				else {
+                			if (send(client_socket, message, 100, 0) < 0) {
+						writeLog("Could not send message to client.", 1, 0);
+        				}
+				}	
 				writeLog("Message sent on socket. Closing connection.", 0, 0);
                 		close(client_socket);
 				free(server_message);
@@ -2321,7 +2356,10 @@ int createSocket(int server_fd) {
         		writeLog("Message received on socket.", 0, 0);
 			int id = params[0];
 			int aflags = params[1];
-        		send_socket_message(client_socket, id, aflags);
+			if (use_ssl > 0)
+				send_socket_message(NO_SOCKET, ssl, id, aflags);
+			else
+        			send_socket_message(client_socket, NULL, id, aflags);
 			if (server_message != NULL)
 				free(server_message);
 			if (client_message != NULL)
@@ -2331,7 +2369,7 @@ int createSocket(int server_fd) {
 			if (use_ssl > 0) {
 				//SSL_shutdown(ssl);
 				SSL_free(ssl);
-				//SSL_CTX_free(ctx);
+				SSL_CTX_free(ctx);
 			}
 			close(client_socket);
         		return 0;
@@ -2747,7 +2785,7 @@ int getConfigurationValues() {
                            quick_start = 1;
                    }
            }
-	   if (strcmp(confName, "scheduler.useSSL") == 0) {
+	   if (strcmp(confName, "scheduler.useTLS") == 0) {
 		   int i = strtol(trim(confValue), NULL, 0);
 		   if (i >= 1) {
 			   writeLog("Almond scheduler use TLS encryption.", 0, 1);
@@ -5706,6 +5744,8 @@ void initScheduler(int numOfP, int msSleep) {
         tnextGardener = time(0) + gardenerInterval;	
 	tnextClearDataCache = time(0) + clearDataCacheInterval;
 	if (local_api > 0) {
+		if (use_ssl > 0)
+			 SSL_library_init();
 		if (socket_is_ready == 1) {
 			writeLog("Socket is already happy.", 0, 0);
 			return;
