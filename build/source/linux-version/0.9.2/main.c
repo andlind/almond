@@ -2785,14 +2785,14 @@ int getConfigurationValues() {
                            quick_start = 1;
                    }
            }
-	   if (strcmp(confName, "scheduler.useTLS") == 0) {
+	   if ((strcmp(confName, "scheduler.useTLS") == 0) || (strcmp(confName, "almond.useSSL") == 0)) {
 		   int i = strtol(trim(confValue), NULL, 0);
 		   if (i >= 1) {
 			   writeLog("Almond scheduler use TLS encryption.", 0, 1);
 			   use_ssl = 1;
 		   }
 	   }
-	   if (strcmp(confName, "scheduler.certificate") == 0) {
+	   if ((strcmp(confName, "scheduler.certificate") == 0) || (strcmp(confName, "almond.certificate") == 0)) {
                    almondCertificate = malloc((size_t)strlen(confValue)+1);
                    if (almondCertificate == NULL) {
                            fprintf(stderr, "Failed to allocate memory [almondCertificate].\n");
@@ -2805,7 +2805,7 @@ int getConfigurationValues() {
                         use_ssl = 0;
                    }
            }
-           if (strcmp(confName, "scheduler.key") == 0) {
+           if ((strcmp(confName, "scheduler.key") == 0) || (strcmp(confName, "almond.key") == 0)) {
                    almondKey = malloc((size_t)strlen(confValue)+1);
                    if (almondKey == NULL) {
                            fprintf(stderr, "Failed to allocate memory [almondSSLKey].\n");
