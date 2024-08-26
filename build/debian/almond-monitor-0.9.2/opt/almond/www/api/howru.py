@@ -1108,7 +1108,7 @@ def api_count_servers():
 @app.route('/api/countjobs', methods=['GET'])
 @app.route('/howru/api/countjobs', methods=['GET'])
 def api_count_plugin_jobs():
-    global data_dir, multi_server, logger, data
+    global multi_server, logger, data
     logger.info("Running api_count_plugin_jobs")
     count = 0
     if (multi_server):
@@ -1121,6 +1121,18 @@ def api_count_plugin_jobs():
             for count, line in enumerate(fp):
                 pass
     return { 'plugincount' : count }
+
+@app.route('/api/unixupdatetime', methods=['GET'])
+@app.route('/howru/api/unixupdatetime', methods=['GET'])
+def api_get_plugin_file_timestamp():
+    global logger
+    logger.info("Running api_get_plugin_file_timestamp")
+    try:
+        value = int(os.path.getmtime('/etc/almond/plugins.conf'))
+    except OSError:
+        logger.warning("Could not find plugins.conf file")
+        value = -1
+    return { 'lastmodifiedtimestamp' : value }
 
 @app.route('/api/servers', methods=['GET'])
 @app.route('/howru/api/servers', methods=['GET'])
