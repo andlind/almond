@@ -75,7 +75,7 @@
 #define KAFKA_EXPORT_TAG 10
 #define KAFKA_EXPORT_ID 20
 #define KAFKA_EXPORT_IDTAG 30
-#define VERSION "0.9.2"
+#define VERSION "0.9.3"
 
 char constantsFile[26] = "/opt/almond/memalloc.alm";
 char* confDir = NULL;
@@ -5931,7 +5931,7 @@ int main() {
 	fprintf(fptr, "\n");
         printf("Starting almond version %s.\n", VERSION);
 	initConstants();
-	writeLog("Starting almond (0.9.2)...", 0, 1);
+	writeLog("Starting almond (0.9.3)...", 0, 1);
 	if (signal(SIGINT, sig_handler) == SIG_ERR) {
                 fputs("An error occurred while setting a signal handler\n", stderr);
                 writeLog("An error occurred while setting the SIGINT signal handler.", 2, 1);
