@@ -24,10 +24,10 @@ scheduler_conf = []
 extra_conf = []
 graph_names = {}
 api_available_conf = ['api.bindPort', 'api.enableFile',' data.jsonFile', 'data.metricsFile', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir', 'api.useSSL', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.useGUI', 'api.adminUser', 'api.adminPassword', 'api.userFile', 'api.stateType', 'api.multiMetrics', 'api.multiServer', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
-scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'almond.useSSL', 'almond.certificate', 'almond.key', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.useTLS', 'scheduler.certificate', 'scheduler.key','scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.enableKafkaId', 'scheduler.kafkaStartId', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'gardener.CleanUpTime']
+scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'gardener.CleanUpTime']
 
 users = {}
-current_version = '0.9.3'
+current_version = '0.9.1'
 
 enable_gui = True
 standalone = True
@@ -1046,6 +1046,19 @@ def index():
         amount = len(item_names)
         logger.info("Rendering template api.html")
         return render_template('api.html', logo_image=image_file, avatar=almond_avatar, amount=amount, plugins=item_names)
+    elif page == 'action':
+        load_plugins()
+        item_names = []
+        for x in plugins:
+            pos = x.find(';')
+            item = x[0:pos]
+            pos = item.find(' ');
+            item_name = item[pos+1:]
+            item_names.append(item_name.strip())
+        item_names.pop(0)
+        action = request.args.get("aid")
+        logger.info("Rendering template action.html")
+        return render_template('action.html', logo_image=image_file, avatar=almond_avatar, plugins=item_names, action=action)
     elif page == 'docs':
         logger.info("Rendering template documentation_a.html")
         return render_template('documentation_a.html', user_image=image_file, avatar=almond_avatar) 

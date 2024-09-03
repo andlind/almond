@@ -143,5 +143,58 @@
 	<script language="javascript">document.write('<a href="' + document.referrer + '">Go back/Clear</a>');
 	</script>
 	</p>
+	<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
+        <tr style="text-align:center">
+                <td>
+                        <p style="font-family: Verdana; color: #491c0f; font-size: 22px;font-weight:bold">Almond  API Query</p>
+                </td>
+        </tr>
+        </table>
+	<script language="Javascript">
+	    function actionEnable() {
+                var sel_id = document.apiaction.selection.value;
+		if (sel_id != 0) {
+		   document.getElementById("actionbutton").disabled = false;
+		}
+		else {
+		   document.getElementById("actionbutton").disabled = true;
+		}
+	    }
+	    function startActionApi() {
+	        var url = "admin?page=action&aid=" + document.apiaction.selection.value;
+		window.location.href=url;
+	    }
+        </script>
+	<table width="60%" align="center" style="margin-left:auto; margin-right:auto;"
+        <tr>
+            <td style="background:#491c0f; color:#ffffff";>Choose API Action</td>
+        </tr>
+        <tr>
+            <td>
+                <form name="apiaction" method="get">
+                <select name="selection" id="selection" onChange="actionEnable()">
+		    <option value="0" name="None">Choose Action</option>
+                    <option value="7" name="disable">disable</option>
+                    <option value="6" name="enable">enable</option>
+                    <option value="2" name="execute">execute</option>
+                    <option value="3" name="exread">exread</option>
+                    <option value="1" name="get">get</option>
+                    <option value="4" name="getm">getm</option>
+                    <option value="5" name="getvar">getvar</option>
+                    <option value="4" name="metrics">metrics</option>
+                    <option value="1" name="read">read</option>
+                    <option value="10" name="read_all">read_all</option>
+                    <option value="2" name="run">run</option>
+		    <option value="3" name="runread">runread</option>
+		    <option value="8" name="set">set</option>
+		    <option value="8" name="runex">setvar</option>
+                </select>
+            </td>
+        </tr>
+	<tr>
+	    <td><input type="button" id="actionbutton" value="Continue" OnClick="startActionApi()" disabled>
+	    </td>
+	</tr>
+	</table>
 	<p>&nbsp;</p>
 {% include 'foot.html' %}
