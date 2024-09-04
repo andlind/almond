@@ -8,6 +8,9 @@
 		</td>
 	</tr>
 	</table>
+	<form name="action_api" method="post" action="/almond/admin">
+	<input type="hidden" name="action_type" value="actionapi">
+	<input type="hidden" name="action_id" value="{{ action }}"">
 	<table width="60%" align="center" style="margin-left:auto; margin-right:auto;">
         {% if (action == "1" or action == "2" or action == "3") %}
 	<tr>
@@ -15,7 +18,7 @@
 			<label for="name">Name</label>
 			<select name="name" id="name">
                                 {% for plugin in plugins %}
-                                <option value="{{plugin}}" name="{{plugin}}">{{plugin}}</option>
+                                <option value="{{ loop.index }}" name="{{plugin}}">{{plugin}}</option>
                                 {% endfor %}
                         </select>
 		</td>
@@ -38,24 +41,24 @@
 			<p>Get all metrics</p>
 			{% elif (action == "6" or action == "7") %}
 			<label for="function">Function</label>&nbsp;&nbsp;<select name="function" id="function">
-				<option value="1">Clean cache</option>
-				<option value="2">Gardener</option>
-				<option value="3">Standalone</option>
-				<option value="4">Time tuner</option>
-				<option value="5">Quick start</option>
+				<option value="cleancache">Clean cache</option>
+				<option value="gardener">Gardener</option>
+				<option value="standalone">Standalone</option>
+				<option value="timetuner">Time tuner</option>
+				<option value="quickstart">Quick start</option>
 			</select>
 			{% elif (action == "5" or action == "8") %}
                         <label for="variable">Server variable</label>&nbsp;&nbsp;<select name="variable" id="variable">
-				<option value="1">Json filename</option>
-				<option value="2">Kafka start id</option>
-				<option value="3">Kafka tag</option>
-                                <option value="4">Kafka topic</option>
-				<option value="5">Metrics filename</option>
-				<option value="6">Metrics prefix</option>
-                                <option value="7">Plugin output</option>
-                                <option value="8">Save on exit</option>
-                                <option value="9">Sleep</option>
-				<option value="10">Virtual hostname</option>
+				<option value=jsonfilename"">Json filename</option>
+				<option value="kafkastartid">Kafka start id</option>
+				<option value="kafkatag">Kafka tag</option>
+                                <option value="kafkatopic">Kafka topic</option>
+				<option value="metricsfilename">Metrics filename</option>
+				<option value="metricsprefix">Metrics prefix</option>
+                                <option value="pluginoutput">Plugin output</option>
+                                <option value="saveonexit">Save on exit</option>
+                                <option value="sleep">Sleep</option>
+				<option value="hostname">Virtual hostname</option>
                         </select>
 			{% endif %}
 		</td>
@@ -83,5 +86,6 @@
 		</td>
 	</tr>
 	</table>
+	</form>
 	<p>&nbsp;</p>
 {% include 'foot.html' %}

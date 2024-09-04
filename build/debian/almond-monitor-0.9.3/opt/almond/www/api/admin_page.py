@@ -928,6 +928,57 @@ def index():
             else:
                 logger.info("Rendering template show_metrics.html")
                 return render_template("show_metrics.html", user_image=image_file, avatar=almond_avatar)
+        if (action_type == "actionapi"):
+            logger.info("Received action_type 'actionapi'")
+            action_id = int(request.form["action_id"])
+            action_str = "{'action':"
+            flags_str = "'flags':'"
+            print (action_id)
+            if (action_id == 1 or action_id == 2 or action_id == 3):
+                name = request.form["name"]
+                flags = request.form["flags"]
+                if (flags == "1"):
+                    flags_str += "verbose'"
+                elif (flags == "3"):
+                    flags_str += "all"
+                else:
+                    flags_str += "none"
+                if (action_id == 1):
+                    action_str += "'read'"
+                elif (action_id == 2):
+                    action_str += "'run'"
+                else:
+                    action_str += "'runread'"
+                action_str += ", 'id':'" + name + "', " + flags_str
+                if (action_id > 1):
+                    token = request.form["token"]
+                    action_str += "', 'token':'" + token + "'}"
+                else:
+                    action_str += "'}"
+            elif (action_id == 4):
+                action_str = "{'action':'metrics', 'name':'get_metrics'}"
+            elif (action_id == 5):
+                variable = request.form["variable"]
+                action_str += "'getvar', 'name':'" + variable + "'}"
+            elif (action_id == 6 or action_id == 7):
+                if (action_id == 6):
+                    action_str += "'enable'"
+                else:
+                    action_str += "'disable'"
+                feature = request.form["function"]
+                token = request.form["token"]
+                action_str += ", 'name':'" + feature + "', 'token':'" + token + "'}"
+            elif (action_id == 8):
+                variable = request.form["variable"]
+                value = request.form["value"]
+                token = request.form["token"]
+                action_str += "'setvar', 'name':'" + variable + "', 'value':'" + value + "', 'token':'" + token + "'}"
+            elif (action_id == 10):
+                print("Read all")
+                flags = "all"
+            else:
+                print ("Action id error")
+            return action_str
     if not ('page' in request.args):
         print("Session")
         logger.info("Checking session page")
