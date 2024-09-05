@@ -931,54 +931,101 @@ def index():
         if (action_type == "actionapi"):
             logger.info("Received action_type 'actionapi'")
             action_id = int(request.form["action_id"])
-            action_str = "{'action':"
-            flags_str = "'flags':'"
+            action_str = "{\"action\":"
+            flags_str = "\"flags\":\""
             print (action_id)
             if (action_id == 1 or action_id == 2 or action_id == 3):
                 name = request.form["name"]
                 flags = request.form["flags"]
                 if (flags == "1"):
-                    flags_str += "verbose'"
+                    flags_str += "verbose\""
                 elif (flags == "3"):
-                    flags_str += "all"
+                    flags_str += "all\""
                 else:
-                    flags_str += "none"
+                    flags_str += "none\""
                 if (action_id == 1):
-                    action_str += "'read'"
+                    action_str += "\"read\""
                 elif (action_id == 2):
-                    action_str += "'run'"
+                    action_str += "\"run\""
                 else:
-                    action_str += "'runread'"
-                action_str += ", 'id':'" + name + "', " + flags_str
+                    action_str += "\"runread\""
+                action_str += ", \"id\":\"" + name + "\", " + flags_str
                 if (action_id > 1):
                     token = request.form["token"]
-                    action_str += "', 'token':'" + token + "'}"
+                    action_str += ", \"token\":\"" + token + "\"}"
                 else:
-                    action_str += "'}"
+                    action_str += "}"
             elif (action_id == 4):
-                action_str = "{'action':'metrics', 'name':'get_metrics'}"
+                action_str = "{\"action\":\"metrics\", \"name\":\"get_metrics\"}"
             elif (action_id == 5):
                 variable = request.form["variable"]
-                action_str += "'getvar', 'name':'" + variable + "'}"
+                action_str += "\"getvar\", \"name\":\"" + variable + "\"}"
             elif (action_id == 6 or action_id == 7):
                 if (action_id == 6):
-                    action_str += "'enable'"
+                    action_str += "\"enable\""
                 else:
-                    action_str += "'disable'"
+                    action_str += "\"disable\""
                 feature = request.form["function"]
                 token = request.form["token"]
-                action_str += ", 'name':'" + feature + "', 'token':'" + token + "'}"
+                action_str += ", \"name\":\"" + feature + "\", \"token\":\"" + token + "\"}"
             elif (action_id == 8):
                 variable = request.form["variable"]
                 value = request.form["value"]
                 token = request.form["token"]
-                action_str += "'setvar', 'name':'" + variable + "', 'value':'" + value + "', 'token':'" + token + "'}"
+                action_str += "\"setvar\", \"name\":\"" + variable + "\", \"value\":\"" + value + "\", \"token\":\"" + token + "\"}"
             elif (action_id == 10):
                 print("Read all")
                 flags = "all"
             else:
                 print ("Action id error")
-            return action_str
+            print (action_str)
+            if (almond_api):
+                try:
+                    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                except socket.error as e:
+                    print ("Error creating socket: %s" % e)
+                    retVal = "\"connection_error\" : \"Error creating socket \"}"
+                    return retVal
+                try:
+                    clientSocket.connect(("127.0.0.1",almond_port))
+                except socket.gaierror as e:
+                    print ("Address-related error connecting to server: %s" % e)
+                    retVal = "\"connection_error\" : \"Address-related error connecting to server.\"}"
+                    return retVal
+                except socket.error as e:
+                    print ("Connection error: %s" % e)
+                    retVal = "\"connection_error\" : \"Socket connection error.\"}"
+                    return retVal
+                #data = '{"action":"execute", "id":"' + str(id) + '"}'
+                #data = json.loads(action_str)
+                #print (data)
+                try:
+                    clientSocket.send(action_str.encode())
+                except socket.error as e:
+                    print ("Error sending data: %s" % e)
+                    retVal = "\"connection_error\" : \"Error sending data.\"}"
+                    return retVal
+                try:
+                    retVal = clientSocket.recv(5000)
+                except socket.error as e:
+                    print ("Error receiving data: %s" % e)
+                    retVal = "\"connection_error\" : \"Error receiving data.\"}"
+                    return retVal
+                if not len(retVal):
+                    print ("No retVal len\n")
+                    retVal = "\connection_error\" : \"Empty return on socket.\"}"
+                    return retVal
+                print(retVal.decode())
+            else:
+                printf("Almond api is not enabled.")
+                retVal = "{\"almond_message\":\"Almond API is not enabled.\"}"
+                return retVal
+            data = retVal.decode("utf-8").strip()
+            pos = data.find('Content-Length:')
+            text = data[pos+16:]
+            newline = text.find("\n")
+            newtext = text[newline+1:].strip()
+            return newtext
     if not ('page' in request.args):
         print("Session")
         logger.info("Checking session page")
