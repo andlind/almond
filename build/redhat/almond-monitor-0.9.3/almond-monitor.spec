@@ -106,7 +106,7 @@ fi
 <andreas.lindell@almondmonitor.com>
 - Buggfixes
 - Some updates in documentation
-* Mon Mar 24 2024 0.8.0
+* Mon Mar 25 2024 0.8.0
 <andreas.lindell@almondmonitor.com>
 - Added items to Almond API
 - Dynamic memory allocation
