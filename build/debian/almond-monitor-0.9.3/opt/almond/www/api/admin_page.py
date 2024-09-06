@@ -933,7 +933,6 @@ def index():
             action_id = int(request.form["action_id"])
             action_str = "{\"action\":"
             flags_str = "\"flags\":\""
-            print (action_id)
             if (action_id == 1 or action_id == 2 or action_id == 3):
                 name = request.form["name"]
                 flags = request.form["flags"]
@@ -978,54 +977,52 @@ def index():
                 flags = "all"
             else:
                 print ("Action id error")
-            print (action_str)
             if (almond_api):
                 try:
                     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 except socket.error as e:
                     print ("Error creating socket: %s" % e)
                     retVal = "\"connection_error\" : \"Error creating socket \"}"
-                    return retVal
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                try:
                 try:
                     clientSocket.connect(("127.0.0.1",almond_port))
                 except socket.gaierror as e:
                     print ("Address-related error connecting to server: %s" % e)
                     retVal = "\"connection_error\" : \"Address-related error connecting to server.\"}"
-                    return retVal
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 except socket.error as e:
                     print ("Connection error: %s" % e)
                     retVal = "\"connection_error\" : \"Socket connection error.\"}"
-                    return retVal
-                #data = '{"action":"execute", "id":"' + str(id) + '"}'
-                #data = json.loads(action_str)
-                #print (data)
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
                     clientSocket.send(action_str.encode())
                 except socket.error as e:
                     print ("Error sending data: %s" % e)
                     retVal = "\"connection_error\" : \"Error sending data.\"}"
-                    return retVal
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
                     retVal = clientSocket.recv(5000)
                 except socket.error as e:
                     print ("Error receiving data: %s" % e)
                     retVal = "\"connection_error\" : \"Error receiving data.\"}"
-                    return retVal
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 if not len(retVal):
                     print ("No retVal len\n")
                     retVal = "\connection_error\" : \"Empty return on socket.\"}"
-                    return retVal
-                print(retVal.decode())
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                #print(retVal.decode())
             else:
                 printf("Almond api is not enabled.")
                 retVal = "{\"almond_message\":\"Almond API is not enabled.\"}"
-                return retVal
+                return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
             data = retVal.decode("utf-8").strip()
             pos = data.find('Content-Length:')
             text = data[pos+16:]
             newline = text.find("\n")
             newtext = text[newline+1:].strip()
-            return newtext
+            return render_template('actionapi.html', user_image=image_file, data=newtext, errors=0, avatar=almond_avatar)
+
     if not ('page' in request.args):
         print("Session")
         logger.info("Checking session page")
