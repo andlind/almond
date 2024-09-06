@@ -27,7 +27,7 @@ api_available_conf = ['api.bindPort', 'api.enableFile',' data.jsonFile', 'data.m
 scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'almond.useSSL', 'almond.certificate', 'almond.key', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.useTLS', 'scheduler.certificate', 'scheduler.key','scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.enableKafkaId', 'scheduler.kafkaStartId', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'gardener.CleanUpTime']
 
 users = {}
-current_version = '0.9.2'
+current_version = '0.9.1'
 
 enable_gui = True
 standalone = True
@@ -928,6 +928,101 @@ def index():
             else:
                 logger.info("Rendering template show_metrics.html")
                 return render_template("show_metrics.html", user_image=image_file, avatar=almond_avatar)
+        if (action_type == "actionapi"):
+            logger.info("Received action_type 'actionapi'")
+            action_id = int(request.form["action_id"])
+            action_str = "{\"action\":"
+            flags_str = "\"flags\":\""
+            if (action_id == 1 or action_id == 2 or action_id == 3):
+                name = request.form["name"]
+                flags = request.form["flags"]
+                if (flags == "1"):
+                    flags_str += "verbose\""
+                elif (flags == "3"):
+                    flags_str += "all\""
+                else:
+                    flags_str += "none\""
+                if (action_id == 1):
+                    action_str += "\"read\""
+                elif (action_id == 2):
+                    action_str += "\"run\""
+                else:
+                    action_str += "\"runread\""
+                action_str += ", \"id\":\"" + name + "\", " + flags_str
+                if (action_id > 1):
+                    token = request.form["token"]
+                    action_str += ", \"token\":\"" + token + "\"}"
+                else:
+                    action_str += "}"
+            elif (action_id == 4):
+                action_str = "{\"action\":\"metrics\", \"name\":\"get_metrics\"}"
+            elif (action_id == 5):
+                variable = request.form["variable"]
+                action_str += "\"getvar\", \"name\":\"" + variable + "\"}"
+            elif (action_id == 6 or action_id == 7):
+                if (action_id == 6):
+                    action_str += "\"enable\""
+                else:
+                    action_str += "\"disable\""
+                feature = request.form["function"]
+                token = request.form["token"]
+                action_str += ", \"name\":\"" + feature + "\", \"token\":\"" + token + "\"}"
+            elif (action_id == 8):
+                variable = request.form["variable"]
+                value = request.form["value"]
+                token = request.form["token"]
+                action_str += "\"setvar\", \"name\":\"" + variable + "\", \"value\":\"" + value + "\", \"token\":\"" + token + "\"}"
+            elif (action_id == 10):
+                print("Read all")
+                flags = "all"
+            else:
+                print ("Action id error")
+            if (almond_api):
+                try:
+                    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                except socket.error as e:
+                    print ("Error creating socket: %s" % e)
+                    retVal = "\"connection_error\" : \"Error creating socket \"}"
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                try:
+                try:
+                    clientSocket.connect(("127.0.0.1",almond_port))
+                except socket.gaierror as e:
+                    print ("Address-related error connecting to server: %s" % e)
+                    retVal = "\"connection_error\" : \"Address-related error connecting to server.\"}"
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                except socket.error as e:
+                    print ("Connection error: %s" % e)
+                    retVal = "\"connection_error\" : \"Socket connection error.\"}"
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                try:
+                    clientSocket.send(action_str.encode())
+                except socket.error as e:
+                    print ("Error sending data: %s" % e)
+                    retVal = "\"connection_error\" : \"Error sending data.\"}"
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                try:
+                    retVal = clientSocket.recv(5000)
+                except socket.error as e:
+                    print ("Error receiving data: %s" % e)
+                    retVal = "\"connection_error\" : \"Error receiving data.\"}"
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                if not len(retVal):
+                    print ("No retVal len\n")
+                    retVal = "\connection_error\" : \"Empty return on socket.\"}"
+                    return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+                #print(retVal.decode())
+            else:
+                printf("Almond api is not enabled.")
+                retVal = "{\"almond_message\":\"Almond API is not enabled.\"}"
+                return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
+            data = retVal.decode("utf-8").strip()
+            pos = data.find('Content-Length:')
+            text = data[pos+16:]
+            newline = text.find("\n")
+            newtext = text[newline+1:].strip()
+            return render_template('actionapi.html', user_image=image_file, data=newtext, errors=0, avatar=almond_avatar)
+
     if not ('page' in request.args):
         print("Session")
         logger.info("Checking session page")
@@ -1046,6 +1141,19 @@ def index():
         amount = len(item_names)
         logger.info("Rendering template api.html")
         return render_template('api.html', logo_image=image_file, avatar=almond_avatar, amount=amount, plugins=item_names)
+    elif page == 'action':
+        load_plugins()
+        item_names = []
+        for x in plugins:
+            pos = x.find(';')
+            item = x[0:pos]
+            pos = item.find(' ');
+            item_name = item[pos+1:]
+            item_names.append(item_name.strip())
+        item_names.pop(0)
+        action = request.args.get("aid")
+        logger.info("Rendering template action.html")
+        return render_template('action.html', logo_image=image_file, avatar=almond_avatar, plugins=item_names, action=action)
     elif page == 'docs':
         logger.info("Rendering template documentation_a.html")
         return render_template('documentation_a.html', user_image=image_file, avatar=almond_avatar) 

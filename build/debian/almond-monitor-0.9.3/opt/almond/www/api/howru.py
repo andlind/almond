@@ -48,7 +48,7 @@ ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
-current_version = '0.9.2'
+current_version = '0.9.3'
 
 app.secret_key = 'BAD_SECRET_KEY'
 app.register_blueprint(admin_page)
@@ -741,6 +741,71 @@ def api_show_oks():
         obj = data['monitoring']
         for i in obj:
             if (i['pluginStatusCode'] == "0"):
+                results.append(i)
+
+    return jsonify(results)
+
+@app.route('/api/notoks', methods=['GET'])
+@app.route('/api/notok', methods=['GET'])
+@app.route('/howru/api/notok', methods=['GET'])
+def api_show_not_oks():
+    global data, multi_server
+    global logger
+    set_file_name()
+    load_data()
+    multi_set = 0
+    servername = ""
+    name_is_set = False
+    name_found = False
+
+    results = []
+    logger.info("Running api_show_oks")
+    if (multi_server):
+        try:
+            host = data['host']
+        except:
+            multi_set = 1
+    if (multi_set > 0):
+        serv = data['server']
+        for s in serv:
+            res_set = []
+            if ('server' in request.args):
+                servername = request.args['server']
+                if (len(servername) > 2):
+                    name_is_set = True
+            if (name_is_set == True):
+                 if (s['host']['name'] == servername):
+                    res_set.append(s['host'])
+                    obj = s['monitoring']
+                    for i in obj:
+                        j = int(i['pluginStatusCode'])
+                        if (j > 0):
+                            res_set.append(i)
+                    results.append(res_set)
+                    server_found = True
+                    return jsonify(results)
+                 else:
+                     server_found = False
+            else:
+                res_set.append(s['host'])
+                obj = s['monitoring']
+                for i in obj:
+                    if (i['pluginStatusCode'] == "0"):
+                        res_set.append(i)
+                results.append(res_set);
+        if (name_is_set == True and server_found == False):
+            results = [
+                { 'returnCode' :'3',
+                   'monitoring':
+                           {'info': 'Server not found'
+                        }
+                    }
+                ]
+    else:
+        results.append(data['host'])
+        obj = data['monitoring']
+        for i in obj:
+            if (int(i['pluginStatusCode']) >0):
                 results.append(i)
 
     return jsonify(results)
