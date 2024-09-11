@@ -4,7 +4,7 @@
 	<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
 	<tr style="text-align:center">
 		<td>
-			<p style="font-family: Verdana; color: #491c0f; font-size: 22px;font-weight:bold">API Link Generator</p>
+			<p style="font-family: Verdana; color: #491c0f; font-size: 22px;font-weight:bold">Local HowRU API Query</p>
 		</td>
 	</tr>
 	</table>
@@ -15,20 +15,11 @@
 
             function queryEnable() {
                 var selection_id = document.api.selection.value
-                var settings_id = document.api.settings.value
-                if (selection_id > 0)
-                    document.getElementById("settings").disabled = true;
-                else
-                    document.getElementById("settings").disabled = false;
-                if (settings_id > 0)
-                    document.getElementById("selection").disabled = true;
-		else
-		    document.getElementById("selection").disabled = false;
-		if (selection_id > 0 || settings_id > 0)
+		if (selection_id > 0)
 		    document.getElementById("button").disabled = false;
 		else
                     document.getElementById("button").disabled = true;
-	        if ((selection_id > 5) && (selection_id < 8)) {
+	        if ((selection_id > 6) && (selection_id < 8)) {
                     document.getElementById("submit").disabled = false;
                     document.getElementById("button").disabled = true;
                 }
@@ -36,11 +27,11 @@
                     document.getElementById("submit").disabled = true;
 		    hideParameters();
 	        }
+		document.getElementById("createJson").innerHTML = "";
             }
 
             function showLink(byVal){
                 var selection_id = document.api.selection.value
-                var settings_id = document.api.settings.value
                 url = window.location.href;
                 pos = url.lastIndexOf('/');
                 pos = getPosition(url, '/', 3);
@@ -53,7 +44,15 @@
                         val = "ok";
                     if (val == "all")
                         val = "json";
-                    link = link + '/howru/api/' + val;
+		    if (selection_id > 8) {
+			if (selection_id == 9)
+		        	link = link + '/howru/settings/scheduler';
+			else
+			        link = link + '/howru/settings/plugins';
+		    }
+		    else {
+                        link = link + '/howru/api/' + val;
+	            }
 		    if (byVal == 1) {
 		        var param = document.api.plugins.value;
 			if (param == "None")
@@ -67,22 +66,14 @@
 			link = link + '?id=' + id;
 		    }
                 }
-                if (settings_id > 0) {
-                    var sel = document.getElementById("settings");
-                    var val = sel.options[sel.selectedIndex].text;
-		    if (val == "almond")
-		    	val = "scheduler";
-                    link = link + '/howru/settings/' + val;
-                }
-		var linkDiv = document.createElement("div"); //Create left div
-    		linkDiv.id = "link"; //Assign div id
-    		linkDiv.setAttribute("style", "text-align:center; font-size:12pt; padding-left:8px; height:26px;"); 
-    		a = document.createElement('a');
-    		a.href = link; // Insted of calling setAttribute
-    		a.innerHTML = link // <a>INNER_TEXT</a>
-    		linkDiv.appendChild(a); // Append the link to the div
-		var p = document.getElementById("createLinks");
-		p.appendChild(linkDiv);
+		var embed = document.createElement("embed");
+    		embed.id = "link"; //Assign div id
+		embed.setAttribute("width", 800);
+		embed.setAttribute("height", 600);
+	        embed.setAttribute("src", link);
+		embed.setAttribute("href", link);
+		var p = document.getElementById("createJson");
+		p.appendChild(embed);
             }
 	
 	    function showParameters(){
@@ -106,21 +97,13 @@
                     <option value="2" name="warnings">warnings</option>
                     <option value="3" name="criticals">criticals</option>
                     <option value="4" name="ok">oks</option>
-                    <option value="5" name="changes">changes</option>
-                    <option value="6" name="plugin">plugin</option>
-                    <option value="7" name="server" disabled>server</option>
+		    <option value="5" name="notok">notok</option>
+                    <option value="6" name="changes">changes</option>
+                    <option value="7" name="plugin">plugin</option>
                     <option value="8" name="json">all</option>
-                </select>
-            </td>
-        <tr>
-            <td style="background: #491c0f; color:#ffffff;">or choose Setting</td>
-        </tr>
-        <tr>
-            <td>
-                <select name="settings" id="settings" onChange="queryEnable()">
-                    <option value="0" name="Nothing">Choose setting</option>
-                    <option value="1" name="plugins">plugins</option>
-                    <option value="2" name="almond">almond</option>
+		    <option value="0" name="None">---</option>
+		    <option value="9" name="settings">settings</option>
+		    <option value="10" name="plugins">plugin settings</option>
                 </select>
             </td>
         </tr>
@@ -150,15 +133,68 @@
 	</tr>
         <tr>
             <td><input type="button" id="submit" value="Add parameter" OnClick="showParameters()" disabled>
-            <input type="button" id="button" value="Create link" onClick="showLink()" disabled></td>
-            
+            <input type="button" id="button" value="Run query" onClick="showLink()" disabled></td>
         </tr>
             </form>
         </table>
-	<div id="createLinks"></div>
+	<p>&nbsp;</p>
+	<div id="createJson" style="margin: auto; width: 60%;border: 3px solid #491c0f;padding: 10px;"></div>
 	<p align="center">
 	<script language="javascript">document.write('<a href="' + document.referrer + '">Go back/Clear</a>');
 	</script>
 	</p>
+	<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
+        <tr style="text-align:center">
+                <td>
+                        <p style="font-family: Verdana; color: #491c0f; font-size: 22px;font-weight:bold">Almond API Query</p>
+                </td>
+        </tr>
+        </table>
+	<script language="Javascript">
+	    function actionEnable() {
+                var sel_id = document.apiaction.selection.value;
+		if (sel_id != 0) {
+		   document.getElementById("actionbutton").disabled = false;
+		}
+		else {
+		   document.getElementById("actionbutton").disabled = true;
+		}
+	    }
+	    function startActionApi() {
+	        var url = "admin?page=action&aid=" + document.apiaction.selection.value;
+		window.location.href=url;
+	    }
+        </script>
+	<table width="60%" align="center" style="margin-left:auto; margin-right:auto;"
+        <tr>
+            <td style="background:#491c0f; color:#ffffff";>Choose API Action</td>
+        </tr>
+        <tr>
+            <td>
+                <form name="apiaction" method="get">
+                <select name="selection" id="selection" onChange="actionEnable()">
+		    <option value="0" name="None">Choose Action</option>
+                    <option value="7" name="disable">disable</option>
+                    <option value="6" name="enable">enable</option>
+                    <option value="2" name="execute">execute</option>
+                    <option value="3" name="exread">exread</option>
+                    <option value="1" name="get">get</option>
+                    <option value="4" name="getm">getm</option>
+                    <option value="5" name="getvar">getvar</option>
+                    <option value="4" name="metrics">metrics</option>
+                    <option value="1" name="read">read</option>
+                    <option value="10" name="read_all">read_all</option>
+                    <option value="2" name="run">run</option>
+		    <option value="3" name="runread">runread</option>
+		    <option value="8" name="set">set</option>
+		    <option value="8" name="runex">setvar</option>
+                </select>
+            </td>
+        </tr>
+	<tr>
+	    <td><input type="button" id="actionbutton" value="Continue" OnClick="startActionApi()" disabled>
+	    </td>
+	</tr>
+	</table>
 	<p>&nbsp;</p>
 {% include 'foot.html' %}
