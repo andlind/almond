@@ -11,6 +11,7 @@ COPY plugins/* /opt/almond/plugins
 COPY supervisord.conf /etc/supervisord.conf
 COPY apps.conf /etc/supervisord.d/apps.conf
 COPY app.py /custapp/app.py
+RUN useradd almond && usermod -a -G almond almond
 RUN chmod +x /custapp/app.py && chmod +x /opt/almond/plugins/check_app.py && chown -R almond:almond /opt/almond/plugins
 
 EXPOSE 80
