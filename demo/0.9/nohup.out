@@ -25,3 +25,47 @@ f891762700a8393e265bcd7952fc5c2fc429615898326b10bd84ca7593c69670
 fd781e6815b0e5a710ef44771f820771207f1e1701da100a54f686c067a303f7
 d9f27ac26c1376288427abd198c95283046bb1beb965d679ae75d2019bf7555d
 e7877c81ad2c2caaef5565a4bb09fec23c6443076205537c613d45480a90fa87
+docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?.
+See 'docker run --help'.
+docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?.
+See 'docker run --help'.
+docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?.
+See 'docker run --help'.
+docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?.
+See 'docker run --help'.
+docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?.
+See 'docker run --help'.
+Unable to find image 'redisdemo:latest' locally
+docker: Error response from daemon: pull access denied for redisdemo, repository does not exist or may require 'docker login': denied: requested access to the resource is denied.
+See 'docker run --help'.
+Unable to find image 'custapplication:latest' locally
+
+got 3 SIGTERM/SIGINTs, forcefully exiting
+Unable to find image 'webapp:latest' locally
+
+got 3 SIGTERM/SIGINTs, forcefully exiting
+6264d90090e8a3a2c94e6e99be4c1a5599d8cd00e50d6cf00f2df1752cb1396c
+e36c1ea3d088934ec490ca8707c9803e3fd3c2ca8e81356505c2f6b7bc5c85e8
+4223d1f4df2511aa8141d8adf8c03a9d53d700a65eddbd06ca958d753b41ef5d
+94eceb730dc314132e3ac2280ea429bdb624204c964e5e4be39b07827999a97a
+279325c03dee5bc549a03c9546a427df21afc70c6f5a19ef0a812ad9a77243e5
+8314abd6797a09d9e456ae7d7def1bb9f8d3839b502dcf31ac4f91ac8ed66a0e
+495e907dafd0e76910747e0f84039eb80c962d35ad4f8389833cb21d72f80858
+5fbe38fa5a90252f3a409c1654ed2a250e8a1be8cafa0550c3e87cda7fe7c6f4
+9b2669abd8bd2cdf6945a0e121d7e061c3fcc2393e2ed551825be013aabe36b7
+c79dfe469d9397ab53041889a2b61cd784d7c7e1ae846b0b77e59c23aad543fc
+1a51adebf68292a33abbf2fa2f21ae19f3158932a73b7151ed6dd95ee10890fc
+d784927c6cd18da484755acba0031f0f3f8ace16c38189f40168b14291c6849b
+daaad3622f5245f9eb815cc1c37163fd99efddef7b4f9e87512dc1b0e016c965
+3959f7e680c8433a5694446850839bc35099aa417c540f95076673cb1816d78d
+34844b902d0d2b726adc6f0a51b69437dfee157968d544c2156e2c44f7a4cf35
+3e09ba7598a93891c78ae000044d507b6de48c0fe1b60de54234c8020126a8c8
+37f5acc61a93e2e8fae41ac5dea7530e68a708ca065c06733b3f03795c8ba87e
+23802e5727b77b1318d438c28db96c430f126d956452b3c00e3717b2a53d4e59
+e71e6d0add260edb80c73e4910a13c69b659c58c3bf0df087722191e69948a78
+a214baa11878d09ab01ca2cf8054bc0cbcb6866facaf1258c76cdda4840e6f85
+43f26aaa529bab889b32299dd7c8490d49f80eb9ae1249ab65936c2f837937dd
+f0c04a0b00ed60956ceceba6ef0407a551704d280f845e5eed14c7e2d79500ba
+e11af2b763b735c52d2e607e762806eec034f1d1e56094cf0972852fd3e5f8db
+f7944a53ad5224f3b4528b1425a92c52b74849cb586eef862706a146e27e0ca4
+d02499457973ac695684e01d505bb5dd6e74361e8f3e24a416c2d85db4de4528

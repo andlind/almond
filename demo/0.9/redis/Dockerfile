@@ -1,4 +1,4 @@
-FROM andreaslindell72/almond-monitor:0.9.1
+FROM andreaslindell72/almond-monitor:0.9.3
 
 RUN yum update -y && yum install redis perl-Redis perl-fields -y
 
@@ -10,6 +10,7 @@ COPY supervisord.conf /etc/supervisord.conf
 COPY apps.conf /etc/supervisord.d/apps.conf
 COPY redis.conf /etc/redis/redis.conf
 COPY plugins/* /opt/almond/plugins
+RUN useradd almond && usermod -a -G almond almond
 RUN chmod +x /opt/almond/plugins/* && chown -R almond:almond /opt/almond/plugins
 
 EXPOSE 6379
