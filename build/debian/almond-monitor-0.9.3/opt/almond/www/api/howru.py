@@ -533,8 +533,8 @@ def api_howareyou(response=True):
                        'return_code' : ret_code,
                        'monitor_results':
                            {'ok': ok,
-                            'warn' : warn,
-                            'crit' : crit,
+                            'warning' : warn,
+                            'critical' : crit,
                             'unknown': unknown
                            }
                     }
@@ -584,8 +584,8 @@ def api_howareyou(response=True):
                         'return_code' : ret_code,
                         'monitor_results':
                            {'ok': ok,
-                            'warn' : warn,
-                            'crit' : crit,
+                            'warning' : warn,
+                            'critical' : crit,
                             'unknown': unknown
                         }
                     }
@@ -621,8 +621,8 @@ def api_howareyou(response=True):
                        'return_code' : ret_code,
                        'monitor_results':
                            {'ok': ok,
-                            'warn' : warn,
-                            'crit' : crit,
+                            'warning' : warn,
+                            'critical' : crit,
                             'unknown': unknown
                        }
                    }
@@ -661,8 +661,8 @@ def api_howareyou(response=True):
                 'return_code' : ret_code,    
             'monitor_results':
                    {'ok': ok,
-                     'warn' : warn,
-                    'crit' : crit,
+                    'warning' : warn,
+                    'critical' : crit,
                     'unknown': unknown
                 }  
             }

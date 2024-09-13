@@ -1,6 +1,7 @@
 #!/bin/bash
-echo "Stopping webapp"
+echo "Stopping webapps"
 docker stop web_demo
+docker stop web_demo2
 echo "Stopping redis"
 docker stop redis_demo
 echo "Stopping custom app"
@@ -16,6 +17,7 @@ echo "Stopping Grafana"
 docker stop almond_grafana
 echo "Removing docker images"
 docker image rm webapp
+docker image rm webapp2
 docker image rm redisdemo
 docker image rm custapplication
 docker image rm howruapi
