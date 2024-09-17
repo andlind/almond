@@ -21,7 +21,7 @@
 /bin/chmod 755 /opt/almond/www/api/rs.sh
 /bin/chmod 750 /opt/almond/utilities/almond-token-generator
 /bin/chmod 750 /opt/almond/utilities/almond-collector
-/bin/chmod 750 /opt/almond/mods/modyaml.py
+/bin/chmod -R 750 /opt/almond/www/api/mods/
 /bin/chmod 640 /opt/almond/memalloc.alm
 /bin/chmod 640 /opt/almond/api_cmd/apicmd.inf
 
