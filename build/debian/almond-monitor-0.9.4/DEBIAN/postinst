@@ -25,6 +25,10 @@
 /bin/chmod 640 /opt/almond/memalloc.alm
 /bin/chmod 640 /opt/almond/api_cmd/apicmd.inf
 
+# Create symlinks to mods
+/bin/ln -s /opt/almond/www/api/mods/modxml.py /opt/almond/www/api/mods/enabled/modxml.py
+/bin/ls -s /opt/almond/www/api/mods/modyaml.py /opt/almond/www/api/mods/enabled/modyaml.py
+
 # Add almond to nagios group if exists
 if [ $(getent group admin) ]; then
 	/usr/sbin/usermod -a -G nagios almond
