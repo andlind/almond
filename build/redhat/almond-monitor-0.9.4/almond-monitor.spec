@@ -53,6 +53,10 @@ cp -r system/* %{buildroot}/lib/systemd/system/
 cp -r plugins/* %{buildroot}/opt/almond/plugins/
 cp -r utilities/* %{buildroot}/opt/almond/utilities/
 
+#Create symlinks for mods
+ln -s www/api/mods/modxml.py %{buildroot}/opt/almond/www/api/mods/enabled/modxml.py
+ln -s www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modyaml.py
+
 %files
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/almond.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/plugins.conf
@@ -88,6 +92,9 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+*Tue Sep 24 2024 0.9.4-2
+- Bugg fixes
+<andreas.lindell@almondmonitor.com>
 *Tue Sep 17 2024 0.9.4
 <andreas.lindell@almondmonitor.com>
 - New mods function for HowRU API
