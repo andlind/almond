@@ -111,7 +111,7 @@ def run_mods():
     global sleep_time
     global mods_list
 
-    mods_dir = '/opt/almond/www/api/mods/'
+    mods_dir = '/opt/almond/www/api/mods/enabled'
 
     while not stop_background_thread:
         for x in mods_list:
