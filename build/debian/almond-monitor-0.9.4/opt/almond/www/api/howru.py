@@ -6,6 +6,7 @@ import json
 import flask 
 import time
 import threading
+import subprocess
 import os, os.path
 from venv import logger
 from flask import request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
@@ -23,10 +24,12 @@ multi_metrics = False
 enable_file = False
 enable_ssl = False
 enable_gui = False
+enable_mods = False
 ausername = ''
 apassword = ''
 server_list_loaded = 0
 server_list = []
+mods_list = []
 file_found = 1
 data_dir="/opt/almond/data"
 file_name = ''
@@ -48,7 +51,7 @@ ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
-current_version = '0.9.3'
+current_version = '0.9.4'
 
 app.secret_key = 'BAD_SECRET_KEY'
 app.register_blueprint(admin_page)
@@ -102,6 +105,34 @@ def check_config():
             change_detected = False
         time.sleep(sleep_time)  
 
+def run_mods():
+    global stop_background_thread
+    global logger
+    global sleep_time
+    global mods_list
+
+    mods_dir = '/opt/almond/www/api/mods/'
+
+    while not stop_background_thread:
+        for x in mods_list:
+            c_file = mods_dir + x
+            if (os.path.isfile(c_file)):
+                logger.info('Found mod ' + x)
+                try:
+                    mod = subprocess.Popen(c_file, stdout=subprocess.PIPE)
+                    output, _ = mod.communicate()
+                    rc = mod.returncode
+                    if rc != 0:
+                        logger.critical(f'Mod {x} returned error: {output.decode()}.')
+                    else:
+                        logger.info(f'Mod {x} has run successfully.')
+
+                except FileNotFoundError:
+                    logger.error('Could not find mod{x}.')
+                except Exception as e:
+                    logger.exception('An error occurred while running mod {x}: {str(e)}')
+        time.sleep(sleep_time)
+
 def load_aliases():
     global aliases, logger
     if os.path.isfile('/etc/almond/aliases.conf'):
@@ -118,8 +149,8 @@ def load_aliases():
             valid_aliases.append(data["alias"])
 
 def load_conf():
-    global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, full_metrics_file_name
-    global ssl_certificate, ssl_key, enable_scraper
+    global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, full_metrics_file_name
+    global ssl_certificate, ssl_key, enable_scraper, mods_list
     if os.path.isfile('/etc/almond/api.conf'):
         conf = open("/etc/almond/api.conf", "r")
     else:
@@ -135,6 +166,22 @@ def load_conf():
                 data_dir = line[findPos(line):].rstrip()
             if (line.find('metricsDir') > 0):
                 metrics_dir = line[findPos(line):].rstrip()
+            if (line.find('enableMods') > 0):
+                enMods = line[findPos(line)]
+                if (isinstance(int(enMods), int)):
+                    if (int(enMods) > 0):
+                        enable_mods = True
+                    else:
+                        enable_mods = False
+                else:
+                    enable_mods = False
+            if (line.find('activeMods') > 0):
+                mods = line[findPos(line):].rstrip()
+                mods_list = []
+                if (mods.find(',') > 0):
+                    mods_list = mods.split(',')
+                else:
+                    mods_list.append(mods)
             if (line.find('Port') > 0):
                 port = line[findPos(line):]
                 logger.info("Howru will use port " + port.strip())
@@ -1590,6 +1637,7 @@ def main():
     global logger
     global current_version
     global sleep_time
+    global enable_mods
     global app_started
     logging.basicConfig(filename='/var/log/almond/howru.log', filemode='a', format='%(asctime)s | %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger()
@@ -1601,6 +1649,11 @@ def main():
     context = getCertificates()
     tCheck = threading.Thread(target=check_config, daemon=True)
     tCheck.start()
+    if enable_mods:
+        logger.info('Mods are enabled.')
+        logger.info('Looking for mods to be executed.')
+        tMods = threading.Thread(target=run_mods, daemon=True)
+        tMods.start()
     try:
         while True:
             if (app_started == False):
