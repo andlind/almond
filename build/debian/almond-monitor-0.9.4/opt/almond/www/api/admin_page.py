@@ -973,8 +973,8 @@ def index():
                 token = request.form["token"]
                 action_str += "\"setvar\", \"name\":\"" + variable + "\", \"value\":\"" + value + "\", \"token\":\"" + token + "\"}"
             elif (action_id == 10):
-                print("Read all")
                 flags = "all"
+                action_str += "\"read\", \"name\":\"check_all\", \"flags\":\"" + flags + "\"}"
             else:
                 print ("Action id error")
             if (almond_api):
