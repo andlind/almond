@@ -13,7 +13,7 @@ Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
 BuildRequires:  make, json-c-devel, librdkafka-devel, openssl-devel
-Requires:       python3, python3-yaml, python3-json, python3-flask, ksh, sysstat, json-c, librdkafka
+Requires:       python3, python3-yaml, python3-simplejson, python3-flask, ksh, sysstat, json-c, librdkafka
 Requires(pre):  shadow-utils
 
 %description
