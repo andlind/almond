@@ -492,6 +492,7 @@ def get_graph_data(name):
     uptime_percentage = 0.0
     count = 0
     oks = 0
+    set_graph_names()
     data_name = graph_names[name];
     filename = '/opt/almond/data/metrics/' + data_name;
     if os.path.isfile(filename):
@@ -526,7 +527,11 @@ def get_graph_data(name):
             else:
                 # Does not have metrics
                 l_date = l_data[0].split(",")[0]
-                l_output = l_data[0].split(",")[2]
+                try:
+                    l_output = l_data[0].split(",")[2]
+                except IndexError as error:
+                    logger.error("List index of of range: %s", error)
+                    l_output = "UNKOWN: Howru internal error"
                 l_output = l_output.lower().strip()
                 if ('ok') in l_output:
                     ret_val = 0
@@ -1001,7 +1006,7 @@ def index():
                     retVal = "\"connection_error\" : \"Error sending data.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
-                    retVal = clientSocket.recv(5000)
+                    retVal = clientSocket.recv(8000)
                 except socket.error as e:
                     print ("Error receiving data: %s" % e)
                     retVal = "\"connection_error\" : \"Error receiving data.\"}"
