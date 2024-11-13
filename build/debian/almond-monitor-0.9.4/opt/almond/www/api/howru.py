@@ -1463,8 +1463,8 @@ def api_show_status():
             image_icon = '/static/green.png'
         mon_res = this_data[0]['monitor_results']
         num_of_ok = mon_res['ok']
-        num_of_warnings = mon_res['warn']
-        num_of_criticals = mon_res['crit']
+        num_of_warnings = mon_res['warning']
+        num_of_criticals = mon_res['critical']
         num_of_unknown = mon_res['unknown']
         # only in json mode -> show server status
     return render_template("status.html", user_image = full_filename, server = hostname, icon = image_icon, oks = num_of_ok, warnings = num_of_warnings, criticals = num_of_criticals, unknown = num_of_unknown)
