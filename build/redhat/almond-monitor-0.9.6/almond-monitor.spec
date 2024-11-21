@@ -3,7 +3,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -92,7 +92,11 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-*Tue Sep 24 2024 0.9.4-2
+*Thu Nov 21 2024 0.9.6
+- New clock based scheduler
+- 0.9.5 Code refactor
+- Buggfixes
+*Thu Sep 26 2024 0.9.4-3
 - Bugg fixes
 <andreas.lindell@almondmonitor.com>
 *Tue Sep 17 2024 0.9.4
