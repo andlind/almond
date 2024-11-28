@@ -1,5 +1,5 @@
 FROM andreaslindell72/almond-monitor:latest
-MAINTAINER Andreas Lindell version: 0.9.5
+MAINTAINER Andreas Lindell version: 0.9.6
 
 RUN yum update -y && yum upgrade -y
 

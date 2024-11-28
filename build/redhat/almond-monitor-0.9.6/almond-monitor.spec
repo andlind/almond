@@ -1,9 +1,10 @@
 %define name almond-monitor
 %define version 0.9.6
+%define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -53,11 +54,12 @@ cp -r system/* %{buildroot}/lib/systemd/system/
 cp -r plugins/* %{buildroot}/opt/almond/plugins/
 cp -r utilities/* %{buildroot}/opt/almond/utilities/
 
-#Create symlinks for mods
-ln -s www/api/mods/modxml.py %{buildroot}/opt/almond/www/api/mods/enabled/modxml.py
-ln -s www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modyaml.py
+#Enable mods
+cp -p www/api/mods/modxml.py %{buildroot}/opt/almond/www/api/mods/enabled/modxml.py
+cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modyaml.py
 
 %files
+%global default_attr 0640 almond almond
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/almond.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/plugins.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/aliases.conf
@@ -92,7 +94,12 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+*Thu Nov 28 2024 0.9.6.4
+<andreas.lindell@almondmonitor.com>
+- Improvements clock based scheduler
+- Improved rpm build
 *Thu Nov 21 2024 0.9.6
+<andreas.lindell@almondmonitor.com>
 - New clock based scheduler
 - 0.9.5 Code refactor
 - Buggfixes
