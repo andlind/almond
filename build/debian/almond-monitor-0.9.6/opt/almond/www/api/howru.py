@@ -1058,7 +1058,7 @@ def api_search_plugin():
 @app.route('/api/query', methods=['GET'])
 @app.route('/api/plugin', methods=['GET'])
 @app.route('/howru/api/plugin', methods=['GET'])
-def api_show_plugin(search=0):
+def api_show_plugin(search=0, id=-1):
     global data, multi_server, logger
     set_file_name()
     load_data()
@@ -1067,7 +1067,6 @@ def api_show_plugin(search=0):
     name = ""
     server = ""
     server_found = 0
-    id = -1
     id_count = 0
     results = []
 
@@ -1144,7 +1143,8 @@ def api_show_plugin(search=0):
         elif 'id' in request.args:
             id = int(request.args['id'])
         else:
-            do_start = False
+            if (id < 0):
+                do_start = False
     else:
         if 'find' in request.args:
             name = request.args['find']
@@ -1155,7 +1155,8 @@ def api_show_plugin(search=0):
         elif 'id' in request.args:
             id = int(request.args['id'])
         else:
-            do_start = False
+            if (id < 0):
+                do_start = False
     if (do_start):
        obj = data['monitoring']
        for i in obj:
