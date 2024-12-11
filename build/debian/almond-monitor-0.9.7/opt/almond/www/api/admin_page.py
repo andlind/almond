@@ -23,9 +23,8 @@ api_conf = []
 scheduler_conf = []
 extra_conf = []
 graph_names = {}
-api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.bindPort', 'api.enableAliases' 'api.enableFile', 'api.enableScraper', 'api.dataDir', 'data.jsonFile', 'data.metricsFile', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
+api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.bindPort', 'api.enableAliases' 'api.enableFile', 'api.enableScraper', 'api.dataDir', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL',' data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
 scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'almond.useSSL', 'almond.certificate', 'almond.key', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.useTLS', 'scheduler.certificate', 'scheduler.key','scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.enableKafkaId', 'scheduler.kafkaStartId', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'scheduler.type', 'gardener.CleanUpTime']
-
 users = {}
 current_version = '0.9.7'
 
@@ -341,6 +340,50 @@ def list_available_plugins():
     plugin_list.sort()
     return plugin_list
 
+def get_status(this_data):
+    global jasonFile
+
+    hostname = socket.getfqdn()
+    if not os.path.isfile(jasonFile):
+        resultString = hostname + ";4;" + "No data file"
+        return resultString
+    ret_code = 0
+    num_of_oks = 0
+    num_of_warnings = 0
+    num_of_criticals = 0
+    num_of_unknowns = 0
+    mon_obj = this_data.get("monitoring")
+    for obj in mon_obj:
+        status_code = int(obj.get('pluginStatusCode'))
+        if (status_code > ret_code):
+            if (ret_code < 3):
+                ret_code = status_code
+        if (status_code == 0):
+            num_of_oks += 1
+        elif (status_code == 1):
+            num_of_warnings += 1
+        elif (status_code == 2):
+            num_of_criticals += 1
+        elif (status_code < 0 and status_code < 2):
+            num_of_unknowns += 1
+        else:
+            print ("Could not parse status code")
+    resultString = hostname + ";" + str(ret_code) + ";" + str(num_of_oks) + ";" + str(num_of_warnings) + ";" + str(num_of_criticals) + ";" + str(num_of_unknowns)
+    return resultString
+
+def get_infostr(data):
+    infostr = ""
+    d_array = data.split(';')
+    #for index, x in enumerate(d_array):
+    #    print(f"Position {index}: {x}")
+    s_code = d_array[1]
+    if (len(d_array) > 2):
+        tot_checks = int(d_array[2]) + int(d_array[3]) + int(d_array[4]) + int(d_array[5])
+        infostr = d_array[0] + " has run " + str(tot_checks) + " checks. " + str(d_array[2]) + " where ok, " + str(d_array[3]) + " where warnings, " + str(d_array[4]) + " where criticals and " + str(d_array[5]) + " where unknown."
+    else:
+        infostr = d_array[2]
+    return infostr
+
 def load_status_data():
     global jasonFile
 
@@ -655,8 +698,11 @@ def index():
             set_new_password(username.strip(), password.strip())
             howru_state = check_service_state("howru")
             almond_state = check_service_state("almond")
+            data = load_status_data()
+            info_data = get_status(data)
+            status = get_infostr(info_data)
             logger.info("Rendering admin.html")
-            return render_template('admin.html', info = info, version=current_version, username=username, passwd=password, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
+            return render_template('admin.html', info = info, version=current_version, username=username, passwd=password, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state, status=status)
         if action_type == 'plugins':
             if 'delete_line' in request.form:
                 line_id = request.form['delete_line']
@@ -710,8 +756,11 @@ def index():
                 logger.warning(info)
             howru_state = check_service_state("howru")
             almond_state = check_service_state("almond")
+            data = load_status_data()
+            info_data = get_status(data)
+            status = get_infostr(info_data)
             logger.info("Render template admin.html")
-            return render_template('admin.html', version=current_version, info=info, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
+            return render_template('admin.html', version=current_version, info=info, logo_image=image_file, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state, status=status)
         if action_type == 'restart_scheduler':
             logger.info("Received action type 'restart scheduler'")
             if state_type == "systemctl":
@@ -1034,8 +1083,12 @@ def index():
             session['login'] = 'true'
             howru_state = check_service_state("howru")
             almond_state = check_service_state("almond")
+            data = load_status_data()
+            info_data = get_status(data)
+            info = get_infostr(info_data)
             logger.info("Rendering template admin.html")
-            return render_template('admin.html', version=current_version, logo_image=image_file, username=username, password=password, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state)
+            return render_template('admin.html', version=current_version, logo_image=image_file, username=username, password=password, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state, status=info)
+            #return render_template('status_admin.html', version=current_version, user_image=image_file, server=hostname, monitoring=monitoring, avatar=almond_avatar, info=info)
         else:
             logger.info("Rendering template login_a.html")
             return render_template('login_a.html', logon_image=logon_img)
