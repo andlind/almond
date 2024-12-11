@@ -32,6 +32,7 @@ server_list = []
 mods_list = []
 file_found = 1
 data_dir="/opt/almond/data"
+export_file="/opt/almond/data/howru_export.prom"
 file_name = ''
 data_file = "/opt/almond/data/howru.json"
 metrics_dir="/opt/almond/data/metrics"
@@ -51,7 +52,7 @@ ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
-current_version = '0.9.6'
+current_version = '0.9.7'
 
 app.secret_key = 'BAD_SECRET_KEY'
 app.register_blueprint(admin_page)
@@ -149,7 +150,7 @@ def load_aliases():
             valid_aliases.append(data["alias"])
 
 def load_conf():
-    global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, full_metrics_file_name
+    global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, export_file,full_metrics_file_name
     global ssl_certificate, ssl_key, enable_scraper, mods_list
     if os.path.isfile('/etc/almond/api.conf'):
         conf = open("/etc/almond/api.conf", "r")
