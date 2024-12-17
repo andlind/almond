@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="60" /> 
+    <link rel="icon" href="data:;base64,=">
+    <title>Random Number Custom App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: brown;
+        color: white;
+        font-family: 'Roboto', sans-serif;
+      }
+      #search{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 10rem;
+      }
+      input{
+        width: 15rem;
+        height: 2rem;
+        margin: 1rem;
+        font-size: 1.5rem;
+      }
+      input:focus{
+        outline: none;
+      }
+      #btn{
+        height: 2.5rem;
+        width: 10rem;
+        font-size: 1.5rem;
+      }
+      #head {
+        height: 10rem;
+        font-size: 2rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      #head p {
+        margin-right: 2rem;
+      }
+      #data {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      h1 {text-align: center;}
+      h2 {text-align: center; font-weight: bold;}
+      table {
+        color: black;
+        width: 80%;
+      }
+      thead {
+        background-color: white;
+        border-radius: 10px;
+        border: 2px solid blue;
+      }
+      th {
+        font-size: 2rem;
+        margin: 1rem;
+      }
+      td {
+        font-size: 1.5rem;
+        margin: 1rem;
+        text-align: center;
+      }
+           tr{
+          background-color: white;
+      }
+    </style>
+  </head>
+  <body>
+      <div id="header">
+        <h1>CUSTOM WEB APP</h1>
+        <hr size="1">
+      </div>
+      <div id="current">
+        <h2>Current random number is : {{ current }}</h2>
+        <hr size="1">
+      </div>
+      <div id="data">
+        <table id="table">
+          <thead>
+            <th>High</th>
+            <th>Low</th>
+            <th>Average</th>
+          </thead>
+          <tbody id="body">
+                  <th>{{high}}</th>
+                  <th>{{low}}</th>
+                  <th>{{average}}</th>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </body>
+</html>
+
