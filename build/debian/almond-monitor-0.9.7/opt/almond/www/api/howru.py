@@ -373,6 +373,8 @@ def home():
     global enable_gui
     global logger
 
+    # If used with WSIG, like Gunicorn we need to load conf again
+    load_conf()
     full_filename = '/static/howru.png'
     almond_image = '/static/almond_small.png'
     if not enable_gui:

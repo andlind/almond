@@ -14,7 +14,7 @@ import threading
 import subprocess
 import os, os.path
 from venv import logger
-from howrug import app
+from howru import app
 
 enable_ssl = False
 enable_mods = False
