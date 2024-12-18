@@ -34,7 +34,7 @@ file_found = 1
 data_dir="/opt/almond/data"
 export_file="/opt/almond/data/howru_export.prom"
 file_name = ''
-data_file = "/opt/almond/data/howru.json"
+data_file = "/opt/almond/data/monitor.json"
 metrics_dir="/opt/almond/data/metrics"
 full_metrics_file_name="monitor.metrics"
 start_page = 'api'
@@ -60,6 +60,10 @@ app.register_blueprint(admin_page)
 def findPos(entry):
     pos = entry.find('=')
     return pos + 1
+
+def parse_line(line):
+    key, value = line.strip().split('=', 1)
+    return key.strip(), value.strip()
 
 def check_config():
     """Background thread to monitor the configuration file."""
@@ -168,19 +172,18 @@ def load_conf():
             logger.error("Could not load configuration file. It does not seem to exist!")
             print ("Could not open configutation file.")
             return 80
-   
-    #print (config)
+    
     json_file = config.get('data.jsonFile', '/opt/almond/data/almond_monitor.json')
     full_metrics_file_name = config.get('data.metricsFile', 'monitor.metrics')
-    data_dir = config.get('api.dataDir', '/opt/almond/data')
+    data_dir = config.get('api.dataDir', '/opt/almond/data') 
     metrics_dir = config.get('api.metricsDir', '/opt/almond/data/metrics')
-    enable_mods = config.get('api.enableMods', '').lower() == 'true'
+    enable_mods = bool(int(config.get('api.enableMods', 0)))
     mods_list = config.get('api.activeMods', '').split(',')
     bindPort = int(config.get('api.bindPort', 80))
     logger.info("Howru will use port " + str(bindPort))
     if config.get('api.multiServer') is not None:
-        multi_server = bool(int(config.get('api.multiServer',0)))
-    elif config.get('api.isProxy') is not None:
+    	multi_server = bool(int(config.get('api.multiServer',0)))
+    elif config.get('api.isProxy') is not None: 
         multi_server = bool(int(config.get('api.isProxy', 0)))
     else:
         multi_server = False
@@ -208,14 +211,14 @@ def load_conf():
     enable_aliases = bool(int(config.get('api.enableAliases', 0)))
     if enable_aliases:
         load_aliases()
-    if config.get('api.adminuser') is not None:
+    if config.get('api.adminUser') is not None:
         ausername = config.get('api.adminuser')
-    if config.get('api.adminpassword') is not None:
+    if config.get('api.adminPassword') is not None:
         apassword = config.get('api.adminpassword')
-    
-    data_file = data_dir
+        
+    data_file = data_dir 
     data_file = data_dir + "/" + json_file
-   
+    
     return bindPort
 
 def useCertificate():
@@ -279,19 +282,20 @@ def check_config():
 
 def load_data():
     global data, data_dir, multi_server, enable_file, file_name, data_file, file_found, logger
-    os.chdir(data_dir)
+    #os.chdir(data_dir)
     if (enable_file == True):
         if (len(file_name) > 5):
-            if (os.path.exists(file_name)):
+            this_file = data_dir + "/" + file_name
+            if (os.path.exists(this_file)):
                 count = 0
-                f = open(file_name, "r")
+                f = open(this_file, "r")
                 data = json.loads(f.read())
                 f.close()
                 file_found = 1
                 return
             else:
-                print ("Could not find serverfile ", file_name)
-                logger.warning("Could not find serverfile '" + file_name + "'")
+                print ("Could not find serverfile ", this_file)
+                logger.warning("Could not find serverfile '" + this_file + "'")
                 file_found = 0
     if (multi_server):
        #print("Running in mode multi");
@@ -318,7 +322,7 @@ def load_data():
            f.close()
        else:
            data = {}
-    os.chdir("/opt/almond/www/api")
+    #os.chdir("/opt/almond/www/api")
 
 def load_settings():
     global settings, logger
@@ -1597,9 +1601,14 @@ def main():
     logging.basicConfig(filename='/var/log/almond/howru.log', filemode='a', format='%(asctime)s | %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
-    logger.info('Starting howru api (version:' + current_version + ')')
+    handler = logging.FileHandler('/var/log/almond/howru.log')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    app.logger.addHandler(handler)
+    app.logger.setLevel(logging.DEBUG)
+    app.logger.info('Starting howru api (version:' + current_version + ')')
     use_port = load_conf()
-    logger.info("Configuration read.")
+    app.logger.info("Configuration read.")
     use_ssl = useCertificate()
     context = getCertificates()
     tCheck = threading.Thread(target=check_config, daemon=True)
@@ -1612,21 +1621,26 @@ def main():
     try:
         while True:
             if (app_started == False):
-                logger.info("Starting application")
+                app.logger.info("Starting application")
                 if (use_ssl):
-                    logger.info("Running application in ssl_context")
+                    app.logger.info("Running application in ssl_context")
                     app.run(host='0.0.0.0', port=use_port, ssl_context=context, threaded=True)
                 else:
-                    logger.info("Running application without encryption")
+                    app.logger.info("Running application without encryption")
                     app.run(host='0.0.0.0', port=use_port)
                 app_started = True
             time.sleep(sleep_time)
     except (KeyboardInterrupt,SystemExit):
-        logger.info("Caught info to stop program")
+        app.logger.info("Caught info to stop program")
         stop_background_thread = True
-        logger.info("Stopping thread checking for configurations changes.")
+        app.logger.info("Stopping thread checking for configurations changes.")
         time.sleep(1)
-        logger.info("Main thread exits now. Goodbye :)")
+        app.logger.info("Main thread exits now. Goodbye :)")
 
+# If using wsgi.py comment the two below lines
 if __name__ == '__main__':
     main()
+
+### If used with wsgi.py uncomment below
+#if __name__ == "__main__":
+#    app.run('0.0.0.0', port=80)
