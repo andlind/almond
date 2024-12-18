@@ -1,3 +1,8 @@
+#
+# To run HowRU as WSGI HTTP Server
+# for an example with gunicorn
+# gunicorn --user root --bind 0.0.0.0:80 --chdir=/opt/almond/www/api --log-file /opt/almond/www/api/app.log --log-level debug wsgi:app
+#
 import glob
 import random
 import socket
