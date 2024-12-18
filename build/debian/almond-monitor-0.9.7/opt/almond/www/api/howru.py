@@ -152,117 +152,70 @@ def load_aliases():
 def load_conf():
     global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, export_file,full_metrics_file_name
     global ssl_certificate, ssl_key, enable_scraper, mods_list
+    config = {}
     if os.path.isfile('/etc/almond/api.conf'):
-        conf = open("/etc/almond/api.conf", "r")
+        with open("/etc/almond/api.conf", "r") as conf:
+            for line in conf:
+                key, value = parse_line(line)
+                config[key] = value
     else:
-        conf = open("/etc/almond/almond.conf", "r")
-    for line in conf:
-        if (line.find('data') == 0):
-            if (line.find('jsonFile') > 0):
-                json_file = line[findPos(line):].rstrip()
-            if (line.find('metricsFile') > 0):
-                full_metrics_file_name = line[findPos(line):].rstrip()
-        if (line.find('api') == 0):
-            if (line.find('Data') > 0):
-                data_dir = line[findPos(line):].rstrip()
-            if (line.find('metricsDir') > 0):
-                metrics_dir = line[findPos(line):].rstrip()
-            if (line.find('enableMods') > 0):
-                enMods = line[findPos(line)]
-                if (isinstance(int(enMods), int)):
-                    if (int(enMods) > 0):
-                        enable_mods = True
-                    else:
-                        enable_mods = False
-                else:
-                    enable_mods = False
-            if (line.find('activeMods') > 0):
-                mods = line[findPos(line):].rstrip()
-                mods_list = []
-                if (mods.find(',') > 0):
-                    mods_list = mods.split(',')
-                else:
-                    mods_list.append(mods)
-            if (line.find('Port') > 0):
-                port = line[findPos(line):]
-                logger.info("Howru will use port " + port.strip())
-                if (isinstance(int(port), int)):
-                   bindPort = int(port)
-                else:
-                    bindPort = 80
-            if (line.find('Server') > 0):
-                multi_s = line[findPos(line)]
-                if (isinstance(int(multi_s), int)):
-                    if (int(multi_s) > 0):
-                        multi_server = True
-                    else:
-                        multi_server = False
-                else:
-                    multi_server = False
-            if (line.find('multiMetrics') > 0):
-                multi_m = line[findPos(line)]
-                if (isinstance(int(multi_m), int)):
-                    if (int(multi_m) > 0):
-                        multi_metrics = True
-                    else:
-                        multi_metrics = False
-                else:
-                    multi_metrics = False
-            if (line.find('enableFile') > 0):
-                bFile = line[findPos(line)]
-                if (isinstance(int(bFile), int)):
-                    if (int(bFile) > 0):
-                        enable_file = True
-                    else:
-                        enable_file = False
-                else:
-                    enable_file = False
-            if (line.find('SSL') > 0):
-                useSSL = line[findPos(line)]
-                if (isinstance(int(useSSL), int)):
-                    if (int(useSSL) > 0):
-                        enable_ssl = True
-                    else:
-                        enable_ssl = False
-                else:
-                    enable_ssl = False
-            if (line.find('sslCertificate') > 0):
-                ssl_certificate = line[findPos(line):].rstrip()
-            if (line.find('sslKey') > 0):
-                ssl_key = line[findPos(line):].rstrip()
-            if (line.find('startPage') > 0):
-                start_page = line[findPos(line):].rstrip()
-            if (line.find('useGUI') > 0):
-                bUseGui = line[findPos(line)]
-                if (isinstance(int(bUseGui), int)):
-                    if (int(bUseGui) > 0):
-                        enable_gui = True
-                    else:
-                        enable_gui = False
-                else:
-                    enable_gui= False
-            if (line.find('enableScraper') > 0):
-                bScraperEnable = line[findPos(line)]
-                if (isinstance(int(bScraperEnable), int)):
-                    if (int(bScraperEnable) > 0):
-                        enable_scraper = True
-                    else:
-                        enable_scraper = False
-                else:
-                    enable_scraper = False
-            if (line.find('enableAliases') > 0):
-                    bAliasesEnabled = line[findPos(line)]
-                    if (isinstance(int(bAliasesEnabled), int)):
-                        if (int(bAliasesEnabled) > 0):
-                            load_aliases()
-            if (line.find('adminuser') > 0):
-                ausername = line[findPos(line):].rstrip()
-            if (line.find('adminpassword') > 0):
-                apassword = line[findPos(line):].rstrip()
-
-    conf.close()
-    data_file = data_dir 
+        try:
+           with open("/etc/almond/almond.conf", "r") as conf:
+               for line in conf:
+                   key, value = parse_line(line)
+                   config[key] = value
+        except OSError:
+            logger.error("Could not load configuration file. It does not seem to exist!")
+            print ("Could not open configutation file.")
+            return 80
+   
+    #print (config)
+    json_file = config.get('data.jsonFile', '/opt/almond/data/almond_monitor.json')
+    full_metrics_file_name = config.get('data.metricsFile', 'monitor.metrics')
+    data_dir = config.get('api.dataDir', '/opt/almond/data')
+    metrics_dir = config.get('api.metricsDir', '/opt/almond/data/metrics')
+    enable_mods = config.get('api.enableMods', '').lower() == 'true'
+    mods_list = config.get('api.activeMods', '').split(',')
+    bindPort = int(config.get('api.bindPort', 80))
+    logger.info("Howru will use port " + str(bindPort))
+    if config.get('api.multiServer') is not None:
+        multi_server = bool(int(config.get('api.multiServer',0)))
+    elif config.get('api.isProxy') is not None:
+        multi_server = bool(int(config.get('api.isProxy', 0)))
+    else:
+        multi_server = False
+    if config.get('api.multiMetrics') is not None:
+        multi_metrics = bool(int(config.get('api.multiMetrics', 0)))
+    elif config.get('api.isMetricsProxy') is not None:
+        multi_metrics = bool(int(config.get('api.isMetricsProxy', 0)))
+    else:
+        multi_metrics = False
+    enable_file = bool(int(config.get('api.enableFile', 0)))
+    enable_ssl = bool(int(config.get('api.enableSSL', 0)))
+    if config.get('api.enableGUI') is not None:
+        enable_gui = bool(int(config.get('api.enableGUI', 1)))
+    else:
+        if config.get('api.useGUI') is None:
+            enable_gui = True
+        else:
+            enable_gui = bool(int(config.get('api.useGUI', 1)))
+    if config.get('api.sslCertificate') is not None:
+        ssl_certificate = config.get('api.sslCertificate', '/opt/almond/www/api/certificate.pem')
+    if config.get('api.sslKey') is not None:
+        ssl_key = config.get('api.sslKey', '/opt/almond/www/api/certificate.key')
+    start_page = config.get('api.startPage', 'api')
+    enable_scraper = bool(int(config.get('api.enableScraper', 1)))
+    enable_aliases = bool(int(config.get('api.enableAliases', 0)))
+    if enable_aliases:
+        load_aliases()
+    if config.get('api.adminuser') is not None:
+        ausername = config.get('api.adminuser')
+    if config.get('api.adminpassword') is not None:
+        apassword = config.get('api.adminpassword')
+    
+    data_file = data_dir
     data_file = data_dir + "/" + json_file
+   
     return bindPort
 
 def useCertificate():
