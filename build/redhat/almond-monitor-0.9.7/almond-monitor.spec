@@ -94,11 +94,11 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-%Thu Dec 19 2024 0.9.7.2
+* Thu Dec 19 2024 0.9.7.2
 <andreas.lindell@almondmonitor.com>
 - Update config read in HowRu
 - HowRu now run in Gunicorn
-%Wed Dec 11 2024 0.9.7
+* Wed Dec 11 2024 0.9.7
 <andreas.lindell@almondmonitor.com>
 - HowRU admin page update
 - HowRU prom file export in multi mode
