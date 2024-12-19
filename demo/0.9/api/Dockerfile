@@ -1,5 +1,5 @@
 FROM andreaslindell72/almond-monitor:latest
-MAINTAINER Andreas Lindell version: 0.9.6
+MAINTAINER Andreas Lindell version: 0.9.7
 
 RUN yum update -y && yum upgrade -y
 
@@ -11,7 +11,7 @@ COPY plugins/* /opt/almond/plugins
 RUN useradd almond && usermod -a -G almond almond
 RUN chmod +x /opt/almond/plugins/* && chown -R almond:almond /opt/almond/plugins
 
-EXPOSE 8099 
+EXPOSE 80 
 
 ENTRYPOINT ["/usr/bin/supervisord"]
 
