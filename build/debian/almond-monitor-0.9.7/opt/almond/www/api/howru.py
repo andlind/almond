@@ -282,7 +282,7 @@ def check_config():
 
 def load_data():
     global data, data_dir, multi_server, enable_file, file_name, data_file, file_found, logger
-    #os.chdir(data_dir)
+    os.chdir(data_dir)
     if (enable_file == True):
         if (len(file_name) > 5):
             this_file = data_dir + "/" + file_name
@@ -322,7 +322,7 @@ def load_data():
            f.close()
        else:
            data = {}
-    #os.chdir("/opt/almond/www/api")
+    os.chdir("/opt/almond/www/api")
 
 def load_settings():
     global settings, logger
