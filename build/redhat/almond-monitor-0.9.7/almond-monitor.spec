@@ -4,7 +4,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -14,7 +14,7 @@ Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
 BuildRequires:  make, json-c-devel, librdkafka-devel, openssl-devel
-Requires:       python3, python3-yaml, python3-simplejson, python3-flask, ksh, sysstat, json-c, librdkafka
+Requires:       gunicorn, python3, python3-yaml, python3-simplejson, python3-flask, ksh, sysstat, json-c, librdkafka
 Requires(pre):  shadow-utils
 
 %description
@@ -94,6 +94,14 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Thu Dec 19 2024 0.9.7.2
+<andreas.lindell@almondmonitor.com>
+- Update config read in HowRu
+- HowRu now run in Gunicorn
+* Wed Dec 11 2024 0.9.7
+<andreas.lindell@almondmonitor.com>
+- HowRU admin page update
+- HowRU prom file export in multi mode
 *Thu Nov 28 2024 0.9.6.4
 <andreas.lindell@almondmonitor.com>
 - Improvements clock based scheduler
