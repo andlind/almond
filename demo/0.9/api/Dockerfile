@@ -11,7 +11,7 @@ COPY plugins/* /opt/almond/plugins
 RUN useradd almond && usermod -a -G almond almond
 RUN chmod +x /opt/almond/plugins/* && chown -R almond:almond /opt/almond/plugins
 
-EXPOSE 80 
+EXPOSE 8099 
 
 ENTRYPOINT ["/usr/bin/supervisord"]
 
