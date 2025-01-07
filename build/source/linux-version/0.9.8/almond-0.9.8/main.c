@@ -76,7 +76,10 @@
 #define API_GET_KAFKA_START_ID 90
 #define API_GET_PLUGIN_RELOAD_TS 91
 #define API_CHECK_PLUGIN_CONFIG 92
-#define API_NAME_END 95
+#define API_RELOAD_ALMOND 93
+#define API_RELOAD_CONFIG_HARD 94
+#define API_RELOAD_CONFIG_SOFT 95
+#define API_NAME_END 96
 #define API_DENIED 66
 #define KAFKA_EXPORT_TAG 10
 #define KAFKA_EXPORT_ID 20
@@ -236,6 +239,7 @@ void apiReadAll();
 void apiGetHostName();
 void apiGetVars(int);
 void apiCheckPluginConf();
+void apiReloadConfigHard();
 void runPluginCommand(int, char*);
 void runPlugin(int, int);
 void runPluginArgs(int, int, int);
@@ -1674,6 +1678,15 @@ void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
 			case API_CHECK_PLUGIN_CONFIG:
 				apiCheckPluginConf();
 				break;
+			case API_RELOAD_CONFIG_HARD:
+				apiReloadConfigHard();
+				break;
+			case API_RELOAD_CONFIG_SOFT:
+				//apiReloadConfigSoft();
+				break;
+			case API_RELOAD_ALMOND:
+				//apiReload();
+				break;
 			case API_DENIED:
 				constructSocketMessage("return", "Access denied: You need a valid token.");
                                 break;
@@ -1732,7 +1745,7 @@ struct json_object* getJsonValue(struct json_object *jobj, const char* key) {
 }
 
 void parseClientMessage(char str[], int arr[]) {
-        struct json_object *jobj, *jaction, *jid, *jname,  *jflags, *jargs, *jvalue;
+        struct json_object *jobj, *jaction, *jid, *jname,  *jflags, *jargs, *jvalue, *jmode;
 	struct json_object *jtoken;
         char *value = NULL;
         char action[10];
@@ -1741,6 +1754,7 @@ void parseClientMessage(char str[], int arr[]) {
 	char args[100];
 	char sval[100];
 	char name[50];
+	char mode[5];
 	char * fname = NULL;
         char * lname = NULL;
         char username[40];
@@ -1774,6 +1788,7 @@ void parseClientMessage(char str[], int arr[]) {
 	jargs = getJsonValue(jobj, "args");
 	jtoken = getJsonValue(jobj, "token");
 	jvalue = getJsonValue(jobj, "value");
+	jmode = getJsonValue(jobj, "mode");
 	if (jid != NULL) {
         	strncpy(sid, json_object_to_json_string_ext(jid, JSON_C_TO_STRING_PLAIN), 5);
         	removeChar(sid, '"');
@@ -1785,6 +1800,10 @@ void parseClientMessage(char str[], int arr[]) {
 	if (jname != NULL) {
 		strncpy(name, json_object_to_json_string_ext(jname, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 50);
 		removeChar(name, '"');
+	}
+	if (jmode != NULL) {
+		strncpy(mode, json_object_to_json_string_ext(jmode, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 5);
+		removeChar(mode, '"');
 	}
         if (jflags != NULL) {
 		strncpy(flags, json_object_to_json_string_ext(jflags, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY), 10);
@@ -2074,6 +2093,28 @@ void parseClientMessage(char str[], int arr[]) {
 		}
 		else if (strcmp(trim(name), "pluginconfigts") == 0) {
 			api_action = API_GET_PLUGIN_RELOAD_TS;
+		}
+		else {
+			api_action = -1;
+		}
+	}
+	else if (strcmp(trim(action), "reload") == 0) {
+		if (strcmp(trim(name), "almond") == 0) {
+			// Reload Almond
+			api_action = API_RELOAD_ALMOND;
+		}
+		else if (strcmp(trim(name), "plugins") == 0) {
+			if (strcmp(trim(mode), "hard") == 0) {
+				// Hard reload
+				api_action = API_RELOAD_CONFIG_HARD;
+			}
+			else if (strcmp(trim(mode), "soft") == 0) {
+				// Soft reload
+				api_action = API_RELOAD_CONFIG_SOFT;
+			}
+			else {
+				api_action = -1;
+			}
 		}
 		else {
 			api_action = -1;
@@ -5674,6 +5715,16 @@ int hardReloadPlugins(int cnt) {
        quick_start = qsv;
        return 0;
 }	
+
+void apiReloadConfigHard() {
+	if (check_plugin_conf_file(pluginDeclarationFile) != 0) {
+		constructSocketMessage("reloadpluginshard", "failed");
+        }
+       	else {
+		hardReloadPlugins(decCount);
+		constructSocketMessage("reloadpluginshard", "success");
+	}
+}
 
 int checkNewConfig(const char *file_name) {
 	FILE *file = NULL;
