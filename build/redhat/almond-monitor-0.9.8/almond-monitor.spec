@@ -94,7 +94,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Mon Jan 13 2024 0.9.8
+* Mon Jan 13 2025 0.9.8
 <andreas.lindell@almondmonitor.com>
 - New Almond API commands
 * Thu Dec 19 2024 0.9.7.2
