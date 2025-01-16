@@ -247,6 +247,33 @@ ould look like:</p>
                 curl url_to_hostserver:port/howru/monitoring/howareyou&server=testserver.test.domain.com
                 </xmp>
                 <p style="font-family: Verdana; font-size: 12px">will only show status from the particular server <i>testserver.test.domain.com</i>.</p>
+                <p style="font-family: Verdana; font-size: 12px">Apart from the above API calls HowRU also have a number of calls mainly to be used with integration scripts, which are listed here:</p>
+                <table style="border: 1px solid black">
+                <tr>
+                <td style="font-family: Verdana; font-size: 12px; text-decoration: underline">API call</td><td style="font-family: Verdana; font-size: 12px; text-decoration: underline">Description</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/countjobs</td><td style="font-family: Verdana; font-size: 12px">Returns the number of plugins handled by HowRu.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/countjobs</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/countservers</td><td style="font-family: Verdana; font-size: 12px">Returns the number of servers HowRU is serving.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/countservers</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/elderpluginrun</td><td style="font-family: Verdana; font-size: 12px">Returns a timestamp of the &quot;oldest&quot; plugin execution.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/elderpluginrun</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/getmaintenance</td><td style="font-family: Verdana; font-size: 12px">Returns a list of all plugins that are disabled.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/getmaintenance</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/getmaintenancelist</td><td style="font-family: Verdana; font-size: 12px">Returns a list of the maintenance status of all plugin items.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/getmaintenancelist</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/lastpluginrun</td><td style="font-family: Verdana; font-size: 12px">Returns a timestamp of when the last plugin was executed.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/lastpluginrun</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/listjobnames</td><td style="font-family: Verdana; font-size: 12px">Returns a list with the names of all plugins handled by this HowRU instance.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/listjobnames</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/listjobs</td><td style="font-family: Verdana; font-size: 12px">Returns the name and id of all plugins handled by this HowRU installation.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/listjobs</td><td style="font-family: Verdana; font-size: 12px">Same as above.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/listservers</td><td style="font-family: Verdana; font-size: 12px">Returns the list of all servers handled by this HowRU instance.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/listservers</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/unixdeploytime</td><td style="font-family: Verdana; font-size: 12px">Returns the unix timestamp of when the configuration file was last changed.</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/unixdeplytime</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/api/unixupdatetime</td><td style="font-family: Verdana; font-size: 12px">Returns a unix timestamp for when plugin configuration was last changed..</td></tr>
+                <tr><td style="font-family: Verdana; font-size: 12px">/howru/api/servers</td><td style="font-family: Verdana; font-size: 12px">Same as above</td></tr>
+                </table>
 		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">5. Using the Almond API</p>
                 <p style="font-family: Verdana; font-size: 12px">Almond itself has its own API, which should be used with more caution than the more easygoing HowRU API. The Almond API is running on the port specified in the<br>
                 <i>almond.conf</i>, if enabled. As a user the HowRU API should generally be preferred to use in all cases where it provides the same service as Almond API.</p>
@@ -267,14 +294,31 @@ ould look like:</p>
 		<li>execute</li>
                 <li>exread</li>
                 <li>disable</li>
+                <li>get</li>
 		<li>getvar</li>
 		<li>getm</li>
                 <li>metrics</li>
 		<li>read</li>
+                <li>read_all</li>
 		<li>run</li>
                 <li>runread</li>
+                <li>set</li>
                 <li>setvar</li>
                 </ul>
+                <p style="font-family: Verdana; font-size: 12px">Depending of <i>action</i> a number of other parameters are required, where <i>name</i> is usually always required and then depending on the action further parameters such as <i>flags</i>, <i>value</i> and <i>args</i> must be added. The <i>token</i> parameter must be added for all API calls that trigger changes or runs.</p>
+                <p style="font-family: Verdana; font-size: 12px">You can however run a read command such as the one below without supplementing a token:</p>
+                <xmp>
+                curl localhost:9909 -d '{"action":"read", "name":"check_memory", "flags":"verbose"}'
+                </xmp>
+                <p style="font-family: Verdana; font-size: 12px">You can also retrieve metrics without a token:</p>
+                <xmp>
+                curl localhost:9909 -d '{"action":"metrics", "name":"metrics"}'
+                </xmp>
+                <p style="font-family: Verdana; font-size: 12px">As a final example, this call would trigger a plugin to execute a dry run with the arguments passed by the API call:</p>
+                <xmp>
+                curl localhost:9909 -d '{"action":"execute", "name":"check_memory", "flags":"dry", "args":"-w 70 -c 75", "token":"qwyhb67jnds1qee9x"}'
+                </xmp>
+                <p style="font-family: Verdana; font-size: 12px">You can look at the API section in the Almond Admin page to see what types of calls are possible and try them out from there.</p>
 		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">6. Tips and recommendations</p>
                 <p style="font-family: Verdana; font-size: 12px">If you run the HowRU API on port 80 (default) you get a very simplistic web GUI where you can explore and test the API.<br>
                 If you wish to run the API on another port you can always curl to get API responses in json-format, for instance:</p>
