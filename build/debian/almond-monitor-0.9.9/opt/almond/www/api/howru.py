@@ -439,6 +439,46 @@ def api_get_plugin_run(last=True):
             runtimes.sort()
     return jsonify(runtimes[0])
 
+def api_get_maintenance_list(showAll=True):
+    global multi_server, data, logger
+    x = 0
+    logger.info("Running api_get_maintenance_list")
+    load_data()
+    if (multi_server):
+        maintenance_list = []
+        servers = data['server']
+        for host in servers:
+            x = 0
+            server = {}
+            maintenance = []
+            name = host.get('host', {}).get('name')
+            mon = host['monitoring']
+            for dictionary in mon:
+                maint_obj = {'id': x, 'name': dictionary["name"], 'maintenance': dictionary["maintenance"]}
+                if (showAll):                
+                    maintenance.append(maint_obj)
+                else:
+                    if dictionary["maintenance"] == "true":
+                        maintenance.append(maint_obj)
+                x += 1
+            server = {'server': name, 'status': maintenance}
+            maintenance_list.append(server)
+        return jsonify(maintenance_list)
+    else:
+        mon = data['monitoring']
+        maintenance_list = []
+        for dictionary in mon:
+            obj = {'id': x,'name': dictionary["name"], 'maintenance': dictionary["maintenance"]}
+            if (showAll):
+                maintenance_list.append(obj)
+            else:
+                if dictionary["maintenance"] == "true":
+                    maintenance_list.append(obj)
+            x += 1
+        if not (showAll) and not maintenance_list:
+            return {'maintenance_list':'empty'}
+    return jsonify(maintenance_list)
+
 @app.route('/', methods=['GET'])
 def home():
     global data
@@ -1340,37 +1380,15 @@ def api_get_last_plugin_run():
 def api_get_first_plugin_run():
     return api_get_plugin_run(False)
     
+@app.route('/api/getmaintenancelist', methods=['GET'])
+@app.route('/howru/api/getmaintenancelist', methods=['GET'])
+def api_get_maintenance_list_full():
+    return api_get_maintenance_list()
+
 @app.route('/api/getmaintenance', methods=['GET'])
 @app.route('/howru/api/getmaintenance', methods=['GET'])
-def api_get_maintenance_list():
-    global multi_server, data, logger
-    x = 0
-    logger.info("Running api_get_maintenance_list")
-    load_data()
-    if (multi_server):
-        maintenance_list = []
-        servers = data['server']
-        for host in servers:
-            x = 0
-            server = {}
-            maintenance = []
-            name = host.get('host', {}).get('name')
-            mon = host['monitoring']
-            for dictionary in mon:
-                maint_obj = {'id': x, 'name': dictionary["name"], 'maintenance': dictionary["maintenance"]}
-                maintenance.append(maint_obj)
-                x += 1
-            server = {'server': name, 'status': maintenance}
-            maintenance_list.append(server)
-        return jsonify(maintenance_list)
-    else:
-        mon = data['monitoring']
-        maintenance_list = []
-        for dictionary in mon:
-            obj = {'id': x,'name': dictionary["name"], 'maintenance': dictionary["maintenance"]}
-            maintenance_list.append(obj)
-            x += 1
-    return jsonify(maintenance_list)
+def api_get_maintenance():
+    return api_get_maintenance_list(False)
 
 @app.route('/api/servers', methods=['GET'])
 @app.route('/howru/api/servers', methods=['GET'])
