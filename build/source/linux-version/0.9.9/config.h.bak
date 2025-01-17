@@ -1,0 +1,15 @@
+#ifndef ALMOND_CONFIG_STRUCTURES_HEADER
+#define ALMOND_CONFIG_STRUCTURES_HEADER
+
+typedef union {
+	int intval;
+	char* strval;
+} __attribute__((aligned(4))) ConfValUnion;
+
+typedef struct ConfigEntry {
+	const char* name;
+	void (*process)(ConfValUnion value);
+} ConfigEntry;
+
+#endif
+
