@@ -1823,9 +1823,9 @@ def main():
         app.logger.info("Main thread exits now. Goodbye :)")
 
 # If using wsgi.py comment the two below lines
-if __name__ == '__main__':
-    main()
+#if __name__ == '__main__':
+#    main()
 
 ## If used with wsgi.py uncomment below
-#if __name__ == "__main__":
-#    app.run('0.0.0.0', port=80)
+if __name__ == "__main__":
+    app.run('0.0.0.0', port=80)
