@@ -20,7 +20,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/err.h>
-#include "structures.h"
+#include "data.h"
 #include "config.h"
 #include "mod_kafka.h"
 
@@ -254,59 +254,50 @@ void executeGardener();
 int createSocket(int);
 int initTimeScheduler();
 void sig_handler(int);
-void process_almond_api(ConfValUnion);
-void process_almond_port(ConfValUnion);
-void process_almond_standalone(ConfValUnion);
-void process_json_file(ConfValUnion);
-void process_metrics_file(ConfValUnion);
-void process_metrics_output_prefix(ConfValUnion);
-void process_save_on_exit(ConfValUnion);
-void process_plugin_declaration(ConfValUnion);
-void process_plugin_directory(ConfValUnion);
-void process_almond_certificate( ConfValUnion);
-void process_clear_data_cache_interval(ConfValUnion);
-void process_conf_dir(ConfValUnion);
-void process_data_cache_time_frame(ConfValUnion);
-void process_conf_dir(ConfValUnion);
-void process_enable_clear_data_cache( ConfValUnion);
-void process_enable_gardener(ConfValUnion);
-void process_enable_kafka_export(ConfValUnion);
-void process_enable_kafka_ssl(ConfValUnion);
-void process_enable_kafka_tags(ConfValUnion);
-void process_almond_format(ConfValUnion);
-void process_gardener_run_interval(ConfValUnion);
-void process_gardener_script(ConfValUnion);
-void process_host_name(ConfValUnion);
-void process_init_sleep(ConfValUnion);
-void process_kafka_brokers(ConfValUnion);
-void process_kafka_ca_certificate(ConfValUnion);
-void process_kafka_producer_certificate( ConfValUnion);
-void process_kafka_tag(ConfValUnion);
-void process_kafka_topic(ConfValUnion);
-void process_almond_key(ConfValUnion);
-void process_data_dir(ConfValUnion);
-void process_log_dir(ConfValUnion);
-void process_log_plugin_output(ConfValUnion);
-void process_log_to_stdout(ConfValUnion);
-void process_almond_quickstart(ConfValUnion);
-void process_run_gardener_at_start(ConfValUnion);
-void process_store_results(ConfValUnion);
-void process_almond_sleep( ConfValUnion);
-void process_store_dir(ConfValUnion);
-void process_tune_master(ConfValUnion);
-void process_tune_cycle(ConfValUnion);
-void process_tune_timer(ConfValUnion);
-void process_almond_scheduler_type(ConfValUnion);
-void process_almond_api_tls(ConfValUnion);
-
-
-/*ConfigEntry config_entries[] = {
-    {"almond.api", process_almond_api},
-    {"almond.certificate", process_almond_certificate},
-    {"almond.key", process_almond_key},
-    {"almond.port", process_almond_port},
-    {"almond.standalone", process_almond_standalone}
-};*/
+void process_almond_api(ConfVal);
+void process_almond_port(ConfVal);
+void process_almond_standalone(ConfVal);
+void process_json_file(ConfVal);
+void process_metrics_file(ConfVal);
+void process_metrics_output_prefix(ConfVal);
+void process_save_on_exit(ConfVal);
+void process_plugin_declaration(ConfVal);
+void process_plugin_directory(ConfVal);
+void process_almond_certificate( ConfVal);
+void process_clear_data_cache_interval(ConfVal);
+void process_conf_dir(ConfVal);
+void process_data_cache_time_frame(ConfVal);
+void process_conf_dir(ConfVal);
+void process_enable_clear_data_cache( ConfVal);
+void process_enable_gardener(ConfVal);
+void process_enable_kafka_export(ConfVal);
+void process_enable_kafka_ssl(ConfVal);
+void process_enable_kafka_tags(ConfVal);
+void process_almond_format(ConfVal);
+void process_gardener_run_interval(ConfVal);
+void process_gardener_script(ConfVal);
+void process_host_name(ConfVal);
+void process_init_sleep(ConfVal);
+void process_kafka_brokers(ConfVal);
+void process_kafka_ca_certificate(ConfVal);
+void process_kafka_producer_certificate( ConfVal);
+void process_kafka_tag(ConfVal);
+void process_kafka_topic(ConfVal);
+void process_almond_key(ConfVal);
+void process_data_dir(ConfVal);
+void process_log_dir(ConfVal);
+void process_log_plugin_output(ConfVal);
+void process_log_to_stdout(ConfVal);
+void process_almond_quickstart(ConfVal);
+void process_run_gardener_at_start(ConfVal);
+void process_store_results(ConfVal);
+void process_almond_sleep( ConfVal);
+void process_store_dir(ConfVal);
+void process_tune_master(ConfVal);
+void process_tune_cycle(ConfVal);
+void process_tune_timer(ConfVal);
+void process_almond_scheduler_type(ConfVal);
+void process_almond_api_tls(ConfVal);
 
 ConfigEntry config_entries[] = {
     {"almond.api", process_almond_api},
@@ -356,6 +347,25 @@ ConfigEntry config_entries[] = {
     {"scheduler.type", process_almond_scheduler_type},
     {"scheduler.useTLS", process_almond_api_tls}
 };
+
+/*struct Constant constantss[] = {
+	{"CONFDIR_SIZE", () -> 	{
+				       	writeLog("Memory for variable 'confDir' will be allocated by constants file.", 0, 1); 
+				       	confdir_size = (size_t)(values[i] * sizeof(char)+1);
+			       	}},
+	{"DATADIR_SIZE", () -> 	{
+				       	writeLog("Memory for variable 'dataDir' will be allocated by constants file.", 0, 1); 
+				       	datadir_size = (size_t)(values[i] * sizeof(char)+1);
+			       	}},
+	{"PLUGINDECLARATIONFILE_SIZE", () -> {
+					writeLog("Memory for variable 'pluginDeclarationSize' will be allocated by constants file.", 0, 1); 
+					plugindeclarationfile_size = (size_t)(values[i] * sizeof(char)+1);
+				}},
+        { "JSONFILENAME_SIZE", () -> {
+					writeLog("Memory for variable 'pluginDeclarationSize' will be allocated by constants file.", 0, 1); 
+					jsonfilename_size = (size_t)(values[i] * sizeof(char)+1);
+				}}
+}*/
 
 char *trim(char *s) {
     char *ptr;
@@ -1296,6 +1306,103 @@ void initConstants() {
 	checkCtMemoryAlloc();
 }
 
+/*void allocateConstantsMemory(const char* constantName, size_t value) {
+	snprintf(infostr, infostr_size, "Memory for variable '%s' will be allcated by constants file.", constantName);
+	writeLog(trim(infostr), 0, 1);
+	switch (constantName) {
+		case "CONFDIR_SIZE":
+			confdir_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "DATADIR_SIZE":
+			datadir_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "PLUGINDECLARATIONFILE_SIZE":
+			plugindeclarationfile_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "JSONFILENAME_SIZE":
+			jsonfilename_size = (size_t)(value * sizeof(char)+1);
+                        break;
+		case "METRICSFILENAME_SIZE":
+			metricsfilename_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "GARDENERSCRIPT_SIZE":
+			gardenerscript_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "HOSTNAME_SIZE:
+			hostname_size = (size_t)(value * sizeof(char)+1);
+			break;"
+		case "METRICSOUTPUTPREFIX_SIZE":
+			metricsoutputprefix_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "STOREDIR_SIZE":
+			storedir_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "LOGDIR_SIZE":
+			logdir_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "INFOSTR_SIZE":
+			infostr_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "PLUGINDIR_SIZE":
+			plugindir_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "FILENAME_SIZE":
+			filename_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "LOGMESSAGE_SIZE":
+			logmessage_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "LOGFILE_SIZE":
+			logfile_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "DATAFILENAME_SIZE":
+			datafilename_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "BACKUPDIRECTORY_SIZE":
+			backupdirectory_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "NEWFILENAME_SIZE":
+			newfilename_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "GARDENERMESSAGE_SIZE":
+			gardenermessage_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "PLUGINCOMMAND_SIZE":
+			plugincommand_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "PLUGINMESSAGE_SIZE":
+			pluginmessage_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "STORENAME_SIZE":
+			storename_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "APIMESSAGE_SIZE":
+			apimessage_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "SOCKETSERVERMESSAGE_SIZE":
+			socketservermessage_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "SOCKETCLIENTMESSAGE_SIZE":
+			sockerclientmessage_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "PLUGINITEMNAME_SIZE":
+			pluginitemname_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "PLUGINITEMDESC_SIZE":
+                        pluginitemdesc_size = (size_t)(value * sizeof(char)+1);
+                	break;
+		case "PLUGINITEMCMD_SIZE":
+                        pluginitemcmd_size = (size_t)(value * sizeof(char)+1);
+			break;
+		case "PLUGINOUTPUT_SIZE":
+                        pluginoutput_size = (size_t)(value * sizeof(char)+1);
+			break;
+		default:
+                        snprintf(infostr, infostr_size, "Constant '%s' not implemented by Almond %s", constants[i], VERSION);
+			writeLog(trim(infostr), 1, 1);
+	}
+}*/
+
 int getConstants() {
 	int count = 0;
 
@@ -1322,7 +1429,7 @@ int getConstants() {
 			confdir_size = (size_t)(values[i] * sizeof(char)+1);
                 }
 		else if (strcmp(constants[i], "DATADIR_SIZE") == 0) {
-			writeLog("Memory for variable 'dataDir' will be reallocated by constants file.", 0, 1);
+			writeLog("Memory for variable 'dataDir' will be allocated by constants file.", 0, 1);
 			datadir_size = (size_t)(values[i] * sizeof(char) + 1);
 		}
 		else if (strcmp(constants[i], "PLUGINDECLARATIONFILE_SIZE") == 0) {
@@ -2103,14 +2210,12 @@ void parseClientMessage(char str[], int arr[]) {
 		api_action = API_GET_METRICS;
 	}
         else if (strcmp(trim(action), "maintenance") == 0) {
-		printf("DEBUG: Maintenance is found!\n");
                 if (jid == NULL) {
                 	id = getIdFromName(trim(name));
                 }
                 else {
 			id = atoi(sid);
 		}
-		printf("DEBUG: Id = %d\n", id);
 		if (id < 0) {
 			api_action = API_ERROR;
 		}
@@ -2118,7 +2223,6 @@ void parseClientMessage(char str[], int arr[]) {
 			if ((strcmp(trim(value), "true") == 0) || (strcmp(trim(value), "false") == 0)) {
 				setMaintenanceStatus(id, trim(value));
         			api_action = API_SET_MAINTENANCE_STATUS;
-				printf("DEBUG: API ACTION is set\n");
 			}
 			else {
 				api_action = API_ERROR;
@@ -2929,13 +3033,13 @@ char *getHostName() {
 	return ret;
 }
 
-void process_almond_api(ConfValUnion value) {
+void process_almond_api(ConfVal value) {
 	if (value.intval >= 1) {
 		local_api = 1;
 	}
 }
 
-void process_almond_certificate(ConfValUnion value) {
+void process_almond_certificate(ConfVal value) {
 	almondCertificate = malloc((size_t)strlen(value.strval)+1);
 	if (almondCertificate == NULL) {
 		fprintf(stderr, "Failed to allocate memory [almondCertificate].\n");
@@ -2947,7 +3051,7 @@ void process_almond_certificate(ConfValUnion value) {
 	writeLog("Almond certificate provided if TLS for API is enabled.", 0, 1);
 }
 
-void process_almond_key(ConfValUnion value) {
+void process_almond_key(ConfVal value) {
 	almondKey = malloc((size_t)strlen(value.strval)+1);
 	if (almondKey == NULL) {
 		fprintf(stderr, "Failed to allocate memory [almondSSLKey].\n");
@@ -2959,7 +3063,7 @@ void process_almond_key(ConfValUnion value) {
 	writeLog("Almond certificate key provided to be used by API to run with  SSL encryption.", 0, 1);
 }
 
-void process_almond_port(ConfValUnion value) {
+void process_almond_port(ConfVal value) {
 	if (value.intval >= 1) {
         	local_port = value.intval;
 	}
@@ -2969,21 +3073,21 @@ void process_almond_port(ConfValUnion value) {
         }
 }
 
-void process_almond_standalone(ConfValUnion value) {
+void process_almond_standalone(ConfVal value) {
 	if (value.intval >= 1) {
 		writeLog("Almond will run standalone. No monitor data will be sent to HowRU.", 0, 1);
 		standalone = 1;
 	}
 }
 
-void process_almond_api_tls(ConfValUnion value) {
+void process_almond_api_tls(ConfVal value) {
 	if (value.intval >= 1) {
 		writeLog("Almond scheduler use TLS encryption.", 0, 1);
 		use_ssl = 1;
 	}
 }
 
-void process_almond_format(ConfValUnion value) {
+void process_almond_format(ConfVal value) {
 	if (strcmp(value.strval, "json") == 0){
 		printf ("Export to json\n");
 		writeLog("Export to format 'json'.", 0, 1);
@@ -3017,7 +3121,7 @@ void process_almond_format(ConfValUnion value) {
 	}
 }
 
-void process_conf_dir(ConfValUnion value) {
+void process_conf_dir(ConfVal value) {
 	confDir = malloc((size_t)50 * sizeof(char));
 	if (confDir != NULL)
         	memset(confDir, '\0', 50 * sizeof(char));
@@ -3039,14 +3143,14 @@ void process_conf_dir(ConfValUnion value) {
         writeLog("Configuration directory is set.", 0, 1);
 }
 
-void process_almond_quickstart(ConfValUnion value) {
+void process_almond_quickstart(ConfVal value) {
 	if (value.intval >= 1) {
 		writeLog("Almond scheduler have quick start activated.", 0, 1);
 		quick_start = 1;
 	}
 }
 
-void process_init_sleep(ConfValUnion value) {
+void process_init_sleep(ConfVal value) {
 	int i = strtol(value.strval, NULL, 0);
 	if (i < 2000)
 		i = 6000;
@@ -3054,7 +3158,7 @@ void process_init_sleep(ConfValUnion value) {
 	writeLog("Init sleep for scheduler read.", 0, 1);
 }
 
-void process_almond_scheduler_type(ConfValUnion value) {
+void process_almond_scheduler_type(ConfVal value) {
 	if (strcmp(value.strval, "time") == 0){
 		timeScheduler = 1;
 		writeLog("Almond will use a time scheduler.", 0, 1);
@@ -3064,7 +3168,7 @@ void process_almond_scheduler_type(ConfValUnion value) {
 	}
 }
 
-void process_almond_sleep(ConfValUnion value) {
+void process_almond_sleep(ConfVal value) {
 	int i = strtol(value.strval, NULL, 0);
 	if (i < 1000)
 		i = 1000;
@@ -3073,7 +3177,7 @@ void process_almond_sleep(ConfValUnion value) {
 	schedulerSleep = i;
 }
 
-void process_data_dir(ConfValUnion value) {
+void process_data_dir(ConfVal value) {
 	if (directoryExists(value.strval, 255) == 0) {
 		strncpy(dataDir, value.strval, strlen(value.strval));
 		dataDirSet = 1;
@@ -3094,7 +3198,7 @@ void process_data_dir(ConfValUnion value) {
 	writeLog(infostr, 0, 1);
 }
 
-void process_store_dir(ConfValUnion value) {
+void process_store_dir(ConfVal value) {
 	if (directoryExists(value.strval, 255) == 0) {
 		strncpy(storeDir, value.strval, storedir_size);
                 storeDirSet = 1;
@@ -3115,12 +3219,12 @@ void process_store_dir(ConfValUnion value) {
         writeLog(infostr, 0, 1);
 }
 
-void process_log_to_stdout(ConfValUnion val) {
+void process_log_to_stdout(ConfVal val) {
 	dockerLog = val.intval;
 	writeLog("Log to stdout is set. Mostly useful for containers this option.", 0, 1);
 }
 
-void process_log_dir(ConfValUnion val) {
+void process_log_dir(ConfVal val) {
 	if (directoryExists(val.strval, 255) == 0) {
 		strncpy(logDir, val.strval, strlen(val.strval));
                 logDirSet = 1;
@@ -3171,7 +3275,7 @@ void process_log_dir(ConfValUnion val) {
        }
 }
 
-void process_log_plugin_output(ConfValUnion value) {
+void process_log_plugin_output(ConfVal value) {
 	if (value.intval == 0) {
         	writeLog("Plugin outputs will not be written in the log file", 0, 1);
 	}
@@ -3181,7 +3285,7 @@ void process_log_plugin_output(ConfValUnion value) {
         }
 }
 
-void process_store_results(ConfValUnion value) {
+void process_store_results(ConfVal value) {
 	if (value.intval == 0) {
         	writeLog("Plugin results is not stored in specific csv file.", 0, 1);
         }
@@ -3191,13 +3295,13 @@ void process_store_results(ConfValUnion value) {
         }
 }
 
-void process_host_name(ConfValUnion value) {
+void process_host_name(ConfVal value) {
 	strncpy(hostName, value.strval, strlen(value.strval));
 	snprintf(infostr, infostr_size, "Scheduler will give this host the virtual name: %s", hostName);
 	writeLog(trim(infostr), 0, 1);
 }
 
-void process_plugin_directory(ConfValUnion value) {
+void process_plugin_directory(ConfVal value) {
 	if (directoryExists(value.strval, 255) == 0) {
        		strcpy(pluginDir, value.strval);
                 pluginDirSet = 1;
@@ -3215,7 +3319,7 @@ void process_plugin_directory(ConfValUnion value) {
         }
 }
 
-void process_plugin_declaration(ConfValUnion v) {
+void process_plugin_declaration(ConfVal v) {
 	if (access(v.strval, F_OK) == 0){
 		strncpy(pluginDeclarationFile, v.strval, strlen(v.strval));
         }
@@ -3229,7 +3333,7 @@ void process_plugin_declaration(ConfValUnion v) {
 	writeLog(trim(infostr), 0, 1);
 }
 
-void process_enable_gardener(ConfValUnion value) {
+void process_enable_gardener(ConfVal value) {
 	if (value.intval == 0) {
 		writeLog("Gardener script is not enabled.", 0, 1);
 	}
@@ -3239,7 +3343,7 @@ void process_enable_gardener(ConfValUnion value) {
 	}
 }
 
-void process_enable_kafka_export(ConfValUnion v) {
+void process_enable_kafka_export(ConfVal v) {
 	if (v.intval == 0) {
 		writeLog("Export to Kafka is not enabled.", 0, 1);
 	}
@@ -3249,7 +3353,7 @@ void process_enable_kafka_export(ConfValUnion v) {
 	}
 }
 
-void process_enable_kafka_tags(ConfValUnion v){
+void process_enable_kafka_tags(ConfVal v){
 	if (v.intval < 1) {
 		writeLog("Use of tag to Kafka message is not enabled.", 0, 1);
 	}
@@ -3259,7 +3363,7 @@ void process_enable_kafka_tags(ConfValUnion v){
 	}
 }
 
-void process_enable_kafka_id(ConfValUnion v) {
+void process_enable_kafka_id(ConfVal v) {
 	if (v.intval == 0) {
         	writeLog("Use of Kafka id is not enabled.", 0, 1);
 	}
@@ -3269,7 +3373,7 @@ void process_enable_kafka_id(ConfValUnion v) {
        }
 }
 
-void process_kafka_start_id(ConfValUnion val) {
+void process_kafka_start_id(ConfVal val) {
 	int i = strtol(val.strval, NULL, 0);
         if (i > 0) {
         	kafka_start_id = i;
@@ -3281,7 +3385,7 @@ void process_kafka_start_id(ConfValUnion val) {
         }
 }
 
-void process_kafka_brokers(ConfValUnion value) {
+void process_kafka_brokers(ConfVal value) {
 	kafkaexportreqs++;
 	kafka_brokers = malloc((size_t)strlen(value.strval)+1);
 	if (kafka_brokers == NULL) {
@@ -3297,7 +3401,7 @@ void process_kafka_brokers(ConfValUnion value) {
 	writeLog(trim(infostr), 0, 1);
 }
 
-void process_kafka_topic(ConfValUnion val) {
+void process_kafka_topic(ConfVal val) {
 	kafkaexportreqs++;
 	kafka_topic = malloc((size_t)strlen(val.strval)+1);
 	if (kafka_topic == NULL) {
@@ -3313,7 +3417,7 @@ void process_kafka_topic(ConfValUnion val) {
         writeLog(trim(infostr), 0, 1);
 }
 
-void process_kafka_tag(ConfValUnion value) {
+void process_kafka_tag(ConfVal value) {
 	kafka_tag = malloc((size_t)strlen(value.strval+1));
 	if (kafka_tag == NULL) {
 		fprintf(stderr, "Failed to allocate memory [kafka_tag].\n");
@@ -3328,7 +3432,7 @@ void process_kafka_tag(ConfValUnion value) {
 	writeLog(trim(infostr), 0, 1);
 }
 
-void process_enable_kafka_ssl(ConfValUnion value) {
+void process_enable_kafka_ssl(ConfVal value) {
 	if (value.intval == 0) {
 		writeLog("Kafka producer will connect with plain text", 0, 1);
 	}
@@ -3339,7 +3443,7 @@ void process_enable_kafka_ssl(ConfValUnion value) {
 	}
 }
 
-void process_kafka_ca_certificate(ConfValUnion val) {
+void process_kafka_ca_certificate(ConfVal val) {
 	kafkaCACertificate = malloc((size_t)strlen(val.strval)+1);
 	if (kafkaCACertificate == NULL) {
 		fprintf(stderr, "Failed to allocate memory [kafkaCACertificate].\n");
@@ -3351,7 +3455,7 @@ void process_kafka_ca_certificate(ConfValUnion val) {
 	writeLog("Kafka CA certificate location stored from configuration file.", 0, 1);
 }
 
-void process_kafka_producer_certificate(ConfValUnion value) {
+void process_kafka_producer_certificate(ConfVal value) {
 	kafkaProducerCertificate = malloc((size_t)strlen(value.strval)+1);
 	if (kafkaProducerCertificate == NULL) {
 		fprintf(stderr, "Failed to allocate memory [kafkaProducerCertificate].\n");
@@ -3363,7 +3467,7 @@ void process_kafka_producer_certificate(ConfValUnion value) {
 	writeLog("Kafka Producer certificate location stored from configuration file.", 0, 1);
 }
 
-void process_kafka_ssl_key(ConfValUnion val) {
+void process_kafka_ssl_key(ConfVal val) {
 	kafkaSSLKey = malloc((size_t)strlen(val.strval)+1);
 	if (kafkaSSLKey == NULL) {
 		fprintf(stderr, "Failed to allocate memory [kafkaSSLKey].\n");
@@ -3375,7 +3479,7 @@ void process_kafka_ssl_key(ConfValUnion val) {
 	writeLog("Kafka SSL Key provided from configuration file.", 0, 1);
 }
 
-void process_gardener_run_interval(ConfValUnion value) {
+void process_gardener_run_interval(ConfVal value) {
 	int i = strtol(value.strval, NULL, 0);
 	if (i < 60)
 		i = 43200;
@@ -3384,7 +3488,7 @@ void process_gardener_run_interval(ConfValUnion value) {
         gardenerInterval = i;
 }
 
-void process_clear_data_cache_interval(ConfValUnion v) {
+void process_clear_data_cache_interval(ConfVal v) {
 	int i = strtol(v.strval, NULL, 0);
 	if (i < 60)
 		i = 300;
@@ -3393,7 +3497,7 @@ void process_clear_data_cache_interval(ConfValUnion v) {
 	clearDataCacheInterval = i;
 }
 
-void process_data_cache_time_frame(ConfValUnion val) {
+void process_data_cache_time_frame(ConfVal val) {
 	int i = strtol(val.strval, NULL, 0);
 	if (i < 180)
 		i = 330;
@@ -3402,7 +3506,7 @@ void process_data_cache_time_frame(ConfValUnion val) {
 	dataCacheTimeFrame = i;
 }
 
-void process_tune_timer(ConfValUnion value) {
+void process_tune_timer(ConfVal value) {
 	if (value.intval == 0) {
 		writeLog("Timer tuner is not enabled.", 0, 1);
 	}
@@ -3412,28 +3516,28 @@ void process_tune_timer(ConfValUnion value) {
 	}
 }
 
-void process_tune_cycle(ConfValUnion val) {
+void process_tune_cycle(ConfVal val) {
 	int i = strtol(val.strval, NULL, 15);
 	snprintf(infostr, infostr_size, "Time tuner cycle is set to %d.", i);
 	writeLog(trim(infostr), 0, 1);
 	timeTunerCycle = i;
 }
 
-void process_tune_master(ConfValUnion value) {
+void process_tune_master(ConfVal value) {
 	int i = strtol(value.strval, NULL, 1);
 	snprintf(infostr, infostr_size, "Time tuner cycle is set to %d.", i);
 	writeLog(trim(infostr), 0, 1);
 	timeTunerMaster = i;
 }
 
-void process_run_gardener_at_start(ConfValUnion v) {
+void process_run_gardener_at_start(ConfVal v) {
 	if (v.intval > 0) {
 		writeLog("Gardener will run during startup.", 0, 1);
                 runGardenerAtStart = 1;
         }
 }
 
-void process_gardener_script(ConfValUnion value) {
+void process_gardener_script(ConfVal value) {
 	if (access(value.strval, F_OK) == 0){
 		strncpy(gardenerScript, value.strval, strlen(value.strval));
 	}
@@ -3444,7 +3548,7 @@ void process_gardener_script(ConfValUnion value) {
 	}
 }
 
-void process_enable_clear_data_cache(ConfValUnion value) {
+void process_enable_clear_data_cache(ConfVal value) {
 	if (value.intval == 0) {
 		writeLog("Clear data cache is not enabled.", 0, 1);
         }
@@ -3454,20 +3558,20 @@ void process_enable_clear_data_cache(ConfValUnion value) {
         }
 }
 
-void process_json_file(ConfValUnion value) {
+void process_json_file(ConfVal value) {
 	strncpy(jsonFileName, value.strval, strlen(value.strval));
 	jsonFileName[strlen(value.strval)] = '\0';
 	snprintf(infostr, infostr_size, "Json data will be collected in file: %s.", jsonFileName);
 	writeLog(trim(infostr), 0, 1);
 }
 
-void process_metrics_file(ConfValUnion val) {
+void process_metrics_file(ConfVal val) {
 	strncpy(metricsFileName, val.strval, strlen(val.strval));
 	snprintf(infostr, infostr_size, "Metrics will be collected in file: %s", metricsFileName);
 	writeLog(trim(infostr), 0, 1);
 }
 
-void process_metrics_output_prefix(ConfValUnion value) {
+void process_metrics_output_prefix(ConfVal value) {
 	if ((int)strlen(value.strval) <= 30) {
 		strncpy(metricsOutputPrefix, value.strval, strlen(value.strval));
 		snprintf(infostr, infostr_size, "Metrics output prefix is set to '%s'", metricsOutputPrefix);
@@ -3478,7 +3582,7 @@ void process_metrics_output_prefix(ConfValUnion value) {
 	}
 }
 
-void process_save_on_exit(ConfValUnion value) {
+void process_save_on_exit(ConfVal value) {
 	if (value.intval == 0) {
 		writeLog("Json data will be deleted on shutdown.", 0, 1);
 	}
@@ -3491,7 +3595,6 @@ void process_save_on_exit(ConfValUnion value) {
 int getConfigurationValues() {
 	char* file_name = NULL;
         char* line = NULL;
-	char* endptr;
         size_t len = 0;
         ssize_t read;
         FILE *fp = NULL;
@@ -3521,15 +3624,15 @@ int getConfigurationValues() {
                    	index++;
                    	if (index == 2) index = 0;
            	}
-		ConfValUnion cvu;
-		cvu.intval = strtol(trim(confValue), &endptr, 0);
+		ConfVal cvu;
+		cvu.intval = strtol(trim(confValue), NULL, 0);
 		cvu.strval = trim(confValue);
 		// DEBUG
-		printf("DEBUG: confValue = %s\n", confValue);
+		/*printf("DEBUG: confValue = %s\n", confValue);
 		printf("DEBUG: cvu.intval = %i\n", cvu.intval);
 		printf("DEBUG: cvu.strval = %s\n", cvu.strval);
 		printf("DEBUG Union memory content: ");
-		for (int i = 0; i < sizeof(ConfValUnion); i++) {
+		for (int i = 0; i < sizeof(ConfVal); i++) {
     			printf("%02x ", ((unsigned char*)&cvu)[i]);
 		}
 		printf("\n");
@@ -3544,8 +3647,10 @@ int getConfigurationValues() {
 		for (int i = 0; i < sizeof(int); i++) {
     			cvu_intval |= ((uint8_t*)&cvu)[i] << (24 - i * 8);
 		}
-		printf("DEBUG Corrected integer: %d\n", cvu_intval);
+		printf("DEBUG Corrected integer: %d\n", cvu_intval);*/
 		// END DEBUG
+		// OK - working with struct instead of union
+		// Should I try once assigning only the correct data?
 		for (int i = 0; i < sizeof(config_entries)/sizeof(ConfigEntry);i++) {
 			if (strcmp(confName, config_entries[i].name) == 0) {
 				config_entries[i].process(cvu);
