@@ -1,6 +1,0 @@
-Package: almond-monitor
-Version: 0.3.3
-Maintainer: Andreas Lindell
-Architecture: all
-Depends: python3, python3-flask, nagios-plugins
-Description: A local nrpe-like scheduler running monitoring plugins presenting an API
