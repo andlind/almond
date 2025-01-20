@@ -1,4 +1,4 @@
-FROM andreaslindell72/almond-monitor:0.9.3
+FROM andreaslindell72/almond-monitor:latest
 
 RUN yum update -y && yum install python3-redis -y
 

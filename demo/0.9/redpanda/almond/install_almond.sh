@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "Installing Almond on containter redpanda-10"
 echo "Installing dependencies"
-cd /redpanda/almond
+#cd /redpanda/almond
 docker cp almond-0.9.0 redpanda-10:/root
 docker exec -u 0 redpanda-10 apt update 
 docker exec -u 0 redpanda-10 apt install gcc make automake -y

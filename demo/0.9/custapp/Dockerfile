@@ -14,7 +14,7 @@ COPY app.py /custapp/app.py
 RUN useradd almond && usermod -a -G almond almond
 RUN chmod +x /custapp/app.py && chmod +x /opt/almond/plugins/check_app.py && chown -R almond:almond /opt/almond/plugins
 
-EXPOSE 80
+EXPOSE 8099
 EXPOSE 9909
 
 ENTRYPOINT ["/usr/bin/supervisord"]
