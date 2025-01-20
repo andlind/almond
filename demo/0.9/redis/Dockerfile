@@ -10,7 +10,6 @@ COPY supervisord.conf /etc/supervisord.conf
 COPY apps.conf /etc/supervisord.d/apps.conf
 COPY redis.conf /etc/redis/redis.conf
 COPY plugins/* /opt/almond/plugins
-RUN useradd almond && usermod -a -G almond almond
 RUN chmod +x /opt/almond/plugins/* && chown -R almond:almond /opt/almond/plugins
 
 EXPOSE 6379
