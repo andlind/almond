@@ -1,11 +1,13 @@
 #ifndef ALMOND_CONSTANTS_STRUCTURES_HEADER
 #define ALMOND_CONSTANTS_STRUCTURES_HEADER
 
-typedef void (*ConstantHandler)(void);
+//typedef void (*ConstantHandler)(void);
 
 typedef struct Constant {
+	int id;
 	const char* name;
-	ConstantHandler handler;
+	size_t value;
+	//ConstantHandler handler;
 } Constant;
 
 #endif

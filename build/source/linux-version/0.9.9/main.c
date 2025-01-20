@@ -22,6 +22,7 @@
 #include <openssl/err.h>
 #include "data.h"
 #include "config.h"
+#include "constants.h"
 #include "mod_kafka.h"
 
 #define MAX_COLUMNS 2
@@ -1306,102 +1307,102 @@ void initConstants() {
 	checkCtMemoryAlloc();
 }
 
-/*void allocateConstantsMemory(const char* constantName, size_t value) {
-	snprintf(infostr, infostr_size, "Memory for variable '%s' will be allcated by constants file.", constantName);
+void allocateConstantsMemory(const Constant constant, size_t value) {
+	snprintf(infostr, infostr_size, "Memory for variable '%s' will be allcated by constants file.", constant.name);
 	writeLog(trim(infostr), 0, 1);
-	switch (constantName) {
-		case "CONFDIR_SIZE":
+	switch (constant.id) {
+		case 0:
 			confdir_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "DATADIR_SIZE":
+		case 1:
 			datadir_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "PLUGINDECLARATIONFILE_SIZE":
+		case 2:
 			plugindeclarationfile_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "JSONFILENAME_SIZE":
+		case 3:
 			jsonfilename_size = (size_t)(value * sizeof(char)+1);
                         break;
-		case "METRICSFILENAME_SIZE":
+		case 4:
 			metricsfilename_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "GARDENERSCRIPT_SIZE":
+		case 5:
 			gardenerscript_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "HOSTNAME_SIZE:
+		case 6:
 			hostname_size = (size_t)(value * sizeof(char)+1);
-			break;"
-		case "METRICSOUTPUTPREFIX_SIZE":
+			break;
+		case 7:
 			metricsoutputprefix_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "STOREDIR_SIZE":
+		case 8:
 			storedir_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "LOGDIR_SIZE":
+		case 9:
 			logdir_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "INFOSTR_SIZE":
+		case 10:
 			infostr_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "PLUGINDIR_SIZE":
+		case 11:
 			plugindir_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "FILENAME_SIZE":
+		case 12:
 			filename_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "LOGMESSAGE_SIZE":
+		case 13:
 			logmessage_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "LOGFILE_SIZE":
+		case 14:
 			logfile_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "DATAFILENAME_SIZE":
+		case 15:
 			datafilename_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "BACKUPDIRECTORY_SIZE":
+		case 16:
 			backupdirectory_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "NEWFILENAME_SIZE":
+		case 17:
 			newfilename_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "GARDENERMESSAGE_SIZE":
+		case 18:
 			gardenermessage_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "PLUGINCOMMAND_SIZE":
+		case 19:
 			plugincommand_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "PLUGINMESSAGE_SIZE":
+		case 20:
 			pluginmessage_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "STORENAME_SIZE":
+		case 21:
 			storename_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "APIMESSAGE_SIZE":
+		case 22:
 			apimessage_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "SOCKETSERVERMESSAGE_SIZE":
+		case 23:
 			socketservermessage_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "SOCKETCLIENTMESSAGE_SIZE":
-			sockerclientmessage_size = (size_t)(value * sizeof(char)+1);
+		case 24:
+			socketclientmessage_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "PLUGINITEMNAME_SIZE":
+		case 25:
 			pluginitemname_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "PLUGINITEMDESC_SIZE":
+		case 26:
                         pluginitemdesc_size = (size_t)(value * sizeof(char)+1);
                 	break;
-		case "PLUGINITEMCMD_SIZE":
+		case 27:
                         pluginitemcmd_size = (size_t)(value * sizeof(char)+1);
 			break;
-		case "PLUGINOUTPUT_SIZE":
+		case 28:
                         pluginoutput_size = (size_t)(value * sizeof(char)+1);
 			break;
 		default:
-                        snprintf(infostr, infostr_size, "Constant '%s' not implemented by Almond %s", constants[i], VERSION);
+                        snprintf(infostr, infostr_size, "Constant '%s' not implemented by Almond %s", constant.name, VERSION);
 			writeLog(trim(infostr), 1, 1);
 	}
-}*/
+}
 
 int getConstants() {
 	int count = 0;
@@ -1422,6 +1423,11 @@ int getConstants() {
         while (fscanf(file, "%s %d", constants[count], &values[count]) == 2) {
                 count++;
 		if (count == MAX_CONSTANTS) break;
+		/*Constant this_constant;
+		this_constant.id = count;
+		this_constant.name = constants[count];
+		this_constant.value = values[count];
+		allocateConstantsMemory(this_constant, values[count]);*/
         }
         for (int i = 0; i < count; i++) {
                 if (strcmp(constants[i], "CONFDIR_SIZE") == 0) {
@@ -1544,7 +1550,7 @@ int getConstants() {
 			snprintf(infostr, infostr_size, "Constant '%s' not implemented by Almond %s", constants[i], VERSION);
 			writeLog(trim(infostr), 1, 1);
 		}
-        }
+	}
         return 0;
 }
 
