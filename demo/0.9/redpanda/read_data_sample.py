@@ -24,6 +24,12 @@ for message in consumer:
    server = value.get("name")
    tag = value.get("tag")
    id = value.get("id")
+   if (server == None):
+      server = "Unknown"
+   if (tag == None):
+      tag = "None"
+   if (id == None):
+       id = "-1"
    data = value.get("data")
    plugin = data.get("pluginName")
    status = data.get("pluginStatus")
