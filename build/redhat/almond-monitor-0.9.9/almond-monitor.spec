@@ -4,7 +4,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        4%{?dist}
+Release:        5%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
