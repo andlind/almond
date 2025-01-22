@@ -912,7 +912,7 @@ def api_show_not_oks():
                 res_set.append(s['host'])
                 obj = s['monitoring']
                 for i in obj:
-                    if (i['pluginStatusCode'] == "0"):
+                    if (i['pluginStatusCode'] != "0"):
                         res_set.append(i)
                 results.append(res_set);
         if (name_is_set == True and server_found == False):

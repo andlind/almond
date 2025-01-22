@@ -21,5 +21,10 @@ typedef struct PluginOutput {
         char* retString;
 } PluginOutput;
 
+typedef struct Scheduler {
+	int id;
+	time_t timestamp;
+} Scheduler;
+
 #endif
 
