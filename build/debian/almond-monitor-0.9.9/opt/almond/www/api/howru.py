@@ -384,7 +384,7 @@ def api_list_jobs(sorted=False):
                 if (sorted):
                     jobs.append(dictionary["name"])
                 else:
-                    job_obj = {'id': x, 'name': dictionary["name"]}
+                    job_obj = {'id': x, 'name': dictionary["name"], 'description': dictionary["pluginName"]}
                     jobs.append(job_obj)
                     x += 1
             if (sorted):
@@ -399,7 +399,7 @@ def api_list_jobs(sorted=False):
              if (sorted):
                  jobs.append(dictionary["name"])
              else:
-                 obj = {'id': x, 'name': dictionary["name"]}
+                 obj = {'id': x, 'name': dictionary["name"], 'description': dictionary["pluginName"]}
                  jobs.append(obj)
                  x += 1
         if (sorted):
