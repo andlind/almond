@@ -1351,10 +1351,14 @@ def api_get_plugin_file_timestamp(localOnly = False):
         load_data()
         ts = []
         for server in data['server']:
-            ts.append = server['pluginfileupdatetime'] 
+            try:
+                ts.append(server['host']['pluginfileupdatetime']) 
+            except KeyError:
+                logger.warning(server['host']['name'] + "does not supply updatetime.")
+                continue
         ts.sort(reverse=True);
-        value = int(ta[0])
-        return { 'lastmodifedtimestamp' : value }
+        value = int(ts[0])
+        return { 'lastmodifiedtimestamp' : value }
     else:
         logger.info("Running api_get_plugin_file_timestamp")
         try:
