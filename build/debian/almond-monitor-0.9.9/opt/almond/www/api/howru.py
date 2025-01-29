@@ -1343,15 +1343,30 @@ def return_job_names():
 
 @app.route('/api/unixupdatetime', methods=['GET'])
 @app.route('/howru/api/unixupdatetime', methods=['GET'])
-def api_get_plugin_file_timestamp():
-    global logger
-    logger.info("Running api_get_plugin_file_timestamp")
-    try:
-        value = int(os.path.getmtime('/etc/almond/plugins.conf'))
-    except OSError:
-        logger.warning("Could not find plugins.conf file")
-        value = -1
+def api_get_plugin_file_timestamp(localOnly = False):
+    global logger, multi_server, data
+
+    if (multi_server and not localOnly):
+        logger.info("Running api_get_plugin_file_timestamp in multi mode")
+        load_data()
+        ts = []
+        for server in data['server']:
+            ts.append = server['pluginfileupdatetime'] 
+        ts.sort(reverse=True);
+        value = int(ta[0])
+        return { 'lastmodifedtimestamp' : value }
+    else:
+        logger.info("Running api_get_plugin_file_timestamp")
+        try:
+            value = int(os.path.getmtime('/etc/almond/plugins.conf'))
+        except OSError:
+            logger.warning("Could not find plugins.conf file")
+            value = -1
     return { 'lastmodifiedtimestamp' : value }
+
+@app.route('/api/localunixupdatetime', methods=['GET'])
+@app.route('/howru/api/localunixupdatetime', methods=['GET'])
+    api_get_plufin_file_timestamp(true)
 
 @app.route('/api/unixdeploytime', methods=['GET'])
 @app.route('/howru/api/unixdeploytime', methods=['GET'])
@@ -1823,9 +1838,9 @@ def main():
         app.logger.info("Main thread exits now. Goodbye :)")
 
 # If using wsgi.py comment the two below lines
-#if __name__ == '__main__':
-#    main()
+if __name__ == '__main__':
+    main()
 
 ## If used with wsgi.py uncomment below
-if __name__ == "__main__":
-    app.run('0.0.0.0', port=80)
+#if __name__ == "__main__":
+#    app.run('0.0.0.0', port=80)
