@@ -1367,7 +1367,7 @@ def api_get_plugin_file_timestamp(localOnly = False):
 @app.route('/api/localunixupdatetime', methods=['GET'])
 @app.route('/howru/api/localunixupdatetime', methods=['GET'])
 def api_get_local_plugin_file_timestamp():
-    api_get_plugin_file_timestamp(true)
+    return api_get_plugin_file_timestamp(True)
 
 @app.route('/api/unixdeploytime', methods=['GET'])
 @app.route('/howru/api/unixdeploytime', methods=['GET'])
