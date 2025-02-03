@@ -44,6 +44,8 @@ almond_conf_file="/etc/almond/almond.conf"
 howru_conf_file="/etc/almond/api.conf"
 enable_scraper=False
 stop_background_thread = False
+run_with_wsgi=False
+wsgi_init=False
 sleep_time = 5
 aliases = []
 valid_aliases = []
@@ -155,7 +157,7 @@ def load_aliases():
 
 def load_conf():
     global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, export_file,full_metrics_file_name
-    global ssl_certificate, ssl_key, enable_scraper, mods_list
+    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list
     config = {}
     if os.path.isfile('/etc/almond/api.conf'):
         with open("/etc/almond/api.conf", "r") as conf:
@@ -193,6 +195,8 @@ def load_conf():
         multi_metrics = bool(int(config.get('api.isMetricsProxy', 0)))
     else:
         multi_metrics = False
+    if config.get('api.wsgi') is not None:
+        run_with_wsgi = bool(int(config.get('api.wsgi', 0)))
     enable_file = bool(int(config.get('api.enableFile', 0)))
     enable_ssl = bool(int(config.get('api.enableSSL', 0)))
     if config.get('api.enableGUI') is not None:
@@ -370,6 +374,7 @@ def api_list_jobs(sorted=False):
     x = 0
     logger.info("Running api_list_jobs")
     load_data()
+    check_wsgi_init()
     if (multi_server):
         server_jobs = []
         servers = data['server']
@@ -384,7 +389,7 @@ def api_list_jobs(sorted=False):
                 if (sorted):
                     jobs.append(dictionary["name"])
                 else:
-                    job_obj = {'id': x, 'name': dictionary["name"]}
+                    job_obj = {'id': x, 'name': dictionary["name"], 'description': dictionary["pluginName"]}
                     jobs.append(job_obj)
                     x += 1
             if (sorted):
@@ -399,7 +404,7 @@ def api_list_jobs(sorted=False):
              if (sorted):
                  jobs.append(dictionary["name"])
              else:
-                 obj = {'id': x, 'name': dictionary["name"]}
+                 obj = {'id': x, 'name': dictionary["name"], 'description': dictionary["pluginName"]}
                  jobs.append(obj)
                  x += 1
         if (sorted):
@@ -478,6 +483,26 @@ def api_get_maintenance_list(showAll=True):
         if not (showAll) and not maintenance_list:
             return {'maintenance_list':'empty'}
     return jsonify(maintenance_list)
+
+def check_wsgi_init():
+    global wsgi_init
+    if not (wsgi_init):
+        init_wsgi()
+
+def init_wsgi():
+    global multi_server, server_list_loaded, server_list, data, wsgi_init
+    load_conf()
+    os.chdir(data_dir)
+    if (multi_server):
+        if (server_list_loaded == 0):
+            set_file_name()
+            load_data()
+            s_data = data["server"]
+            for host in s_data:
+                server_name = host["host"]["name"]
+                server_list.append(server_name)
+            server_list_loaded = 1
+    wsgi_init = True
 
 @app.route('/', methods=['GET'])
 def home():
@@ -558,6 +583,7 @@ def api_json(response = True):
    server_found = 0
    set_file_name()
    load_data()
+   check_wsgi_init()
    logger.info("Running api_json")
    if not ('server' in request.args): 
        if (response):
@@ -614,6 +640,7 @@ def api_howareyou(response=True):
     res = "I am not sure"
     servername = ""
     
+    check_wsgi_init()
     if (multi_server):
         logger.info("Running api_howareyou (multi server mode)")
         results = {
@@ -816,6 +843,7 @@ def api_show_oks():
     name_is_set = False
     name_found = False
 
+    check_wsgi_init()
     results = []
     logger.info("Running api_show_oks")
     if (multi_server):
@@ -880,6 +908,7 @@ def api_show_not_oks():
     name_is_set = False
     name_found = False
 
+    check_wsgi_init()
     results = []
     logger.info("Running api_show_oks")
     if (multi_server):
@@ -954,6 +983,7 @@ def api_show_warnings():
     name_is_set = False
     name_found = False
 
+    check_wsgi_init()
     logger.info("Running api_show_warnings")
     if (multi_server):
         try:
@@ -1025,6 +1055,7 @@ def api_show_criticals():
     name_is_set = 0
     name_found = 0
 
+    check_wsgi_init()
     logger.info("Running api_show_criticals")
     if (multi_server):
         try:
@@ -1094,6 +1125,7 @@ def api_show_changes():
     multi_set = 0
     results = []
 
+    check_wsgi_init()
     logger.info("Running api_show_changes")
     if (multi_server):
         try:
@@ -1145,6 +1177,7 @@ def api_show_plugin(search=0, id=-1):
     id_count = 0
     results = []
 
+    check_wsgi_init()
     logger.info("Running api_show_plugins")
     if (multi_server):
         if (search == 0):
@@ -1282,6 +1315,8 @@ def api_old_plugin():
 @app.route('/howru/api/countservers', methods=['GET'])
 def api_count_servers():
     global data_dir, multi_server, logger
+
+    check_wsgi_init()
     logger.info("Running api_count_servers")
     os.chdir(data_dir)
     if (multi_server):
@@ -1297,6 +1332,9 @@ def api_count_servers():
 @app.route('/howru/api/listservers', methods=['GET'])
 def api_list_servers():
     global data, multi_server, logger
+    global server_list_loaded, server_list
+
+    check_wsgi_init()
     logger.info("Running api_list_servers")
     load_data()
     this_data = api_howareyou(False)
@@ -1316,6 +1354,8 @@ def api_list_servers():
 @app.route('/howru/api/countjobs', methods=['GET'])
 def api_count_plugin_jobs():
     global multi_server, logger, data
+
+    check_wsgi_init()
     logger.info("Running api_count_plugin_jobs")
     count = 0
     if (multi_server):
@@ -1343,15 +1383,36 @@ def return_job_names():
 
 @app.route('/api/unixupdatetime', methods=['GET'])
 @app.route('/howru/api/unixupdatetime', methods=['GET'])
-def api_get_plugin_file_timestamp():
-    global logger
-    logger.info("Running api_get_plugin_file_timestamp")
-    try:
-        value = int(os.path.getmtime('/etc/almond/plugins.conf'))
-    except OSError:
-        logger.warning("Could not find plugins.conf file")
-        value = -1
+def api_get_plugin_file_timestamp(localOnly = False):
+    global logger, multi_server, data
+
+    check_wsgi_init()
+    if (multi_server and not localOnly):
+        logger.info("Running api_get_plugin_file_timestamp in multi mode")
+        load_data()
+        ts = []
+        for server in data['server']:
+            try:
+                ts.append(server['host']['pluginfileupdatetime']) 
+            except KeyError:
+                logger.warning(server['host']['name'] + "does not supply updatetime.")
+                continue
+        ts.sort(reverse=True);
+        value = int(ts[0])
+        return { 'lastmodifiedtimestamp' : value }
+    else:
+        logger.info("Running api_get_plugin_file_timestamp")
+        try:
+            value = int(os.path.getmtime('/etc/almond/plugins.conf'))
+        except OSError:
+            logger.warning("Could not find plugins.conf file")
+            value = -1
     return { 'lastmodifiedtimestamp' : value }
+
+@app.route('/api/localunixupdatetime', methods=['GET'])
+@app.route('/howru/api/localunixupdatetime', methods=['GET'])
+def api_get_local_plugin_file_timestamp():
+    return api_get_plugin_file_timestamp(True)
 
 @app.route('/api/unixdeploytime', methods=['GET'])
 @app.route('/howru/api/unixdeploytime', methods=['GET'])
@@ -1402,6 +1463,7 @@ def api_show_server():
     set_file_name()
     load_data()
 
+    check_wsgi_init()
     logger.info("Running api_show_server")
     if 'id' in request.args:
         id = int(request.args['id'])
@@ -1688,7 +1750,7 @@ def api_prometheus_export():
             with open(file_name) as f:
                 return_list = f.readlines()
                 f.close()
-                print (return_list)
+                #print (return_list)
             if enable_scraper:
                 ret_val = []
                 for line in return_list:
@@ -1712,7 +1774,7 @@ def api_prometheus_export():
                         line = line[:-8] + ' ' + str(time_in_secs)
                     line = line + '\n'
                     ret_val.append(line)
-                print (ret_val)
+                #print (ret_val)
                 return_list = ret_val.copy()
         ret_list.extend(return_list)
     response = app.response_class(response=ret_list, status=200, mimetype='application/txt')
@@ -1822,10 +1884,9 @@ def main():
         time.sleep(1)
         app.logger.info("Main thread exits now. Goodbye :)")
 
-# If using wsgi.py comment the two below lines
-#if __name__ == '__main__':
-#    main()
-
-## If used with wsgi.py uncomment below
-if __name__ == "__main__":
-    app.run('0.0.0.0', port=80)
+if run_with_wsgi:
+    if __name__ == "__main__":
+        app.run('0.0.0.0', port=80)
+else:
+    if __name__ == '__main__':
+        main()
