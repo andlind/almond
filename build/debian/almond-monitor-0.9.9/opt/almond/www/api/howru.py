@@ -1177,7 +1177,7 @@ def api_show_plugin(search=0, id=-1):
     id_count = 0
     results = []
 
-    check_wgi_init()
+    check_wsgi_init()
     logger.info("Running api_show_plugins")
     if (multi_server):
         if (search == 0):
