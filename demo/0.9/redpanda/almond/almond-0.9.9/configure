@@ -610,8 +610,8 @@ MAKEFLAGS=
 # Identity of this package.
 PACKAGE_NAME='almond'
 PACKAGE_TARNAME='almond'
-PACKAGE_VERSION='0.9.0.2'
-PACKAGE_STRING='almond 0.9.0.2'
+PACKAGE_VERSION='0.9.9'
+PACKAGE_STRING='almond 0.9.9.0'
 PACKAGE_BUGREPORT='andreas.lindell@almondmonitor.com'
 PACKAGE_URL=''
 
