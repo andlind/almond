@@ -157,7 +157,7 @@ def load_aliases():
 
 def load_conf():
     global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, export_file,full_metrics_file_name
-    global ssl_certificate, run_with_wsgi, ssl_key, unable_scraper, mods_list
+    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list
     config = {}
     if os.path.isfile('/etc/almond/api.conf'):
         with open("/etc/almond/api.conf", "r") as conf:
@@ -1336,11 +1336,8 @@ def api_list_servers():
 
     check_wsgi_init()
     logger.info("Running api_list_servers")
-    print("load_data()")
     load_data()
-    print ("api_howareyou(False)")
     this_data = api_howareyou(False)
-    print (this_data)
     if (multi_server):
         servers = []
         server_data = this_data['server']
@@ -1753,7 +1750,7 @@ def api_prometheus_export():
             with open(file_name) as f:
                 return_list = f.readlines()
                 f.close()
-                print (return_list)
+                #print (return_list)
             if enable_scraper:
                 ret_val = []
                 for line in return_list:
@@ -1777,7 +1774,7 @@ def api_prometheus_export():
                         line = line[:-8] + ' ' + str(time_in_secs)
                     line = line + '\n'
                     ret_val.append(line)
-                print (ret_val)
+                #print (ret_val)
                 return_list = ret_val.copy()
         ret_list.extend(return_list)
     response = app.response_class(response=ret_list, status=200, mimetype='application/txt')
