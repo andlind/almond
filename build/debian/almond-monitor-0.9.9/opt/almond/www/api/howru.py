@@ -861,7 +861,7 @@ def api_show_oks():
                     name_is_set = True
             if (name_is_set == True):
                  if (s['host']['name'] == servername):
-                    res_set.append(s['host'])
+                    res_set.append({'name':s['host']['name']})
                     obj = s['monitoring']
                     for i in obj:
                         if (i['pluginStatusCode'] == "0"):
@@ -872,7 +872,7 @@ def api_show_oks():
                  else:
                      server_found = False
             else:
-                res_set.append(s['host'])
+                res_set.append({'name':s['host']['name']})
                 obj = s['monitoring']
                 for i in obj:
                     if (i['pluginStatusCode'] == "0"):
@@ -887,7 +887,7 @@ def api_show_oks():
                     }
                 ]
     else:
-        results.append(data['host'])
+        results.append({'name':data['host']['name']})
         obj = data['monitoring']
         for i in obj:
             if (i['pluginStatusCode'] == "0"):
@@ -926,7 +926,7 @@ def api_show_not_oks():
                     name_is_set = True
             if (name_is_set == True):
                  if (s['host']['name'] == servername):
-                    res_set.append(s['host'])
+                    res_set.append({'name':s['host']['name']})
                     obj = s['monitoring']
                     for i in obj:
                         j = int(i['pluginStatusCode'])
@@ -938,7 +938,7 @@ def api_show_not_oks():
                  else:
                      server_found = False
             else:
-                res_set.append(s['host'])
+                res_set.append({'name':s['host']['name']})
                 obj = s['monitoring']
                 for i in obj:
                     if (i['pluginStatusCode'] != "0"):
@@ -953,7 +953,7 @@ def api_show_not_oks():
                     }
                 ]
     else:
-        results.append(data['host'])
+        results.append({'name': data['host']['name']})
         obj = data['monitoring']
         for i in obj:
             if (int(i['pluginStatusCode']) >0):
@@ -1000,7 +1000,7 @@ def api_show_warnings():
                     name_is_set = True
             if (name_is_set == True):
                 if (s['host']['name'] == servername):
-                    res_set.append(s['host'])
+                    res_set.append({'name':s['host']['name']})
                     obj = s['monitoring']
                     for i in obj:
                         if (i['pluginStatusCode'] == "1"):
@@ -1011,7 +1011,7 @@ def api_show_warnings():
                 else:
                     server_found = False
             else:
-                res_set.append(s['host'])
+                res_set.append({'name': s['host']['name']})
                 obj = s['monitoring']
                 for i in obj:
                    if (i['pluginStatusCode'] == "1"):
@@ -1026,7 +1026,7 @@ def api_show_warnings():
                         }
                     ]
     else:
-        results.append(data['host'])
+        results.append({'name': data['host']['name']})
         obj = data['monitoring']
         for i in obj:
             if (i['pluginStatusCode'] == "1"):
@@ -1072,7 +1072,7 @@ def api_show_criticals():
                     name_is_set = 1
             if (name_is_set > 0):
                 if (s['host']['name'] == servername):
-                    res_set.append(s['host'])
+                    res_set.append({'name': s['host']['name']})
                     obj = s['monitoring']
                     for i in obj:
                         if (i['pluginStatusCode'] == "2"):
@@ -1083,7 +1083,7 @@ def api_show_criticals():
                 else:
                     name_found = 0
             else:
-                res_set.append(s['host'])
+                res_set.append({'name': s['host']['name']})
                 obj = s['monitoring']
                 for i in obj:
                     if (i['pluginStatusCode'] == "2"):
@@ -1099,7 +1099,7 @@ def api_show_criticals():
                     ]
             return jsonify(result)
     else:
-       results.append(data['host'])
+       results.append({'name': data['host']['name']})
        obj = data['monitoring']
        for i in obj:
            if (i['pluginStatusCode'] == "2"):
@@ -1136,14 +1136,14 @@ def api_show_changes():
         serv = data['server']
         for s in serv:
             res_set = []
-            res_set.append(s['host'])
+            res_set.append({'name': s['host']['name']})
             obj = s['monitoring']
             for i in obj:
                if (i['pluginStatusChanged'] == "1"):
                    res_set.append(i)
             results.append(res_set);
     else:
-       results.append(data['host'])
+       results.append({'name': data['host']['name']})
        obj = data['monitoring']
        for i in obj:
            if (i['pluginStatusChanged'] == "1"):
@@ -1244,7 +1244,7 @@ def api_show_plugin(search=0, id=-1):
         return jsonify(results)
 
     # else
-    results.append(data['host'])
+    results.append({'name': data['host']['name']})
     if (search == 0):
         if 'name' in request.args:
             name = request.args['name']
