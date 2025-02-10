@@ -26,6 +26,6 @@ docker compose -f redpanda/docker-compose.yml down
 echo "Remove docker network"
 docker network rm almond-demo
 echo "Clean up metric files"
-rm -f data/*.json
-rm -f data/metrics/*
+rm -f ~/almond_demo/data/*.json
+rm -f ~/almond_demo/data/metrics/*
 echo "Done - demo finished"
