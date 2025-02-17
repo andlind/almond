@@ -1,10 +1,10 @@
 %define name almond-monitor
-%define version 0.9.9
+%define version 0.9.9.2
 %define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        11%{?dist}
+Release:        1%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
