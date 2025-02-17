@@ -13,7 +13,7 @@ URL:            https://github.com/andlind/howru
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
-BuildRequires:  make, json-c-devel, librdkafka-devel, openssl-devel
+BuildRequires:  make, json-c-devel, librdkafka-devel, openssl-devel, zlib-devel
 Requires:       python3, python3-yaml, python3-simplejson, python3-flask, python3-gunicorn, ksh, sysstat, json-c, librdkafka
 Requires(pre):  shadow-utils
 
