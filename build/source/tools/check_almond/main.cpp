@@ -245,7 +245,6 @@ int main(int argc, char* argv[]) {
 		json_string += "\"args\":\"" + options.getCommandArgs() + "\", \"flags\":\"verbose\", ";
 		json_string += "\"token\":\"" + options.getToken() + "\"}";
 	}
-	//cout << "json_string = " << json_string << endl;
 	url = options.getHostName() + ":" + to_string(options.getPort());   
 	if (!isValidJson(json_string)) {
 		throw std::runtime_error("Invalid JSON format");
@@ -258,49 +257,21 @@ int main(int argc, char* argv[]) {
 		std::cerr << "Request failed: " << e.what() << endl;
 		return -2;
 	}
-	//cout << "Response = " << endl << response << endl;
 	if (!reader.parse(response, root)) {
         	cout << "Error parsing json" << endl;
                 return -2;
         }
 	if (runPassive) {
-		/*
-		  	"name":"check_memory",
-     			"description":"Check memory usage",
-     			"pluginStatus":"OK",
-     			"pluginStatusCode":"0",
-     			"pluginOutput":"OK  (Percent free: 71.6%, Total: 5921.44140625 MB, Used: 960.28515625 MB, Buffers: 104.9765625 MB, Cached: 1956.34375 MB) | free=71.6 total=5921.44140625 used=960.28515625 buffers=104.9765625 cached=1956.34375",
-     			"pluginStatusChanged":"0",
-     			"lastChange":"2025-02-20 12:31:02",
-     			"lastRun":"2025-02-20 12:35:42",
-     			"nextScheduledRun":"2025-02-20 12:36:41
-		*/
 		string sCode = root["pluginStatusCode"].asString();
 		retCode = stoi(sCode);
 		string output = root["pluginOutput"].asString();
 		cout << output << endl;
 	}
 	else {
-		// parse the active json
 		string sCode = root["result"]["pluginStatusCode"].asString();
 		retCode = stoi(sCode);
 		string output = root["result"]["pluginOutput"].asString();
 		cout << output << endl;
-		/*
-		{
-     			"executePlugin":"check_memory",
-      			"result": {
-          			"name":"check_memory",
-          			"description":"Check memory usage",
-          			"pluginStatus":"OK",
-          			"pluginStatusCode":"0",
-          			"pluginOutput":"OK  (Percent free: 71.5%, Total: 5921.44140625 MB, Used: 964.98046875 MB, Buffers: 105.28515625 MB, Cached: 1918.4453125 MB) | free=71.5 total=5921.44140625 used=964.98046875 buffers=105.28515625 cached=1918.4453125",
-          			"pluginStatusChanged":"0",
-          			"lastChange":"2025-02-20 12:31:02",
-          			"lastRun":"2025-02-20 12:39:39",
-          			"nextScheduledRun":"2025-02-20 12:40:39"
-     			}
-		}*/
 	}
 
 	return retCode;
