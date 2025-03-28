@@ -289,7 +289,7 @@ def main():
     else:
         latency = accepted_latency
 
-    url = 'http://' + api_server + ":" + str(port) + '/howru/monitoring/' + api_call
+    url = 'http://' + api_server + ":" + str(port) + '/api/' + api_call
     
     if (check_id == 0):
         if (check_name == 'None'):
