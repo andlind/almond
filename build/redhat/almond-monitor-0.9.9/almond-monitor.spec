@@ -1,5 +1,5 @@
 %define name almond-monitor
-%define version 0.9.9.2
+%define version 0.9.9.3
 %define _build_id_links none
 
 Name:           %{name}
@@ -94,8 +94,12 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Fri May 23 2025 0.9.9.3
+<andreas.lindell@almondmonitor.com>
+- Adding log tab to Howru API admin page
+- Small buggfixes
 * Mon Jan 20 2025 0.9.9
-<andreas.lindell@almond.monitor.com
+<andreas.lindell@almondmonitor.com
 - Code refactoring, bugg fixes
 - HowRU updates, integration API:s
 * Mon Jan 13 2025 0.9.8
