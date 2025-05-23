@@ -435,6 +435,7 @@ def execute_plugin_object(id):
     totalsent = 0
 
     if (almond_api):
+        clientSocket = None
         try:
             clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         except socket.error as e:
@@ -448,17 +449,20 @@ def execute_plugin_object(id):
         except socket.error as e:
             print ("Connection error: %s" % e)
             return 2;
-        data = '{"action":"execute", "id":"' + str(id) + '"}'
+        data = f'{{"action":"execute", "id":"{id}", "token":"xtw%p15899764887938680313afghk"}}'
         try:
             clientSocket.send(data.encode())
         except socket.error as e:
-            print ("Error sending data: %s" % e) 
+            print ("Error sending data: %s" % e)
             return 2;
-        try:
+        try: 
             retVal = clientSocket.recv(1024)
         except socket.error as e:
             print ("Error receiving data: %s" % e)
             return 1;
+        finally:
+            if clientSocket:
+                clientSocket.close()
         if not len(retVal):
             print ("No retVal len\n")
         # Return value

@@ -43,6 +43,7 @@ cp almond.conf %{buildroot}/etc/almond/
 cp plugins.conf %{buildroot}/etc/almond/
 cp aliases.conf %{buildroot}/etc/almond/
 cp memalloc.conf %{buildroot}/etc/almond/
+cp tokens %{buildroot}/etc/almond/
 cp gardener.py %{buildroot}/opt/almond/
 cp howru %{buildroot}/opt/almond/
 cp memalloc.alm %{buildroot}/opt/almond/
@@ -64,6 +65,7 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/plugins.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/aliases.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/memalloc.conf
+%attr(0644,almond,almond) %config(noreplace) /etc/almond/tokens
 %attr(0600,almond,almond) /opt/almond/memalloc.alm
 %attr(0600,almond,almond) /opt/almond/api_cmd/apicmd.inf
 %attr(0755,almond,almond) /opt/almond/gardener.py
@@ -97,6 +99,7 @@ fi
 * Fri May 23 2025 0.9.9.3
 <andreas.lindell@almondmonitor.com>
 - Adding log tab to Howru API admin page
+- Adding howru token to installation
 - Small buggfixes
 * Mon Jan 20 2025 0.9.9
 <andreas.lindell@almondmonitor.com
