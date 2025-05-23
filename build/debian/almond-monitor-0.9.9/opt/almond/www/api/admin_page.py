@@ -435,14 +435,19 @@ def execute_plugin_object(id):
     totalsent = 0
 
     if (almond_api):
+        #if in container
+        #container_ip = socket.gethostbyname(socket.gethostname())
         clientSocket = None
         try:
             clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            clientSocket.settimeout(30)
         except socket.error as e:
             print ("Error creating socket: %s" % e)
             return 2;
         try:
             clientSocket.connect(("127.0.0.1",almond_port))
+            #if in container
+            #clientSocket.connect((container_ip, almond_port))
         except socket.gaierror as e:
             print ("Address-related error connecting to server: %s" % e)
             return 1;
