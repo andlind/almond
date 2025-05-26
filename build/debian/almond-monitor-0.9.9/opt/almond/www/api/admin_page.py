@@ -12,6 +12,7 @@ from flask_httpauth import HTTPBasicAuth
 from flask import render_template, session, request, make_response, redirect
 import matplotlib.pyplot as plt
 from werkzeug.security import check_password_hash, generate_password_hash
+from collections import deque
 from venv import logger
 
 admin_page = Blueprint('admin_page', __name__, template_folder='templates')
@@ -434,30 +435,39 @@ def execute_plugin_object(id):
     totalsent = 0
 
     if (almond_api):
+        #if in container
+        #container_ip = socket.gethostbyname(socket.gethostname())
+        clientSocket = None
         try:
             clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            clientSocket.settimeout(30)
         except socket.error as e:
             print ("Error creating socket: %s" % e)
             return 2;
         try:
             clientSocket.connect(("127.0.0.1",almond_port))
+            #if in container
+            #clientSocket.connect((container_ip, almond_port))
         except socket.gaierror as e:
             print ("Address-related error connecting to server: %s" % e)
             return 1;
         except socket.error as e:
             print ("Connection error: %s" % e)
             return 2;
-        data = '{"action":"execute", "id":"' + str(id) + '"}'
+        data = f'{{"action":"execute", "id":"{id}", "token":"xtw%p15899764887938680313afghk"}}'
         try:
             clientSocket.send(data.encode())
         except socket.error as e:
-            print ("Error sending data: %s" % e) 
+            print ("Error sending data: %s" % e)
             return 2;
-        try:
+        try: 
             retVal = clientSocket.recv(1024)
         except socket.error as e:
             print ("Error receiving data: %s" % e)
             return 1;
+        finally:
+            if clientSocket:
+                clientSocket.close()
         if not len(retVal):
             print ("No retVal len\n")
         # Return value
@@ -507,6 +517,10 @@ def compare_lists(list1, list2):
         if element not in list2:
             return_list.append(element)
     return return_list
+
+def get_logs(dir):
+    logfiles = next(walk(dir), (None, None, []))[2]
+    return logfiles
 
 def set_graph_names():
     global plugins, graph_names
@@ -982,6 +996,29 @@ def index():
             else:
                 logger.info("Rendering template show_metrics.html")
                 return render_template("show_metrics.html", user_image=image_file, avatar=almond_avatar)
+        if (action_type == "show_log"):
+            logger.info("Received action_type 'show_log'")
+            if not enable_gui:
+                return render_template("403.html")
+            log_selection = request.form['logfile']
+            if not log_selection == -1:
+                file_name = '/var/log/almond/' + log_selection
+                try:
+                    limit = int(request.form['limit'])
+                except ValueError:
+                    limit = 100
+                except KeyError:
+                    limit = 100
+                with open(file_name, 'r') as file:
+                    lines = deque(file, maxlen=limit)
+                    file.close()
+                log = list(lines)
+                log.reverse()
+                logger.info("Rendering template show_log_a.html")
+                return render_template("show_log_a.html", log_name=log_selection, log=log, logo_image=image_file, avatar=almond_avatar)
+            else:
+                return render_template("show_log_a.html", log_name="None", log="No file selected", logo_image=image_file, avatar=almond_avatar)
+
         if (action_type == "actionapi"):
             logger.info("Received action_type 'actionapi'")
             action_id = int(request.form["action_id"])
@@ -1214,6 +1251,10 @@ def index():
     elif page == 'docs':
         logger.info("Rendering template documentation_a.html")
         return render_template('documentation_a.html', user_image=image_file, avatar=almond_avatar) 
+    elif page == 'logs':
+        logs_list = get_logs('/var/log/almond/')
+        logger.info("Rendering template logs.html")
+        return render_template('logs.html', logo_image=image_file, avatar=almond_avatar, logfiles=logs_list)
     elif page == 'metrics':
         metrics_list = []
         for f in os.listdir(store_dir):
