@@ -15,6 +15,7 @@
 #include <math.h>
 #include <zlib.h>
 #include <stddef.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -1241,12 +1242,13 @@ int runApiCmds(char * cmd) {
         return 0;
 }
 
-int checkApiCmds() {
+
+/*int checkApiCmds() {
         DIR *d;
         struct dirent *entry;
         if (!(d = opendir("/opt/almond/api_cmd"))) {
                 perror("Failed to open directory");
-		writeLog("Failed to open command file directory.", 1, 0);
+                writeLog("Failed to open command file directory.", 1, 0);
                 return 1;
         }
         while ((entry = readdir(d)) != NULL) {
@@ -1255,7 +1257,47 @@ int checkApiCmds() {
                 }
         }
         return 0;
+}*/
+
+int checkApiCmds() {
+    DIR *d;
+    struct dirent *entry;
+    const char *dirPath = "/opt/almond/api_cmd";  // Define your directory path
+
+    if (!(d = opendir(dirPath))) {
+        perror("Failed to open directory");
+        writeLog("Failed to open command file directory.", 1, 0);
+        return 1;
+    }
+
+    while ((entry = readdir(d)) != NULL) {
+        size_t len = strlen(entry->d_name);
+        // Skip filenames that are too short to have the extension ".cmd"
+        if (len < 4)
+            continue;
+
+        // Check that the file name ends with ".cmd"
+        if (strcmp(entry->d_name + len - 4, ".cmd") != 0)
+            continue;
+
+        // Check file type based on d_type
+        if (entry->d_type == DT_REG) {
+            runApiCmds(entry->d_name);
+        }
+        else if (entry->d_type == DT_UNKNOWN) {
+            // Build the full path for stat() check
+            char fullPath[PATH_MAX];
+            snprintf(fullPath, sizeof(fullPath), "%s/%s", dirPath, entry->d_name);
+            struct stat st;
+            if (stat(fullPath, &st) == 0 && S_ISREG(st.st_mode)) {
+                runApiCmds(entry->d_name);
+            }
+        }
+    }
+    closedir(d);
+    return 0;
 }
+
 
 void initConstants() {
 	logmessage = calloc(logmessage_size+1, sizeof(char));
@@ -5421,6 +5463,10 @@ void runPluginCommand(int index, char* command) {
 	if (fp == NULL) {
 		printf("Failed to run command\n");
 		writeLog("Failed to run command.", 1, 0);
+		// Update with failed run
+		outputs[index].retCode = 3;
+		strncpy(outputs[index].retString, "UNKNOWN: Failed to run command", pluginoutput_size);
+		return;
 	}
         while (fgets(pluginReturnString, pluginmessage_size, fp) != NULL) {
 		// // VERBOSE  printf("%s", pluginReturnString);
@@ -7093,7 +7139,7 @@ void initialLogging() {
         printf("Starting almond version %s.\n", VERSION);
         initConstants();
         writeLog("Almond constants initialized.", 0, 1);
-        writeLog("Starting almond (0.9.9.2)...", 0, 1);
+        writeLog("Starting almond (0.9.9.3)...", 0, 1);
 }
 
 int closeFileHandler() {
