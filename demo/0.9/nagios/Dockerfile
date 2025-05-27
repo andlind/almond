@@ -15,7 +15,6 @@ RUN mkdir -p /var/log/almond
 RUN chmod +x /opt/almond/almond-nagios-integration
 RUN chmod +x /opt/almond/start_integration.sh
 RUN chmod +x /opt/almond/scripts/restart_nagios_process.sh
-RUN chown nagios:nagios /opt/nagios/var/rw/nagios.cmd
 
 EXPOSE 80 
 
