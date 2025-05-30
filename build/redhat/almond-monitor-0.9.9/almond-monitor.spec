@@ -1,5 +1,5 @@
 %define name almond-monitor
-%define version 0.9.9.3
+%define version 0.9.9.5
 %define _build_id_links none
 
 Name:           %{name}
@@ -73,6 +73,7 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0755,almond,almond) /opt/almond/www/api/rs.sh
 %attr(0755,almond,almond) /opt/almond/utilities/almond-token-generator
 %attr(0755,almond,almond) /opt/almond/utilities/almond-collector
+%attr(0755,almond,almond) /opt/almond/utilities/check_almond
 %attr(0644,almond,almond) /opt/almond/templates/metrics.template
 %attr(0770,almond,almond) /opt/almond/almond
 %attr(0755,almond,almond) /var/log/almond/
@@ -96,6 +97,13 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Fri May 30 2025 0.9.9.5
+<andreas.lindell@almondmonitor.com>
+- Almond option to use external scheduler
+- Source code change logging as own code element
+* Wed May 28 2025 0.9.9.4
+<andreas.lindell@almondmonitor.com>
+- Bugfix and improved code in Almond
 * Fri May 23 2025 0.9.9.3
 <andreas.lindell@almondmonitor.com>
 - Adding log tab to Howru API admin page
