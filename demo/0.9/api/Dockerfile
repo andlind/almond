@@ -1,5 +1,6 @@
 FROM andreaslindell72/almond-monitor:latest
-MAINTAINER Andreas Lindell version: 0.9.9
+LABEL org.opencontainers.image.authors="andreas.lindell@almondmonitor.com"
+LABEL version="0.9.9.5"
 
 RUN yum update -y && yum upgrade -y
 
