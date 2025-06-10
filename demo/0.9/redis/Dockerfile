@@ -5,7 +5,7 @@ RUN mkdir -p /var/log/almond
 RUN mkdir -p /opt/almond/plugins
 RUN apt update -y && apt install gcc make automake -y
 RUN apt install libjson-c-dev librdkafka-dev autoconf zlib1g-dev -y
-RUN apt install libssl-dev sysstat ksh python3-psutil iputils-ping procps -y
+RUN apt install libssl-dev libredis-perl sysstat ksh python3-psutil iputils-ping procps -y
 RUN apt install supervisor wget -y && apt upgrade -y
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY apps.conf /etc/supervisord/conf.d/apps.conf
