@@ -12,6 +12,7 @@ from venv import logger
 from flask import request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
 from werkzeug.datastructures import MultiDict
 from admin_page import admin_page
+from auth2fa import auth_blueprint
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -27,6 +28,7 @@ enable_gui = False
 enable_mods = False
 ausername = ''
 apassword = ''
+admin_auth_type='2fa'
 server_list_loaded = 0
 server_list = []
 mods_list = []
@@ -54,10 +56,11 @@ ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
-current_version = '0.9.9-5'
+current_version = '0.9.9.6'
 
 app.secret_key = 'BAD_SECRET_KEY'
 app.register_blueprint(admin_page)
+app.register_blueprint(auth_blueprint)
 
 def findPos(entry):
     pos = entry.find('=')
@@ -157,7 +160,7 @@ def load_aliases():
 
 def load_conf():
     global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, export_file,full_metrics_file_name
-    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list
+    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list, admin_auth_type
     config = {}
     if os.path.isfile('/etc/almond/api.conf'):
         with open("/etc/almond/api.conf", "r") as conf:
@@ -219,6 +222,8 @@ def load_conf():
         ausername = config.get('api.adminuser')
     if config.get('api.adminPassword') is not None:
         apassword = config.get('api.adminpassword')
+    admin_auth_type = config.get('api.auth_type', 'basic')
+    print("DEBUG: admin_auth_type = ", admin_auth_type)
         
     data_file = data_dir 
     data_file = data_dir + "/" + json_file
@@ -1845,6 +1850,7 @@ def main():
     global sleep_time
     global enable_mods
     global app_started
+    global admin_auth_type
     logging.basicConfig(filename='/var/log/almond/howru.log', filemode='a', format='%(asctime)s | %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -1856,6 +1862,8 @@ def main():
     app.logger.info('Starting howru api (version:' + current_version + ')')
     use_port = load_conf()
     app.logger.info("Configuration read.")
+    app.config['AUTH_TYPE'] = admin_auth_type
+    print("DEBUG: AUTH_TYPE = ", app.config['AUTH_TYPE'])
     use_ssl = useCertificate()
     context = getCertificates()
     tCheck = threading.Thread(target=check_config, daemon=True)
