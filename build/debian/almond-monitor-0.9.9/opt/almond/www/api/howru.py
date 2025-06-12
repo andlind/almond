@@ -48,6 +48,7 @@ enable_scraper=False
 stop_background_thread = False
 run_with_wsgi=False
 wsgi_init=False
+is_container=False
 sleep_time = 5
 aliases = []
 valid_aliases = []
@@ -160,7 +161,7 @@ def load_aliases():
 
 def load_conf():
     global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, export_file,full_metrics_file_name
-    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list, admin_auth_type
+    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list, admin_auth_type, is_container
     config = {}
     if os.path.isfile('/etc/almond/api.conf'):
         with open("/etc/almond/api.conf", "r") as conf:
@@ -215,6 +216,7 @@ def load_conf():
         ssl_key = config.get('api.sslKey', '/opt/almond/www/api/certificate.key')
     start_page = config.get('api.startPage', 'api')
     enable_scraper = bool(int(config.get('api.enableScraper', 1)))
+    is_container = bool(int(config.get('api.isContainer', 0)))
     enable_aliases = bool(int(config.get('api.enableAliases', 0)))
     if enable_aliases:
         load_aliases()
@@ -1863,6 +1865,10 @@ def main():
     use_port = load_conf()
     app.logger.info("Configuration read.")
     app.config['AUTH_TYPE'] = admin_auth_type
+    if is_container:
+        app.config['IS_CONTAINER'] = 'true'
+    else:
+        app.config['IS_CONTAINER'] = 'false'
     print("DEBUG: AUTH_TYPE = ", app.config['AUTH_TYPE'])
     use_ssl = useCertificate()
     context = getCertificates()

@@ -26,7 +26,7 @@ api_conf = []
 scheduler_conf = []
 extra_conf = []
 graph_names = {}
-api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.authType', 'api.bindPort', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'api.wsgi', 'data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
+api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.authType', 'api.bindPort', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir','api.isContainer', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'api.wsgi', 'data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
 scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'almond.useSSL', 'almond.certificate', 'almond.key', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.useTLS', 'scheduler.certificate', 'scheduler.key','scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.truncateLog', 'scheduler.truncateLogInterval', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.enableKafkaId', 'scheduler.kafkaStartId', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'scheduler.type', 'gardener.CleanUpTime']
 users = {}
 current_version = '0.9.9.6'
@@ -34,6 +34,7 @@ current_version = '0.9.9.6'
 enable_gui = True
 standalone = True
 almond_api = False
+is_container = False
 logger_enabled = False
 almond_port = 9909
 jasonFile = '/opt/almond/data/monitor.json'
@@ -503,12 +504,16 @@ def execute_plugin_object(id):
     # Check if almond is binding and on which port
     global almond_api
     global almond_port
+    global is_container
 
     totalsent = 0
+    is_container = current_app.config['IS_CONTAINER']
 
     if (almond_api):
         #if in container
         #container_ip = socket.gethostbyname(socket.gethostname())
+        if is_container == 'true':
+            container_ip = socket.gethostbyname(socket.gethostname())
         clientSocket = None
         try:
             clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -518,8 +523,10 @@ def execute_plugin_object(id):
             return 2;
         try:
             #if in container
-            #clientSocket.connect((container_ip, almond_port))
-            clientSocket.connect(("127.0.0.1",almond_port))
+            if is_container == 'true':
+                clientSocket.connect((container_ip, almond_port))
+            else:
+                clientSocket.connect(("127.0.0.1",almond_port))
         except socket.gaierror as e:
             print ("Address-related error connecting to server: %s" % e)
             return 1;
@@ -1470,10 +1477,16 @@ def index():
         return render_template("graph.html", user_image = image_file, name="Trend chart", url=save_name, uptime=str(uptime))
     elif page == 'logout':
         almond_img = '/static/almond.png'
+        a_auth_type = current_app.config['AUTH_TYPE']
         logger.info("User " + session['user'] + " logged out.")
         session.pop('login', None)
         session.pop('user', None)
-        logger.info("Rendering template login_a.html")
-        return render_template('login_a.html', logon_image=almond_img)
+        if (a_auth_type == "2fa"):
+            session.pop('authenticated', None)
+            logger.info("Rendering template login_fa.html")
+            return render_template('login_fa.html', logon_image=almond_img)
+        else:
+            logger.info("Rendering template login_a.html")
+            return render_template('login_a.html', logon_image=almond_img)
     else:
         return page
