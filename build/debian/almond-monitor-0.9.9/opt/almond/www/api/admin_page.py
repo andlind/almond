@@ -26,7 +26,7 @@ api_conf = []
 scheduler_conf = []
 extra_conf = []
 graph_names = {}
-api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.auth_type', 'api.bindPort', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'api.wsgi', 'data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
+api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.authType', 'api.bindPort', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'api.wsgi', 'data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
 scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'almond.useSSL', 'almond.certificate', 'almond.key', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.useTLS', 'scheduler.certificate', 'scheduler.key','scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.truncateLog', 'scheduler.truncateLogInterval', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.enableKafkaId', 'scheduler.kafkaStartId', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'scheduler.type', 'gardener.CleanUpTime']
 users = {}
 current_version = '0.9.9.6'
@@ -149,24 +149,93 @@ def load_api_conf():
 def set_new_password(username, password):
     global admin_user_file
 
-    update_credentials = True
-    if len(username.strip()) < 4:
-        # Username should contain at least 4 characters
-        update_credentials = False
-    if len(password.strip()) < 6:
-        # Password should contain at least 6 characters
-        update_credentials = False
-    users = {
-        username: generate_password_hash(password.strip())
-    }
-    if update_credentials:
-        with open(admin_user_file, "w") as f:
-            f.write(json.dumps(users))
-        info = "Credentials updated."
-    else:
+    # Ensure we remove leading/trailing whitespace
+    username = username.strip()
+    password = password.strip()
+
+    print("DEBUG: Set password for '{}' as password '{}'".format(username, password))
+    logger.info(session['user'] + " trying to set new password for user '" + username + "'.")
+
+    # Validate input upfront
+    if len(username) < 4 or len(password) < 6:
         info = "Error updating credentials"
-    print ("New password credentials set")
+        logger.warning("Failed updating password for user '" + username + "'.")
+        return info
+
+    # Merge all user entries into one dictionary
+    user_data = {}
+    with open(admin_user_file, 'r') as file:
+        for line in file:
+            try:
+                # Each line should be a JSON object with a single key-value pair
+                entry = json.loads(line.strip())
+                user_data.update(entry)
+            except json.JSONDecodeError:
+                logger.error("JSON decoding failed for line: '{}'".format(line.strip()))
+                continue
+
+    # Debug: log the old password hash if it exists
+    old_hash = user_data.get(username)
+    logger.debug("OLD HASH for user '{}': {}".format(username, old_hash))
+
+    # Generate new hash and update the user entry
+    new_hash = generate_password_hash(password)
+    logger.debug("NEW HASH for user '{}': {}".format(username, new_hash))
+    user_data[username] = new_hash
+
+    # Write all user credentials back to the file
+    with open(admin_user_file, 'w') as file:
+        for user, pwd_hash in user_data.items():
+            file.write(json.dumps({user: pwd_hash}) + "\n")
+
+    info = "Credentials updated."
+    logger.info("Password updated for user '{}'.".format(username))
     return info
+
+#def set_new_password(username, password):
+#    global admin_user_file
+#
+#    lines = []
+#    filtered_lines = []
+#    print("DEBUG: Set password for %s as password %s" % (username, password))
+#    logger.info(session['user'] + " trying to set new password for user '" + username + "'.")
+#    update_credentials = True
+#    if len(username.strip()) < 4:
+#        # Username should contain at least 4 characters
+#        update_credentials = False
+#    if len(password.strip()) < 6:
+#        # Password should contain at least 6 characters
+#        update_credentials = False
+#    #users = {
+#    #    username: generate_password_hash(password.strip())
+#    #}
+#    if update_credentials:
+#        # remove old first
+#        with open(admin_user_file, 'r') as file:
+#            lines = file.readlines()
+#            #filtered_lines = [line for line in lines if username.lower() not in line.lower()]
+#        for line in lines:
+#            try:
+#                user_data = json.loads(line.strip())
+#                if username not in user_data.keys():
+#                    filtered_lines.append(line.strip() + '\n')
+#            except json.JSONDecodeError:
+#                continue
+#
+#        with open(admin_user_file, 'w') as file:
+#            #file.writelines(filtered_lines)
+#            #file.write(json.dumps(users))
+#            #file.writelines(line.rstrip('\n') + '\n' for line in filtered_lines) 
+#            #file.write(json.dumps(users) + '\n') 
+#            file.writelines(filtered_lines)
+#            file.write(json.dumps({username: generate_password_hash(password.strip())}) + '\n')
+#
+#        info = "Credentials updated."
+#        logger.info("Password updated for user '" + username + "'.")
+#    else:
+#        info = "Error updating credentials"
+#        logger.warning("Failed updating password for user '" + username + "'.")    
+#    return info
 
 def delete_user_entries():
     new_lines = []
@@ -441,16 +510,16 @@ def execute_plugin_object(id):
         #if in container
         #container_ip = socket.gethostbyname(socket.gethostname())
         clientSocket = None
-        try: 
+        try:
             clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             clientSocket.settimeout(30)
         except socket.error as e:
             print ("Error creating socket: %s" % e)
             return 2;
         try:
-            clientSocket.connect(("127.0.0.1",almond_port))
             #if in container
             #clientSocket.connect((container_ip, almond_port))
+            clientSocket.connect(("127.0.0.1",almond_port))
         except socket.gaierror as e:
             print ("Address-related error connecting to server: %s" % e)
             return 1;
@@ -634,10 +703,34 @@ def restart_api():
 #}
 
 #@auth.verify_password
+#def verify_password(username, password):
+#    global admin_user_file
+#    if os.path.isfile(admin_user_file):
+#        users = json.load(open(admin_user_file))
+#    else:
+#        users = {}
+#    if username in users:
+#        return check_password_hash(users.get(username), password)
+#    return False
+
 def verify_password(username, password):
-    global admin_user_file
+    global admin_user_file, users
+    users = {}
+    print("DEBUG: Verify password for %s with password %s" % (username, password))
     if os.path.isfile(admin_user_file):
-        users = json.load(open(admin_user_file))
+        with open(admin_user_file, 'r') as f:
+            for line_num, line in enumerate(f, 1):
+                print ("DEBUG: ", line.strip())
+                try:
+                    user_data = json.loads(line.strip())
+                    print("DEBUG: ", user_data)
+                    #username = list(user_data.keys())[0]
+                    #users[username] = user_data[username]
+                    for user_key, hash_value in user_data.items():
+                        users[user_key] = hash_value
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Invalid JSON format at line {line_num}: {str(e)}")
+                    continue
     else:
         users = {}
     if username in users:
@@ -690,12 +783,24 @@ def index():
         logger.warning("Invalid userfile")
         return make_response("Invalid userfile", 404, headers);
 
-    users = json.load(open(admin_user_file))
-    username = users.get(username)
-    password = ""
+    #users = json.load(open(admin_user_file))
+    #with open(admin_user_file, 'r') as f:
+    #    for line_num, line in enumerate(f, 1):
+    #        print ("DEBUG: ", line.strip())
+    #        try:
+    #            user_data = json.loads(line.strip())
+    #            print("DEBUG: ", user_data)
+    #            username = list(user_data.keys())[0]
+    #            users[username] = user_data[username]
+    #        except json.JSONDecodeError as e:
+    #            print(f"Warning: Invalid JSON format at line {line_num}: {str(e)}")
+    #            continue
+    #username = users.get(username)
+    #password = ""
     if ('action_type' in request.form):
         if 'login' in session:
             session['login'] = 'true'
+            session['user'] = session['user']
         else:
             if (request.form['action_type'] == "create_session"):
                 print ("Login")
@@ -712,10 +817,19 @@ def index():
                     return render_template('login_a.html', logon_image=logon_img)
         action_type = request.form['action_type']
         if action_type == "create_session":
+            print ("DEBUG: Create session");
             username = request.form['uname']
             password = request.form['psw']
+            print ("DEBUG: User/Pwd = %s | %s " % (username, password))
             if verify_password(username.strip(), password.strip()):
+                logger.info("User " + username.strip() + " logged in to new session")
                 session['login'] = 'true'
+                session['user'] = username.strip()
+            else:
+                logger.warning("Failed login for user " + username.strip())
+                session['login'] = 'false'
+                session.pop('login', None)
+                session.pop('user', None)
         if action_type == 'change_credentials':
             info = ''
             username = request.form['username']
@@ -1129,6 +1243,7 @@ def index():
         logger.info("Checking session page")
         if 'login' in session:
             session['login'] = 'true'
+            session['user'] = session['user']
             howru_state = check_service_state("howru")
             almond_state = check_service_state("almond")
             data = load_status_data()
@@ -1155,6 +1270,7 @@ def index():
         page = request.args.get('page')
         if 'login' in session:
             session['login'] = 'true'
+            session['user'] = session['user']
         else:
             logger.info("No login in session. Rendering template login_a.html")
             return render_template('login_a.html', logon_image=logon_img) 
@@ -1354,7 +1470,9 @@ def index():
         return render_template("graph.html", user_image = image_file, name="Trend chart", url=save_name, uptime=str(uptime))
     elif page == 'logout':
         almond_img = '/static/almond.png'
+        logger.info("User " + session['user'] + " logged out.")
         session.pop('login', None)
+        session.pop('user', None)
         logger.info("Rendering template login_a.html")
         return render_template('login_a.html', logon_image=almond_img)
     else:

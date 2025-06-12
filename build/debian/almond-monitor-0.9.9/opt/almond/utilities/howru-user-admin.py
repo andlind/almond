@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import json
 import os
 import time
@@ -20,13 +21,16 @@ def validate_password(password):
 
 def verify_password(username, password):
     global admin_user_file, users
+    users = {}
     if os.path.isfile(admin_user_file):
         with open(admin_user_file, 'r') as f:
             for line_num, line in enumerate(f, 1):
                 try:
                     user_data = json.loads(line.strip())
-                    username = list(user_data.keys())[0]
-                    users[username] = user_data[username]
+                    #username = list(user_data.keys())[0]
+                    #users[username] = user_data[username]
+                    for user_key, hash_value in user_data.items():
+                        users[user_key] = hash_value
                 except json.JSONDecodeError as e:
                     print(f"Warning: Invalid JSON format at line {line_num}: {str(e)}")
                     continue

@@ -222,7 +222,7 @@ def load_conf():
         ausername = config.get('api.adminuser')
     if config.get('api.adminPassword') is not None:
         apassword = config.get('api.adminpassword')
-    admin_auth_type = config.get('api.auth_type', 'basic')
+    admin_auth_type = config.get('api.authType', 'basic')
     print("DEBUG: admin_auth_type = ", admin_auth_type)
         
     data_file = data_dir 
