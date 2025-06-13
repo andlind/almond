@@ -225,7 +225,6 @@ def load_conf():
     if config.get('api.adminPassword') is not None:
         apassword = config.get('api.adminpassword')
     admin_auth_type = config.get('api.authType', 'basic')
-    print("DEBUG: admin_auth_type = ", admin_auth_type)
         
     data_file = data_dir 
     data_file = data_dir + "/" + json_file
@@ -1869,7 +1868,6 @@ def main():
         app.config['IS_CONTAINER'] = 'true'
     else:
         app.config['IS_CONTAINER'] = 'false'
-    print("DEBUG: AUTH_TYPE = ", app.config['AUTH_TYPE'])
     use_ssl = useCertificate()
     context = getCertificates()
     tCheck = threading.Thread(target=check_config, daemon=True)

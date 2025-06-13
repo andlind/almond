@@ -4,30 +4,37 @@ import json
 import pyotp
 import qrcode
 import socket
+import logging
 from werkzeug.security import check_password_hash
 from flask import Blueprint, render_template_string, request, redirect, url_for, session, send_file
 from flask import current_app, render_template
+from venv import logger
 
 auth_blueprint = Blueprint('auth', __name__)
 
 logon_img = '/static/almond.png'
-# For demonstration purposes, store user secrets in a dictionary.
-# In production, securely store these in your database.
 admin_user_file = '/etc/almond/users.conf'
 is_container = 'false'
+logging_on = False
 user_secrets = {}
+
+def init_logging():
+     logging.basicConfig(filename='/var/log/almond/howru.log', filemode='a', format='%(asctime)s | %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+     logger = logging.getLogger()
+     logger.setLevel(logging.DEBUG)
+     logger_on = True
 
 def verify_password(username, password):
     global admin_user_file, users
     users = {}
-    print("DEBUG: Verify password for %s with password %s" % (username, password))
+    #print("DEBUG: Verify password for %s with password %s" % (username, password))
     if os.path.isfile(admin_user_file):
         with open(admin_user_file, 'r') as f:
             for line_num, line in enumerate(f, 1):
                 print ("DEBUG: ", line.strip())
                 try:
                     user_data = json.loads(line.strip())
-                    print("DEBUG: ", user_data)
+                    #print("DEBUG: ", user_data)
                     #username = list(user_data.keys())[0]
                     #users[username] = user_data[username]
                     for user_key, hash_value in user_data.items():
@@ -40,24 +47,6 @@ def verify_password(username, password):
     if username in users:
         return check_password_hash(users.get(username), password)
     return False
-
-#def verify_password(username, password):
-#    global admin_user_file, users
-#    if os.path.isfile(admin_user_file):
-#        with open(admin_user_file, 'r') as f:
-#            for line_num, line in enumerate(f, 1):
-#                try:
-#                    user_data = json.loads(line.strip())
-#                    username = list(user_data.keys())[0]
-#                    users[username] = user_data[username]
-#                except json.JSONDecodeError as e:
-#                    print(f"Warning: Invalid JSON format at line {line_num}: {str(e)}")
-#                    continue
-#    else:
-#        users = {}
-#    if username in users:
-#        return check_password_hash(users.get(username), password)
-#    return False
 
 def generate_qr_code(data):
     qr = qrcode.QRCode(
@@ -75,10 +64,11 @@ def generate_qr_code(data):
 def enable_2fa(username):
     global issuer
     # Generate a new TOTP secret for the user
+    logger.info("Auth2fa: Generating a new TOTP secret for user '" + username + "'")
     user_secret = pyotp.random_base32()
     user_secrets[username] = user_secret
-    print("User_secret:", user_secret)
-    print("Debug - Secret key for {}: {}".format(username, user_secret))
+    #print("User_secret:", user_secret)
+    #print("Debug - Secret key for {}: {}".format(username, user_secret))
 
     # Create the provisioning URI for the authenticator app
     totp = pyotp.TOTP(user_secret)
@@ -91,34 +81,35 @@ def enable_2fa(username):
                 key, value = parse_line(line)
                 config[key] = value
         issuer = issuer + config.get('scheduler.hostName', socket.gethostname())
-        print("DEBUG: IS containerized")
     else:
         issuer = issuer + socket.gethostname()
+    logger.info("Auth2fa: 2FA is enabled for user '" + username + "'. Auth2fa issuer is set to be '" + issuer + "'.")
     provisioning_uri = totp.provisioning_uri(name=username, issuer_name=issuer)
-    #print("Provisioning URI:", provisioning_uri)
 
     # Render a simple HTML page with the QR code image embedded
     a_auth_type = current_app.config['AUTH_TYPE']
-    html = '''
-        <h1>Enable Two-Factor Authentication for {{ username }}</h1>
-        <p>Scan this QR code with your authenticator app:</p>
-        <img src="{{ url_for('auth.qr_code', username=username, issuer=issuer) }}" alt="QR Code">
-        <hr>
-        <h2>Manual Entry</h2>
-        <p>If you cannot scan the QR code, enter these details into your authenticator app:</p>
-        <ul>
-          <li><strong>Issuer:</strong> howru</li>
-          <li><strong>Account Name:</strong> {{ username }}</li>
-          <li><strong>Secret Key:</strong> {{ user_secret }}</li>
-          <li><strong>Algorithm:</strong> SHA1</li>
-          <li><strong>Digits:</strong> 6</li>
-          <li><strong>Period:</strong> 30 seconds</li>
-        </ul>
-    '''
+#    html = '''
+#        <h1>Enable Two-Factor Authentication for {{ username }}</h1>
+#        <p>Scan this QR code with your authenticator app:</p>
+#        <img src="{{ url_for('auth.qr_code', username=username, issuer=issuer) }}" alt="QR Code">
+#        <hr>
+#        <h2>Manual Entry</h2>
+#        <p>If you cannot scan the QR code, enter these details into your authenticator app:</p>
+#        <ul>
+#          <li><strong>Issuer:</strong> howru</li>
+#          <li><strong>Account Name:</strong> {{ username }}</li>
+#          <li><strong>Secret Key:</strong> {{ user_secret }}</li>
+#          <li><strong>Algorithm:</strong> SHA1</li>
+#          <li><strong>Digits:</strong> 6</li>
+#          <li><strong>Period:</strong> 30 seconds</li>
+#        </ul>
+#    '''
     if (a_auth_type == "2fa"):
         #return render_template_string(html, username=username, user_secret=user_secret)
+        logger.info("Auth2fa: Rendering template enablefa.html")
         return render_template('enablefa.html', logon_image=logon_img, username=username, user_secret=user_secret, issuer=issuer)
     else:
+        logger.warning("Auth2fa: Auth2fa is not enabled, yet someone tried to enable user '" + username + "'.")
         return render_template("403_fa.html")    
 
 @auth_blueprint.route('/almond/admin/qr_code/<username>')
@@ -126,9 +117,11 @@ def qr_code(username):
     global issuer
     a_auth_type = current_app.config['AUTH_TYPE']
     if (a_auth_type != "2fa"):
+        logger.warning("Auth2fa: Auth2fa is not enabled, yet someone tried to look for qr_code for user '" + username + "'.")
         return render_template("403_fa.html")
     user_secret = user_secrets.get(username)
     if not user_secret:
+        logger.warning("Auth2fa: Auth2fa qr_code for user '" + username + "' not found or not enabled.")
         return "User not found or 2FA not enabled.", 404
     
     totp = pyotp.TOTP(user_secret)
@@ -139,6 +132,7 @@ def qr_code(username):
     buf = io.BytesIO()
     qr.save(buf, format='PNG')
     buf.seek(0)
+    logger.info("Auth2fa: qr_code for user '" + username + "' has been generated.")
     return send_file(buf, mimetype='image/png')
 
 @auth_blueprint.route('/almond/admin/login', methods=['GET', 'POST'])
@@ -147,28 +141,28 @@ def login():
         username = request.form.get("uname")
         password = request.form.get("psw")
        
-        print("DEBUG username/password = %s %s" % (username, password))  
+        #print("DEBUG username/password = %s %s" % (username, password))  
         if verify_password(username, password):
             session['username'] = username
             # Redirect to 2FA verification step
+            logger.info("Auth2fa: redirecting '" + username + "' to verify_2fa")
             return redirect(url_for('auth.verify_2fa'))
         else:
+            logger.warning("Auth2fa: login failed for '" + username + "'") 
             return "Invalid username or password", 401
-
-    # Simple login form
+    logging.info("Rendering template login_fa.html")
     return render_template('login_fa.html', logon_image=logon_img)
 
 @auth_blueprint.route('/verify_2fa', methods=['GET', 'POST'])
 def verify_2fa():
     username = session.get('username')
     if not username:
+        logger.info("Auth2fa: No user found in session. Rederecting to auth.login")
         return redirect(url_for('auth.login'))
 
     if request.method == 'POST':
         token = request.form.get('token')
         user_secret = user_secrets.get(username)
-        print ("DEBUG:\n")
-        print (user_secret)
         if user_secret:
             totp = pyotp.TOTP(user_secret)
             if totp.verify(token):
@@ -176,10 +170,13 @@ def verify_2fa():
                 session['login'] = 'true'
                 session['user'] = username
                 #return f"Welcome, {username}! You are fully logged in."
+                logging.info("Auth2fa logged in user '" + username + "'.")
                 return redirect('/almond/admin')                
             else:
+                logging.warning("Auth2fa: Invalid 2FA token from user '" + username + "'.")
                 return "Invalid 2FA token.", 401
         else:
+            logging.warning("Auth2fa: 2FA is not enabled for user '" + username + "'.")
             return "2FA is not enabled for this account.", 400
 
     #return '''
@@ -189,10 +186,12 @@ def verify_2fa():
     #        <input type="submit" value="Verify">
     #    </form>
     #'''
+    logging.info("Rendering template verify.html")
     return render_template('verify.html', logon_image=logon_img, username=username)
 
 @auth_blueprint.route('/protected')
 def protected():
     if not session.get('authenticated'):
+        logging.warning("Auth2fa: No session found for authenticated. Redirecting to auth.login")
         return redirect(url_for('auth.login'))
     return "This is a protected page accessible only to fully authenticated users."

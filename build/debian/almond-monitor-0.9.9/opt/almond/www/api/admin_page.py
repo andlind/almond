@@ -6,6 +6,7 @@ import os.path
 import os
 import socket
 import logging
+import errno
 from os import walk
 from flask import Blueprint
 from flask import current_app
@@ -29,6 +30,8 @@ graph_names = {}
 api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.authType', 'api.bindPort', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir','api.isContainer', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'api.wsgi', 'data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
 scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'almond.useSSL', 'almond.certificate', 'almond.key', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.useTLS', 'scheduler.certificate', 'scheduler.key','scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.truncateLog', 'scheduler.truncateLogInterval', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.enableKafkaId', 'scheduler.kafkaStartId', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'scheduler.type', 'gardener.CleanUpTime']
 users = {}
+hasToken=False
+usertoken = "None"
 current_version = '0.9.9.6'
 
 enable_gui = True
@@ -154,7 +157,6 @@ def set_new_password(username, password):
     username = username.strip()
     password = password.strip()
 
-    print("DEBUG: Set password for '{}' as password '{}'".format(username, password))
     logger.info(session['user'] + " trying to set new password for user '" + username + "'.")
 
     # Validate input upfront
@@ -238,6 +240,28 @@ def set_new_password(username, password):
 #        logger.warning("Failed updating password for user '" + username + "'.")    
 #    return info
 
+def get_user_token():
+    global usertoken
+    username = session['user']
+    lines = []
+    try:
+        with open("/etc/almond/users.conf", "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if username in entry:
+                        usertoken = entry["token"]
+                except json.JSONDecodeError:
+                    logger.warning("[get_user_token] json.JSONDecodeError")
+    except FileNotFoundError:
+        #print(f"File {filename} not found")
+        logger.critical("[get_user_token] Could not find file /etc/almond/tokens.")
+    except Exception as e:
+        logger.info("[get_user_token] No token found for user '" + username + "'")
+
 def delete_user_entries():
     new_lines = []
     if os.path.isfile('/etc/almond/admin.conf'):
@@ -307,6 +331,7 @@ def read_conf():
     global state_type
     global almond_conf_file
     global almond_api
+    global almond_port
     global metrics_file_name
 
     admin_password = ''
@@ -328,13 +353,20 @@ def read_conf():
                     almond_api = False
             if (x.find('port') > 0):
                 pos = x.find('=')
-                alport = x[pos+1]
-                if (isinstance(int(alport), int)):
+                alport = x[pos+1:]
+                #if (isinstance(int(alport), int)):
+                #    if (int(alport) > 0):
+                #        almond_port = int(alport)
+                #    else:
+                #        almond_port = 9909
+                #else:
+                #    almond_port = 9909
+                try:
                     if (int(alport) > 0):
                         almond_port = int(alport)
                     else:
                         almond_port = 9909
-                else:
+                except ValueError:
                     almond_port = 9909
         if (x.find('data') == 0):
             if (x.find('jsonFile') > 0):
@@ -507,12 +539,11 @@ def execute_plugin_object(id):
     global is_container
 
     totalsent = 0
-    is_container = current_app.config['IS_CONTAINER']
-
+    
     if (almond_api):
         #if in container
         #container_ip = socket.gethostbyname(socket.gethostname())
-        if is_container == 'true':
+        if is_container:
             container_ip = socket.gethostbyname(socket.gethostname())
         clientSocket = None
         try:
@@ -523,8 +554,9 @@ def execute_plugin_object(id):
             return 2;
         try:
             #if in container
-            if is_container == 'true':
+            if is_container:
                 clientSocket.connect((container_ip, almond_port))
+                #print("DEBUG: clientSocket.connect(%s, %s)" % container_ip, almond_port)
             else:
                 clientSocket.connect(("127.0.0.1",almond_port))
         except socket.gaierror as e:
@@ -723,14 +755,11 @@ def restart_api():
 def verify_password(username, password):
     global admin_user_file, users
     users = {}
-    print("DEBUG: Verify password for %s with password %s" % (username, password))
     if os.path.isfile(admin_user_file):
         with open(admin_user_file, 'r') as f:
             for line_num, line in enumerate(f, 1):
-                print ("DEBUG: ", line.strip())
                 try:
                     user_data = json.loads(line.strip())
-                    print("DEBUG: ", user_data)
                     #username = list(user_data.keys())[0]
                     #users[username] = user_data[username]
                     for user_key, hash_value in user_data.items():
@@ -755,6 +784,7 @@ def index():
     global enable_gui
     global standalone
     global almond_api
+    global almond_port
     global admin_user_file
     global almond_conf_file
     global api_conf_file
@@ -763,6 +793,9 @@ def index():
     global current_version
     global plugins_directory
     global graph_written
+    global hasToken
+    global usertoken
+    global is_container
     global logger
     global logger_enabled
 
@@ -814,7 +847,6 @@ def index():
                 logger.info("Creating admin login session")
             else:
                 a_auth_type = current_app.config['AUTH_TYPE']
-                print("DEBUG: a_auth_type = ", a_auth_type)
                 if (a_auth_type == "2fa"):
                     return render_template('login_fa.html', logon_image=logon_img)
                 elif (a_auth_type == "basic"):
@@ -824,10 +856,8 @@ def index():
                     return render_template('login_a.html', logon_image=logon_img)
         action_type = request.form['action_type']
         if action_type == "create_session":
-            print ("DEBUG: Create session");
             username = request.form['uname']
             password = request.form['psw']
-            print ("DEBUG: User/Pwd = %s | %s " % (username, password))
             if verify_password(username.strip(), password.strip()):
                 logger.info("User " + username.strip() + " logged in to new session")
                 session['login'] = 'true'
@@ -1201,37 +1231,47 @@ def index():
             else:
                 print ("Action id error")
             if (almond_api):
+                read_conf()
+                if is_container:
+                    container_ip = socket.gethostbyname(socket.gethostname())
+                clientSocket = None
                 try:
                     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    clientSocket.settimeout(30)
                 except socket.error as e:
                     print ("Error creating socket: %s" % e)
-                    retVal = "\"connection_error\" : \"Error creating socket \"}"
+                    retVal = "{\"connection_error\" : \"Error creating socket \"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
-                    clientSocket.connect(("127.0.0.1",almond_port))
+                    if is_container:
+                        clientSocket.connect((container_ip, almond_port))
+                    else:
+                        clientSocket.connect(("127.0.0.1",almond_port))
                 except socket.gaierror as e:
                     print ("Address-related error connecting to server: %s" % e)
-                    retVal = "\"connection_error\" : \"Address-related error connecting to server.\"}"
+                    retVal = "{\"connection_error\" : \"Address-related error connecting to server.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 except socket.error as e:
                     print ("Connection error: %s" % e)
-                    retVal = "\"connection_error\" : \"Socket connection error.\"}"
+                    if e.errno == errno.ENETUNREACH:
+                        print("Network unreachable - Check Docker network configuration")
+                    retVal = "{\"connection_error\" : \"Socket connection error.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
-                    clientSocket.send(action_str.encode())
+                    clientSocket.sendall(action_str.encode())
                 except socket.error as e:
                     print ("Error sending data: %s" % e)
-                    retVal = "\"connection_error\" : \"Error sending data.\"}"
+                    retVal = "{\"connection_error\" : \"Error sending data.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
                     retVal = clientSocket.recv(8000)
                 except socket.error as e:
                     print ("Error receiving data: %s" % e)
-                    retVal = "\"connection_error\" : \"Error receiving data.\"}"
+                    retVal = "{\"connection_error\" : \"Error receiving data.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 if not len(retVal):
                     print ("No retVal len\n")
-                    retVal = "\connection_error\" : \"Empty return on socket.\"}"
+                    retVal = "{\connection_error\" : \"Empty return on socket.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 #print(retVal.decode())
             else:
@@ -1256,12 +1296,16 @@ def index():
             data = load_status_data()
             info_data = get_status(data)
             info = get_infostr(info_data)
+            container = current_app.config['IS_CONTAINER']
+            if (container == 'true'):
+                is_container = True
+            else:
+                is_container = False
             logger.info("Rendering template admin.html")
             return render_template('admin.html', version=current_version, logo_image=image_file, username=username, password=password, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state, status=info)
             #return render_template('status_admin.html', version=current_version, user_image=image_file, server=hostname, monitoring=monitoring, avatar=almond_avatar, info=info)
         else:
             a_auth_type = current_app.config['AUTH_TYPE']
-            print("DEBUG: a_auth_type = ", a_auth_type)
             if (a_auth_type == "2fa"):
                 #logger.info("Rendering template login_fa.html")
                 #return render_template('login_fa.html', logon_image=logon_img)
@@ -1390,8 +1434,11 @@ def index():
             item_names.append(item_name.strip())
         item_names.pop(0)
         action = request.args.get("aid")
+        get_user_token()
+        token = usertoken
+        usertoken = "None"
         logger.info("Rendering template action.html")
-        return render_template('action.html', logo_image=image_file, avatar=almond_avatar, plugins=item_names, action=action)
+        return render_template('action.html', logo_image=image_file, avatar=almond_avatar, plugins=item_names, action=action, token=token)
     elif page == 'docs':
         logger.info("Rendering template documentation_a.html")
         return render_template('documentation_a.html', user_image=image_file, avatar=almond_avatar) 
