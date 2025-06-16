@@ -1,5 +1,5 @@
 %define name almond-monitor
-%define version 0.9.9.5
+%define version 0.9.9.6
 %define _build_id_links none
 
 Name:           %{name}
@@ -14,7 +14,7 @@ Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
 BuildRequires:  make, json-c-devel, librdkafka-devel, openssl-devel, zlib-devel
-Requires:       python3, python3-yaml, python3-simplejson, python3-flask, python3-gunicorn, ksh, sysstat, json-c, librdkafka
+Requires:       python3, python3-yaml, python3-simplejson, python3-flask, python3-gunicorn, python3-cryptography, ksh, sysstat, json-c, librdkafka
 Requires(pre):  shadow-utils
 
 %description
@@ -44,6 +44,7 @@ cp plugins.conf %{buildroot}/etc/almond/
 cp aliases.conf %{buildroot}/etc/almond/
 cp memalloc.conf %{buildroot}/etc/almond/
 cp tokens %{buildroot}/etc/almond/
+cp auth2fa.enc %{buildroot}/etc/almond/
 cp gardener.py %{buildroot}/opt/almond/
 cp howru %{buildroot}/opt/almond/
 cp memalloc.alm %{buildroot}/opt/almond/
@@ -66,6 +67,7 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/aliases.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/memalloc.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/tokens
+%attr(0600,almond,almond) %config(noreplace) /etc/almond/auth2fa.enc
 %attr(0600,almond,almond) /opt/almond/memalloc.alm
 %attr(0600,almond,almond) /opt/almond/api_cmd/apicmd.inf
 %attr(0755,almond,almond) /opt/almond/gardener.py
@@ -97,6 +99,9 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Mon Jun 16 2025 0.9.9.6
+- HowRu two-factor auth
+- Buggfixes
 * Fri May 30 2025 0.9.9.5
 <andreas.lindell@almondmonitor.com>
 - Almond option to use external scheduler
