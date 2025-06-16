@@ -6,14 +6,17 @@ import os.path
 import os
 import socket
 import logging
+import errno
 from os import walk
 from flask import Blueprint
+from flask import current_app
 from flask_httpauth import HTTPBasicAuth
 from flask import render_template, session, request, make_response, redirect
 import matplotlib.pyplot as plt
 from werkzeug.security import check_password_hash, generate_password_hash
 from collections import deque
 from venv import logger
+from auth2fa import auth_blueprint
 
 admin_page = Blueprint('admin_page', __name__, template_folder='templates')
 
@@ -24,14 +27,17 @@ api_conf = []
 scheduler_conf = []
 extra_conf = []
 graph_names = {}
-api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.bindPort', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'api.wsgi', 'data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
+api_available_conf = ['api.adminUser', 'api.adminPassword', 'api.authType', 'api.bindPort', 'api.enableAliases', 'api.enableFile', 'api.enableScraper', 'api.dataDir','api.isContainer', 'api.multiMetrics', 'api.multiServer', 'api.sslCertificate', 'api.sslKey', 'api.startPage', 'api.stateType', 'api.useGUI', 'api.userFile', 'api.useSSL', 'api.wsgi', 'data.jsonFile', 'data.metricsFile', 'scheduler.storeDir', 'scheduler.configFile', 'scheduler.dataDir', 'plugins.directory', 'plugins.declaration']
 scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'almond.useSSL', 'almond.certificate', 'almond.key', 'data.jsonFile', 'data.saveOnExit', 'data.metricsFile', 'data.metricsOutputPrefix', 'plugins.directory', 'plugins.declaration', 'scheduler.useTLS', 'scheduler.certificate', 'scheduler.key','scheduler.confDir', 'scheduler.logDir', 'scheduler.logToStdout', 'scheduler.logPluginOutput', 'scheduler.storeResults', 'scheduler.format', 'scheduler.initSleepMs', 'scheduler.sleepMs', 'scheduler.truncateLog', 'scheduler.truncateLogInterval', 'scheduler.tuneTimer', 'scheduler.tunerCycle', 'scheduler.tuneMaster', 'scheduler.dataDir', 'scheduler.storeDir', 'scheduler.hostName', 'scheduler.enableGardener', 'scheduler.gardenerScript', 'scheduler.gardenerRunInterval', 'scheduler.quickStart', 'scheduler.metricsOutputPrefix', 'scheduler.enableClearDataCache', 'scheduler.enableKafkaExport', 'scheduler.enableKafkaTag', 'scheduler.enableKafkaId', 'scheduler.kafkaStartId', 'scheduler.kafkaBrokers', 'scheduler.kafkaTopic', 'scheduler.kafkaTag', 'scheduler.enableKafkaSSL', 'scheduler.kafkaCACertificate', 'scheduler.kafkaProducerCertificate', 'scheduler.kafkaSSLKey', 'scheduler.clearDataCacheInterval', 'scheduler.dataCacheTimeFrame', 'scheduler.type', 'gardener.CleanUpTime']
 users = {}
-current_version = '0.9.9-5'
+hasToken=False
+usertoken = "None"
+current_version = '0.9.9.6'
 
 enable_gui = True
 standalone = True
 almond_api = False
+is_container = False
 logger_enabled = False
 almond_port = 9909
 jasonFile = '/opt/almond/data/monitor.json'
@@ -44,6 +50,7 @@ api_conf_file = '/etc/almond/almond.conf'
 metrics_file_name = 'monitor.metrics'
 start_page = 'admin'
 state_type='systemctl'
+user_secrets = {}
 
 #auth = HTTPBasicAuth()
 
@@ -146,24 +153,114 @@ def load_api_conf():
 def set_new_password(username, password):
     global admin_user_file
 
-    update_credentials = True
-    if len(username.strip()) < 4:
-        # Username should contain at least 4 characters
-        update_credentials = False
-    if len(password.strip()) < 6:
-        # Password should contain at least 6 characters
-        update_credentials = False
-    users = {
-        username: generate_password_hash(password.strip())
-    }
-    if update_credentials:
-        with open(admin_user_file, "w") as f:
-            f.write(json.dumps(users))
-        info = "Credentials updated."
-    else:
+    # Ensure we remove leading/trailing whitespace
+    username = username.strip()
+    password = password.strip()
+
+    logger.info(session['user'] + " trying to set new password for user '" + username + "'.")
+
+    # Validate input upfront
+    if len(username) < 4 or len(password) < 6:
         info = "Error updating credentials"
-    print ("New password credentials set")
+        logger.warning("Failed updating password for user '" + username + "'.")
+        return info
+
+    # Merge all user entries into one dictionary
+    user_data = {}
+    with open(admin_user_file, 'r') as file:
+        for line in file:
+            try:
+                # Each line should be a JSON object with a single key-value pair
+                entry = json.loads(line.strip())
+                user_data.update(entry)
+            except json.JSONDecodeError:
+                logger.error("JSON decoding failed for line: '{}'".format(line.strip()))
+                continue
+
+    # Debug: log the old password hash if it exists
+    old_hash = user_data.get(username)
+    logger.debug("OLD HASH for user '{}': {}".format(username, old_hash))
+
+    # Generate new hash and update the user entry
+    new_hash = generate_password_hash(password)
+    logger.debug("NEW HASH for user '{}': {}".format(username, new_hash))
+    user_data[username] = new_hash
+
+    # Write all user credentials back to the file
+    with open(admin_user_file, 'w') as file:
+        for user, pwd_hash in user_data.items():
+            file.write(json.dumps({user: pwd_hash}) + "\n")
+
+    info = "Credentials updated."
+    logger.info("Password updated for user '{}'.".format(username))
     return info
+
+#def set_new_password(username, password):
+#    global admin_user_file
+#
+#    lines = []
+#    filtered_lines = []
+#    print("DEBUG: Set password for %s as password %s" % (username, password))
+#    logger.info(session['user'] + " trying to set new password for user '" + username + "'.")
+#    update_credentials = True
+#    if len(username.strip()) < 4:
+#        # Username should contain at least 4 characters
+#        update_credentials = False
+#    if len(password.strip()) < 6:
+#        # Password should contain at least 6 characters
+#        update_credentials = False
+#    #users = {
+#    #    username: generate_password_hash(password.strip())
+#    #}
+#    if update_credentials:
+#        # remove old first
+#        with open(admin_user_file, 'r') as file:
+#            lines = file.readlines()
+#            #filtered_lines = [line for line in lines if username.lower() not in line.lower()]
+#        for line in lines:
+#            try:
+#                user_data = json.loads(line.strip())
+#                if username not in user_data.keys():
+#                    filtered_lines.append(line.strip() + '\n')
+#            except json.JSONDecodeError:
+#                continue
+#
+#        with open(admin_user_file, 'w') as file:
+#            #file.writelines(filtered_lines)
+#            #file.write(json.dumps(users))
+#            #file.writelines(line.rstrip('\n') + '\n' for line in filtered_lines) 
+#            #file.write(json.dumps(users) + '\n') 
+#            file.writelines(filtered_lines)
+#            file.write(json.dumps({username: generate_password_hash(password.strip())}) + '\n')
+#
+#        info = "Credentials updated."
+#        logger.info("Password updated for user '" + username + "'.")
+#    else:
+#        info = "Error updating credentials"
+#        logger.warning("Failed updating password for user '" + username + "'.")    
+#    return info
+
+def get_user_token():
+    global usertoken
+    username = session['user']
+    lines = []
+    try:
+        with open("/etc/almond/users.conf", "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if username in entry:
+                        usertoken = entry["token"]
+                except json.JSONDecodeError:
+                    logger.warning("[get_user_token] json.JSONDecodeError")
+    except FileNotFoundError:
+        #print(f"File {filename} not found")
+        logger.critical("[get_user_token] Could not find file /etc/almond/tokens.")
+    except Exception as e:
+        logger.info("[get_user_token] No token found for user '" + username + "'")
 
 def delete_user_entries():
     new_lines = []
@@ -234,6 +331,7 @@ def read_conf():
     global state_type
     global almond_conf_file
     global almond_api
+    global almond_port
     global metrics_file_name
 
     admin_password = ''
@@ -255,13 +353,20 @@ def read_conf():
                     almond_api = False
             if (x.find('port') > 0):
                 pos = x.find('=')
-                alport = x[pos+1]
-                if (isinstance(int(alport), int)):
+                alport = x[pos+1:]
+                #if (isinstance(int(alport), int)):
+                #    if (int(alport) > 0):
+                #        almond_port = int(alport)
+                #    else:
+                #        almond_port = 9909
+                #else:
+                #    almond_port = 9909
+                try:
                     if (int(alport) > 0):
                         almond_port = int(alport)
                     else:
                         almond_port = 9909
-                else:
+                except ValueError:
                     almond_port = 9909
         if (x.find('data') == 0):
             if (x.find('jsonFile') > 0):
@@ -431,12 +536,15 @@ def execute_plugin_object(id):
     # Check if almond is binding and on which port
     global almond_api
     global almond_port
+    global is_container
 
     totalsent = 0
-
+    
     if (almond_api):
         #if in container
         #container_ip = socket.gethostbyname(socket.gethostname())
+        if is_container:
+            container_ip = socket.gethostbyname(socket.gethostname())
         clientSocket = None
         try:
             clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -445,9 +553,12 @@ def execute_plugin_object(id):
             print ("Error creating socket: %s" % e)
             return 2;
         try:
-            clientSocket.connect(("127.0.0.1",almond_port))
             #if in container
-            #clientSocket.connect((container_ip, almond_port))
+            if is_container:
+                clientSocket.connect((container_ip, almond_port))
+                #print("DEBUG: clientSocket.connect(%s, %s)" % container_ip, almond_port)
+            else:
+                clientSocket.connect(("127.0.0.1",almond_port))
         except socket.gaierror as e:
             print ("Address-related error connecting to server: %s" % e)
             return 1;
@@ -458,9 +569,9 @@ def execute_plugin_object(id):
         try:
             clientSocket.send(data.encode())
         except socket.error as e:
-            print ("Error sending data: %s" % e)
+            print ("Error sending data: %s" % e) 
             return 2;
-        try: 
+        try:
             retVal = clientSocket.recv(1024)
         except socket.error as e:
             print ("Error receiving data: %s" % e)
@@ -631,10 +742,31 @@ def restart_api():
 #}
 
 #@auth.verify_password
+#def verify_password(username, password):
+#    global admin_user_file
+#    if os.path.isfile(admin_user_file):
+#        users = json.load(open(admin_user_file))
+#    else:
+#        users = {}
+#    if username in users:
+#        return check_password_hash(users.get(username), password)
+#    return False
+
 def verify_password(username, password):
-    global admin_user_file
+    global admin_user_file, users
+    users = {}
     if os.path.isfile(admin_user_file):
-        users = json.load(open(admin_user_file))
+        with open(admin_user_file, 'r') as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    user_data = json.loads(line.strip())
+                    #username = list(user_data.keys())[0]
+                    #users[username] = user_data[username]
+                    for user_key, hash_value in user_data.items():
+                        users[user_key] = hash_value
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Invalid JSON format at line {line_num}: {str(e)}")
+                    continue
     else:
         users = {}
     if username in users:
@@ -652,6 +784,7 @@ def index():
     global enable_gui
     global standalone
     global almond_api
+    global almond_port
     global admin_user_file
     global almond_conf_file
     global api_conf_file
@@ -660,6 +793,9 @@ def index():
     global current_version
     global plugins_directory
     global graph_written
+    global hasToken
+    global usertoken
+    global is_container
     global logger
     global logger_enabled
 
@@ -687,24 +823,50 @@ def index():
         logger.warning("Invalid userfile")
         return make_response("Invalid userfile", 404, headers);
 
-    users = json.load(open(admin_user_file))
-    username = users.get(username)
-    password = ""
+    #users = json.load(open(admin_user_file))
+    #with open(admin_user_file, 'r') as f:
+    #    for line_num, line in enumerate(f, 1):
+    #        print ("DEBUG: ", line.strip())
+    #        try:
+    #            user_data = json.loads(line.strip())
+    #            print("DEBUG: ", user_data)
+    #            username = list(user_data.keys())[0]
+    #            users[username] = user_data[username]
+    #        except json.JSONDecodeError as e:
+    #            print(f"Warning: Invalid JSON format at line {line_num}: {str(e)}")
+    #            continue
+    #username = users.get(username)
+    #password = ""
     if ('action_type' in request.form):
         if 'login' in session:
             session['login'] = 'true'
+            session['user'] = session['user']
         else:
             if (request.form['action_type'] == "create_session"):
                 print ("Login")
                 logger.info("Creating admin login session")
             else:
-                return render_template('login_a.html', logon_image=logon_img)
+                a_auth_type = current_app.config['AUTH_TYPE']
+                if (a_auth_type == "2fa"):
+                    return render_template('login_fa.html', logon_image=logon_img)
+                elif (a_auth_type == "basic"):
+                    return render_template('login_a.html', logon_image=logon_img)
+                else:
+                    logger.warning("Could not get auth_type. Returning to basic")
+                    return render_template('login_a.html', logon_image=logon_img)
         action_type = request.form['action_type']
         if action_type == "create_session":
             username = request.form['uname']
             password = request.form['psw']
             if verify_password(username.strip(), password.strip()):
+                logger.info("User " + username.strip() + " logged in to new session")
                 session['login'] = 'true'
+                session['user'] = username.strip()
+            else:
+                logger.warning("Failed login for user " + username.strip())
+                session['login'] = 'false'
+                session.pop('login', None)
+                session.pop('user', None)
         if action_type == 'change_credentials':
             info = ''
             username = request.form['username']
@@ -1069,37 +1231,47 @@ def index():
             else:
                 print ("Action id error")
             if (almond_api):
+                read_conf()
+                if is_container:
+                    container_ip = socket.gethostbyname(socket.gethostname())
+                clientSocket = None
                 try:
                     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    clientSocket.settimeout(30)
                 except socket.error as e:
                     print ("Error creating socket: %s" % e)
-                    retVal = "\"connection_error\" : \"Error creating socket \"}"
+                    retVal = "{\"connection_error\" : \"Error creating socket \"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
-                    clientSocket.connect(("127.0.0.1",almond_port))
+                    if is_container:
+                        clientSocket.connect((container_ip, almond_port))
+                    else:
+                        clientSocket.connect(("127.0.0.1",almond_port))
                 except socket.gaierror as e:
                     print ("Address-related error connecting to server: %s" % e)
-                    retVal = "\"connection_error\" : \"Address-related error connecting to server.\"}"
+                    retVal = "{\"connection_error\" : \"Address-related error connecting to server.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 except socket.error as e:
                     print ("Connection error: %s" % e)
-                    retVal = "\"connection_error\" : \"Socket connection error.\"}"
+                    if e.errno == errno.ENETUNREACH:
+                        print("Network unreachable - Check Docker network configuration")
+                    retVal = "{\"connection_error\" : \"Socket connection error.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
-                    clientSocket.send(action_str.encode())
+                    clientSocket.sendall(action_str.encode())
                 except socket.error as e:
                     print ("Error sending data: %s" % e)
-                    retVal = "\"connection_error\" : \"Error sending data.\"}"
+                    retVal = "{\"connection_error\" : \"Error sending data.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 try:
                     retVal = clientSocket.recv(8000)
                 except socket.error as e:
                     print ("Error receiving data: %s" % e)
-                    retVal = "\"connection_error\" : \"Error receiving data.\"}"
+                    retVal = "{\"connection_error\" : \"Error receiving data.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 if not len(retVal):
                     print ("No retVal len\n")
-                    retVal = "\connection_error\" : \"Empty return on socket.\"}"
+                    retVal = "{\connection_error\" : \"Empty return on socket.\"}"
                     return render_template('actionapi.html', user_image=image_file, data=retVal, errors=1, avatar=almond_avatar)
                 #print(retVal.decode())
             else:
@@ -1118,22 +1290,38 @@ def index():
         logger.info("Checking session page")
         if 'login' in session:
             session['login'] = 'true'
+            session['user'] = session['user']
             howru_state = check_service_state("howru")
             almond_state = check_service_state("almond")
             data = load_status_data()
             info_data = get_status(data)
             info = get_infostr(info_data)
+            container = current_app.config['IS_CONTAINER']
+            if (container == 'true'):
+                is_container = True
+            else:
+                is_container = False
             logger.info("Rendering template admin.html")
             return render_template('admin.html', version=current_version, logo_image=image_file, username=username, password=password, avatar=almond_avatar, almond_state=almond_state, howru_state=howru_state, status=info)
             #return render_template('status_admin.html', version=current_version, user_image=image_file, server=hostname, monitoring=monitoring, avatar=almond_avatar, info=info)
         else:
-            logger.info("Rendering template login_a.html")
-            return render_template('login_a.html', logon_image=logon_img)
+            a_auth_type = current_app.config['AUTH_TYPE']
+            if (a_auth_type == "2fa"):
+                #logger.info("Rendering template login_fa.html")
+                #return render_template('login_fa.html', logon_image=logon_img)
+                return redirect('/almond/admin/login')
+            elif (a_auth_type == "basic"):
+                logger.info("Rendering template login_a.html")
+                return render_template('login_a.html', logon_image=logon_img)
+            else:
+                logger.warning("Could not get auth_type. Returning to basic")
+                return render_template('login_a.html', logon_image=logon_img)
     else:
         logger.info("Checking if session is alive")
         page = request.args.get('page')
         if 'login' in session:
             session['login'] = 'true'
+            session['user'] = session['user']
         else:
             logger.info("No login in session. Rendering template login_a.html")
             return render_template('login_a.html', logon_image=logon_img) 
@@ -1246,8 +1434,11 @@ def index():
             item_names.append(item_name.strip())
         item_names.pop(0)
         action = request.args.get("aid")
+        get_user_token()
+        token = usertoken
+        usertoken = "None"
         logger.info("Rendering template action.html")
-        return render_template('action.html', logo_image=image_file, avatar=almond_avatar, plugins=item_names, action=action)
+        return render_template('action.html', logo_image=image_file, avatar=almond_avatar, plugins=item_names, action=action, token=token)
     elif page == 'docs':
         logger.info("Rendering template documentation_a.html")
         return render_template('documentation_a.html', user_image=image_file, avatar=almond_avatar) 
@@ -1333,8 +1524,16 @@ def index():
         return render_template("graph.html", user_image = image_file, name="Trend chart", url=save_name, uptime=str(uptime))
     elif page == 'logout':
         almond_img = '/static/almond.png'
+        a_auth_type = current_app.config['AUTH_TYPE']
+        logger.info("User " + session['user'] + " logged out.")
         session.pop('login', None)
-        logger.info("Rendering template login_a.html")
-        return render_template('login_a.html', logon_image=almond_img)
+        session.pop('user', None)
+        if (a_auth_type == "2fa"):
+            session.pop('authenticated', None)
+            logger.info("Rendering template login_fa.html")
+            return render_template('login_fa.html', logon_image=almond_img)
+        else:
+            logger.info("Rendering template login_a.html")
+            return render_template('login_a.html', logon_image=almond_img)
     else:
         return page

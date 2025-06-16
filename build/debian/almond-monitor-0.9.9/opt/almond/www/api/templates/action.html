@@ -1,4 +1,27 @@
 {% include 'head.html' %}
+        <script languge="Javascript">
+        	function toggleTokenInput(checkbox) {
+               		const tokenInput = document.getElementById('token');
+   			
+                        if (!tokenInput) {
+        			return;
+    			}
+
+                	tokenInput.readonly = checkbox.checked;
+
+                	if(!checkbox.checked) {
+               			tokenInput.value = '';
+				tokenInput.style.color = '#000000';
+               		}
+                        else {
+                            //tokenInput.value = '{{ token }}';
+                            //tokenInput.style.color = 'white';
+                            const savedToken = tokenInput.dataset.savedToken || '';
+        		    tokenInput.value = savedToken;
+                            tokenInput.style.color = 'white';
+                        }
+               	}
+        </script>
 	<p align="center"><img src="{{ logo_image }}" alt="Logo Image"></p>
 	<hr size="1">
 	<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
@@ -73,9 +96,19 @@
         {% endif %}
 	{% if (action == "2" or action == "3" or action == "6" or action == "7" or action == "8") %}
 	<tr>
-		<td>
-			<label for="token">Token</label>
-			<input type="text" name="token" id="token" size="30">
+                <td>
+    			<label for="token">Token</label>
+    			{% if token == "None" %}
+    			<input type="text" name="token" id="token" size="30">
+    			{% else %}
+    			<input type="text" name="token" id="token" size="30" style="color: #ffffff" value="{{ token|safe }}" readonly>
+    			{% endif %}
+    			<label for="usertoken">Use saved usertoken</label>
+    			{% if token == "None" %}
+    			<input type="checkbox" name="usertoken" disabled>
+    			{% else %}
+    			<input type="checkbox" name="usertoken" checked onchange="toggleTokenInput(this)">
+    			{% endif %}
 		</td>
 	</tr>
 	{% endif %}
