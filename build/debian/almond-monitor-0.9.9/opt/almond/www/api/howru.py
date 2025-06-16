@@ -49,6 +49,7 @@ stop_background_thread = False
 run_with_wsgi=False
 wsgi_init=False
 is_container=False
+persistant_2fa=False
 sleep_time = 5
 aliases = []
 valid_aliases = []
@@ -161,7 +162,7 @@ def load_aliases():
 
 def load_conf():
     global bindPort, multi_server, multi_metrics, metrics_dir, enable_file, data_file, data_dir, enable_ssl, start_page, enable_gui, enable_mods, export_file,full_metrics_file_name
-    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list, admin_auth_type, is_container
+    global ssl_certificate, run_with_wsgi, ssl_key, enable_scraper, mods_list, admin_auth_type, is_container, persistant_2fa
     config = {}
     if os.path.isfile('/etc/almond/api.conf'):
         with open("/etc/almond/api.conf", "r") as conf:
@@ -217,6 +218,7 @@ def load_conf():
     start_page = config.get('api.startPage', 'api')
     enable_scraper = bool(int(config.get('api.enableScraper', 1)))
     is_container = bool(int(config.get('api.isContainer', 0)))
+    persistant_2fa = bool(int(config.get('api.persistant2fa',0)))
     enable_aliases = bool(int(config.get('api.enableAliases', 0)))
     if enable_aliases:
         load_aliases()
@@ -1868,6 +1870,10 @@ def main():
         app.config['IS_CONTAINER'] = 'true'
     else:
         app.config['IS_CONTAINER'] = 'false'
+    if persistant_2fa:
+        app.config['AUTH2FA_P'] = 'true'
+    else:
+        app.config['AUTH2FA_P'] = 'false'
     use_ssl = useCertificate()
     context = getCertificates()
     tCheck = threading.Thread(target=check_config, daemon=True)

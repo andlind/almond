@@ -136,7 +136,9 @@ def enable_2fa(username):
         issuer = issuer + config.get('scheduler.hostName', socket.gethostname())
     else:
         issuer = issuer + socket.gethostname()
-    save_user_secret(username, user_secret, auth_user_file)
+    if current_app.config['AUTH2FA_P'] == 'true':
+        save_user_secret(username, user_secret, auth_user_file)
+        logger.info("Auth2fa: Saving user key to encrypted file.")
     logger.info("Auth2fa: 2FA is enabled for user '" + username + "'. Auth2fa issuer is set to be '" + issuer + "'.")
     provisioning_uri = totp.provisioning_uri(name=username, issuer_name=issuer)
 
@@ -216,8 +218,10 @@ def verify_2fa():
 
     if request.method == 'POST':
         token = request.form.get('token')
-        #user_secret = user_secrets.get(username)
-        user_secret = load_user_secret(username, auth_user_file)
+        if current_app.config['AUTH2FA_P'] == 'false':
+            user_secret = user_secrets.get(username)
+        else:
+            user_secret = load_user_secret(username, auth_user_file)
         if user_secret:
             totp = pyotp.TOTP(user_secret)
             if totp.verify(token):
