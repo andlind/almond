@@ -76,6 +76,8 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0755,almond,almond) /opt/almond/utilities/almond-token-generator
 %attr(0755,almond,almond) /opt/almond/utilities/almond-collector
 %attr(0755,almond,almond) /opt/almond/utilities/check_almond
+%attr(0750,almond,almond) /opt/almond/utilities/howru-user-admin.py
+%attr(0750,almond,almond) /opt/almond/utilities/token-to-user.py
 %attr(0644,almond,almond) /opt/almond/templates/metrics.template
 %attr(0770,almond,almond) /opt/almond/almond
 %attr(0755,almond,almond) /var/log/almond/
@@ -101,6 +103,7 @@ fi
 %changelog
 * Mon Jun 16 2025 0.9.9.6
 - HowRu two-factor auth
+- New tools in utilities
 - Buggfixes
 * Fri May 30 2025 0.9.9.5
 <andreas.lindell@almondmonitor.com>
