@@ -4,8 +4,10 @@ import json
 import pyotp
 import qrcode
 import socket
+import stat
 import logging
 from werkzeug.security import check_password_hash
+from cryptography.fernet import Fernet
 from flask import Blueprint, render_template_string, request, redirect, url_for, session, send_file
 from flask import current_app, render_template
 from venv import logger
@@ -14,6 +16,7 @@ auth_blueprint = Blueprint('auth', __name__)
 
 logon_img = '/static/almond.png'
 admin_user_file = '/etc/almond/users.conf'
+auth_user_file = '/etc/almond/auth2fa.enc'
 is_container = 'false'
 logging_on = False
 user_secrets = {}
@@ -27,16 +30,12 @@ def init_logging():
 def verify_password(username, password):
     global admin_user_file, users
     users = {}
-    #print("DEBUG: Verify password for %s with password %s" % (username, password))
     if os.path.isfile(admin_user_file):
         with open(admin_user_file, 'r') as f:
             for line_num, line in enumerate(f, 1):
                 print ("DEBUG: ", line.strip())
                 try:
                     user_data = json.loads(line.strip())
-                    #print("DEBUG: ", user_data)
-                    #username = list(user_data.keys())[0]
-                    #users[username] = user_data[username]
                     for user_key, hash_value in user_data.items():
                         users[user_key] = hash_value
                 except json.JSONDecodeError as e:
@@ -48,6 +47,60 @@ def verify_password(username, password):
         return check_password_hash(users.get(username), password)
     return False
 
+def load_key():
+    key = os.getenv("FERNET_KEY")
+    if key is None:
+        raise Exception("FERNET_KEY environment variable not set!")
+    return key.encode()
+
+def encrypt_data(data: bytes, fernet: Fernet) -> bytes:
+    return fernet.encrypt(data)
+
+def decrypt_data(token: bytes, fernet: Fernet) -> bytes:
+    return fernet.decrypt(token)
+
+def load_user_secret(username: str, filepath: str = "/etc/almond/auth2fa.enc") -> str:
+    key = load_key()
+    fernet = Fernet(key)
+
+    if not os.path.exists(filepath):
+        return None
+
+    with open(filepath, "rb") as file:
+        encrypted_data = file.read()
+        if not encrypted_data:
+            return None
+        try:
+            decrypted_data = decrypt_data(encrypted_data, fernet)
+            secrets = json.loads(decrypted_data.decode("utf-8"))
+        except Exception as e:
+            print("Error decrypting file:", e)
+            return None
+        
+    return secrets.get(username)
+
+def save_user_secret(username: str, secret: str, filepath: str = '/etc/almond/auth2fa.enc'):
+    global user_secrets
+    key = load_key()
+    fernet = Fernet(key)
+    if (os.path.exists(filepath)):
+        with open(filepath, "rb") as file:
+            encrypted_data = file.read()
+            if encypted_data:
+                try:
+                    decrypt_data = decrypt_data(encrypted_data, fernet)
+                    user_secrets = json.loads(decrypted_data.decode("utf-8"))
+                except Exception as e:
+                    logger.warning("Warning: Could not decrypt the file. Starting fresh. Error:", e)
+    user_secrets[username] = secret
+    data_json = json.dumps(user_secrets.encode("utf-8"))
+    encrypted = encrypt_data(data_json, fernet)
+    with open(filepath, "wb") as file:
+        file.write(encrypted)
+    os.chmod(filepath, stat.S_IRUSR, stat.S_IWUSR)
+    logger.info("Auth2fa: Saved secret for user: {username}")
+        
+    
 def generate_qr_code(data):
     qr = qrcode.QRCode(
         version=1,
@@ -83,6 +136,7 @@ def enable_2fa(username):
         issuer = issuer + config.get('scheduler.hostName', socket.gethostname())
     else:
         issuer = issuer + socket.gethostname()
+    save_user_secret(username, user_secret, auth_user_file)
     logger.info("Auth2fa: 2FA is enabled for user '" + username + "'. Auth2fa issuer is set to be '" + issuer + "'.")
     provisioning_uri = totp.provisioning_uri(name=username, issuer_name=issuer)
 
@@ -162,7 +216,8 @@ def verify_2fa():
 
     if request.method == 'POST':
         token = request.form.get('token')
-        user_secret = user_secrets.get(username)
+        #user_secret = user_secrets.get(username)
+        user_secret = load_user_secret(username, auth_user_file)
         if user_secret:
             totp = pyotp.TOTP(user_secret)
             if totp.verify(token):
