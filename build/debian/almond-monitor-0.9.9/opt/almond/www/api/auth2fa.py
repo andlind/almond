@@ -33,7 +33,7 @@ def verify_password(username, password):
     if os.path.isfile(admin_user_file):
         with open(admin_user_file, 'r') as f:
             for line_num, line in enumerate(f, 1):
-                print ("DEBUG: ", line.strip())
+                #print ("DEBUG: ", line.strip())
                 try:
                     user_data = json.loads(line.strip())
                     for user_key, hash_value in user_data.items():
@@ -50,8 +50,12 @@ def verify_password(username, password):
 def load_key():
     key = os.getenv("FERNET_KEY")
     if key is None:
-        raise Exception("FERNET_KEY environment variable not set!")
-    return key.encode()
+        #raise Exception("FERNET_KEY environment variable not set!")
+        key = Fernet.generate_key()
+        logger.info("Auth2fa: Generated new fernet key")
+        os.environ["FERNET_KEY"] = key.decode()
+        print(os.getenv("FERNET_KEY"))
+    return key.encode() if isinstance(key, str) else key
 
 def encrypt_data(data: bytes, fernet: Fernet) -> bytes:
     return fernet.encrypt(data)
@@ -75,6 +79,8 @@ def load_user_secret(username: str, filepath: str = "/etc/almond/auth2fa.enc") -
             secrets = json.loads(decrypted_data.decode("utf-8"))
         except Exception as e:
             print("Error decrypting file:", e)
+            print("Possible causes: incorrect key, corrupted file, or bad encryption.")
+            print(os.getenv("FERNET_KEY"))
             return None
         
     return secrets.get(username)
@@ -86,21 +92,20 @@ def save_user_secret(username: str, secret: str, filepath: str = '/etc/almond/au
     if (os.path.exists(filepath)):
         with open(filepath, "rb") as file:
             encrypted_data = file.read()
-            if encypted_data:
+            if encrypted_data:
                 try:
-                    decrypt_data = decrypt_data(encrypted_data, fernet)
+                    decrypted_data = decrypt_data(encrypted_data, fernet)
                     user_secrets = json.loads(decrypted_data.decode("utf-8"))
                 except Exception as e:
-                    logger.warning("Warning: Could not decrypt the file. Starting fresh. Error:", e)
+                    logger.warning("Warning: Could not decrypt the file. Starting fresh. Error: %s", e)
     user_secrets[username] = secret
-    data_json = json.dumps(user_secrets.encode("utf-8"))
-    encrypted = encrypt_data(data_json, fernet)
+    data_json = json.dumps(user_secrets)
+    encrypted = encrypt_data(data_json.encode("utf-8"), fernet)
     with open(filepath, "wb") as file:
         file.write(encrypted)
-    os.chmod(filepath, stat.S_IRUSR, stat.S_IWUSR)
+    os.chmod(filepath, stat.S_IRUSR | stat.S_IWUSR)
     logger.info("Auth2fa: Saved secret for user: {username}")
         
-    
 def generate_qr_code(data):
     qr = qrcode.QRCode(
         version=1,
