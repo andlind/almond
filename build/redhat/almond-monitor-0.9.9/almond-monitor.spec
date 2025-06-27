@@ -101,7 +101,12 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Fri Jun 27 2025 0.9.9.6-3
+<andreas.lindell@almondmonitor.com>
+- New status API for Almond
+- Improved child thread handling
 * Mon Jun 16 2025 0.9.9.6
+<andreas.lindell@almondmonitor.com>
 - HowRu two-factor auth
 - New tools in utilities
 - Buggfixes
