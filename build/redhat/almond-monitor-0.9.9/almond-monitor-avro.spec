@@ -4,7 +4,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        1%{?dist}
+Release:        3%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -15,7 +15,6 @@ Source0:        %{name}-%{version}.tar.gz
 BuildRequires:  gcc
 BuildRequires:  make, json-c-devel, librdkafka-devel, openssl-devel, zlib-devel
 BuildRequires:  confluent-libserdes-devel
-BuildRequires:	avro-c-local
 Requires:       python3, python3-yaml, python3-simplejson, python3-flask, python3-gunicorn, python3-cryptography, ksh, sysstat, json-c, librdkafka
 Requires(pre):  shadow-utils
 
@@ -48,6 +47,7 @@ cp memalloc.conf %{buildroot}/etc/almond/
 cp tokens %{buildroot}/etc/almond/
 cp auth2fa.enc %{buildroot}/etc/almond/
 cp gardener.py %{buildroot}/opt/almond/
+cp plugins_status.avsc %{buildroot}/opt/almond/
 cp howru %{buildroot}/opt/almond/
 cp memalloc.alm %{buildroot}/opt/almond/
 cp apicmd.inf %{buildroot}/opt/almond/api_cmd/
@@ -71,6 +71,7 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/tokens
 %attr(0600,almond,almond) %config(noreplace) /etc/almond/auth2fa.enc
 %attr(0600,almond,almond) /opt/almond/memalloc.alm
+%attr(0640,almond,almond) /opt/almond/plugins_status.avsc
 %attr(0600,almond,almond) /opt/almond/api_cmd/apicmd.inf
 %attr(0755,almond,almond) /opt/almond/gardener.py
 %attr(0755,almond,almond) /opt/almond/howru
@@ -103,6 +104,8 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Tue Jul 01 2024 0.9.9.7
+- Avro support for Kafka producer
 * Fri Jun 27 2025 0.9.9.6-3
 - New status API for Almond
 - Improved child thread handling
