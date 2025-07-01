@@ -4,7 +4,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        3%{?dist}
+Release:        7%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -104,7 +104,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Tue Jul 01 2024 0.9.9.7
+* Tue Jul 01 2025 0.9.9.7
 - Avro support for Kafka producer
 * Fri Jun 27 2025 0.9.9.6-3
 - New status API for Almond
