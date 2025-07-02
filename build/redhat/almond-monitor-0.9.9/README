@@ -2,4 +2,7 @@
 rpmbuild -bb rpmbuild/SPECS/almond-monitor.spec
 # To run all supplied Nagios plugins you might need to install additional packages
 # and/or use cpan to install perl dependencies to plugins.
+# NOTE! Version 0.9.9.7 source is built with avro support and should be built with
+rpmbuild -bb rpmbuild/SPECS/almond-monitor-avro.spec
+# Make sure you have libserdes and lib-avro-c libraries built and installed.
 
