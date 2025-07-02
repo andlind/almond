@@ -65,7 +65,7 @@
                 <p style="font-family: Verdana; font-size: 12px; font-weight: bold">2.1 Almond configuration file (almond.conf)</p>
 		<table style="border: 1px solid black">
                 <tr>
-                <td style="font-family: Verdana; font-size: 12px; font-weight:bold">Configuration</td><td style="font-family: Verdana; font-size: 12px; font-weight:bold">Default value</td>td style="font-family: Verdana; font-size: 12px; font-weight:bold">Description</td>/<tr>
+                <td style="font-family: Verdana; font-size: 12px; font-weight:bold">Configuration</td><td style="font-family: Verdana; font-size: 12px; font-weight:bold">Default value</td><td style="font-family: Verdana; font-size: 12px; font-weight:bold">Description</td>/<tr>
 		<tr><td style="font-family: Verdana; font-size: 12px">almond.api=</td><td style="font-family: Verdana; font-size: 12px">1</td><td style="font-family: Verdana; font-size: 12px">1 means Almond API is enabled, 0 disabled.</td></tr>
                 <tr><td style="font-family: Verdana; font-size: 12px">almond.certificate=</td><td style="font-family: Verdana; font-size: 12px">-</td><td style="font-family: Verdana; font-size: 12px">Path to server certificate if enabling TLS for Almond API. Alterntative to <i>scheduler.certificate/<i></td></tr>
 <tr><td style="font-family: Verdana; font-size: 12px">almond.key=</td><td style="font-family: Verdana; font-size: 12px">-</td><td style="font-family: Verdana; font-size: 12px">Path to key for server certificate if enabling TLS for Almond API. Alterntative to <i>scheduler.key/<i></td></tr>
@@ -305,6 +305,7 @@ ould look like:</p>
                 A list of valid parameters are specified below:</p>
                 <p style="font-family: Verdana; font-size: 12px">Allowed actions are the following:</p>
 		<ul>
+                <li>almond</li>
                 <li>enable</li>
 		<li>execute</li>
                 <li>exread</li>
@@ -336,7 +337,21 @@ ould look like:</p>
                 curl localhost:9909 -d '{"action":"execute", "name":"check_memory", "flags":"dry", "args":"-w 70 -c 75", "token":"qwyhb67jnds1qee9x"}'
                 </xmp>
                 <p style="font-family: Verdana; font-size: 12px">You can look at the API section in the Almond Admin page to see what types of calls are possible and try them out from there.</p>
-		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">6. Tips and recommendations</p>
+                <p style="font-family: Verdana; font-size: 12px">The Almond action in the API returns status information:</p>
+                <xmp>
+                curl localhost:9909 -d '{"action":"almond", "name":"status"}'
+                </xmp>
+                <p style="font-family: Verdana; font-size: 12px">will return detailed status information from the Almond process.<br>
+                whereas</p>
+                <xmp>
+                curl localhost:9909 -d '{"action":"almond", "name":"plugins"}'
+                </xmp>
+                <p style="font-family: Verdana; font-size: 12px">will give you a short summary of plugin execution, similar to the <i>summary</i> call in HowruAPI.</p>
+                <p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">6. Utilities</p>
+		<p style="font-family: Verdana; font-size: 12px">In the folder <i>/opt/almond/utilities</i> you will find a number of tools you can use with Almond.<br>
+		These include <i>almond-token-generator</i> which will help you install tokens for users with privileged access to Almond API, and Python scripts for managing users and tokens in the Almond admin page.</p>
+                <p style="font-family: Verdana; font-size: 12px">There is also a <i>almond-collector</i> that can merge Howru API data from several sources, and <i>check_almond</i> which can be used as a replacement for check_nrpe with Nagios servers.</p>
+		<p style="font-family: Verdana; font-size: 14px; font-weight: bold; text-decoration: underline">7. Tips and recommendations</p>
                 <p style="font-family: Verdana; font-size: 12px">If you run the HowRU API on port 80 (default) you get a very simplistic web GUI where you can explore and test the API.<br>
                 If you wish to run the API on another port you can always curl to get API responses in json-format, for instance:</p>
                 <xmp>
