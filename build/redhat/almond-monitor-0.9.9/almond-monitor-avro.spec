@@ -1,10 +1,10 @@
 %define name almond-monitor
-%define version 0.9.9.7
+%define version 0.9.9.8
 %define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        8%{?dist}
+Release:        1%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -104,6 +104,8 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Thu Jul 03 2025 0.9.9.8
+- Improved API socket handling
 * Wed Jul 02 2025 0.9.9.7-8
 - Update of documentation
 - Update versioning
