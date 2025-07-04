@@ -32,7 +32,7 @@ scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'a
 users = {}
 hasToken=False
 usertoken = "None"
-current_version = '0.9.9.7'
+current_version = '0.9.9.8'
 
 enable_gui = True
 standalone = True

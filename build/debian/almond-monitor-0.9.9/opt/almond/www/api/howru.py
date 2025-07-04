@@ -58,7 +58,7 @@ ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
-current_version = '0.9.9.6'
+current_version = '0.9.9.8'
 
 app.secret_key = 'BAD_SECRET_KEY'
 app.register_blueprint(admin_page)
