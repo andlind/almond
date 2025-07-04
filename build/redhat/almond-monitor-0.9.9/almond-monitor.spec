@@ -1,5 +1,5 @@
 %define name almond-monitor
-%define version 0.9.9.6
+%define version 0.9.9.8
 %define _build_id_links none
 
 Name:           %{name}
