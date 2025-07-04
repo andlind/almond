@@ -75,7 +75,6 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0600,almond,almond) /opt/almond/api_cmd/apicmd.inf
 %attr(0755,almond,almond) /opt/almond/gardener.py
 %attr(0755,almond,almond) /opt/almond/howru
-%attr(0755,almond,almond) /opt/almond/www/api/rs.sh
 %attr(0755,almond,almond) /opt/almond/utilities/almond-token-generator
 %attr(0755,almond,almond) /opt/almond/utilities/almond-collector
 %attr(0755,almond,almond) /opt/almond/utilities/check_almond
@@ -85,11 +84,15 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0770,almond,almond) /opt/almond/almond
 %attr(0755,almond,almond) /var/log/almond/
 %attr(0755,almond,almond) /opt/almond/plugins/
-%attr(0750,almond,almond) /opt/almond/www/api/mods/
 %attr(0644,root,root) /lib/systemd/system/almond.service
 %attr(0644,root,root) /lib/systemd/system/howru.service
 %defattr(755,almond,almond,755)
 /opt/almond/www/*
+%exclude /opt/almond/www/api/rs.sh
+%exclude /opt/almond/www/api/mods
+%exclude /opt/almond/www/api/mods/*
+%attr(0755,almond,almond) /opt/almond/www/api/rs.sh
+%attr(0750,almond,almond) /opt/almond/www/api/mods/
 
 %doc
 
