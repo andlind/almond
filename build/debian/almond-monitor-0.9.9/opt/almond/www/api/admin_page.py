@@ -431,6 +431,7 @@ def read_conf():
 
     jasonFile = data_dir + '/' + json_file
     if (len(admin_user) > 0) and (len(admin_password) > 4):
+        session['user'] = admin_user
         set_new_password(admin_user, admin_password)
         delete_user_entries()
 
