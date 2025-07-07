@@ -32,7 +32,7 @@ scheduler_available_conf = ['almond.api', 'almond.port', 'almond.standalone', 'a
 users = {}
 hasToken=False
 usertoken = "None"
-current_version = '0.9.9.7'
+current_version = '0.9.9.8'
 
 enable_gui = True
 standalone = True
@@ -156,7 +156,7 @@ def set_new_password(username, password):
     # Ensure we remove leading/trailing whitespace
     username = username.strip()
     password = password.strip()
-
+    user = session.get('user', 'Unknown user')
     logger.info(session['user'] + " trying to set new password for user '" + username + "'.")
 
     # Validate input upfront
@@ -431,6 +431,7 @@ def read_conf():
 
     jasonFile = data_dir + '/' + json_file
     if (len(admin_user) > 0) and (len(admin_password) > 4):
+        session['user'] = admin_user
         set_new_password(admin_user, admin_password)
         delete_user_entries()
 

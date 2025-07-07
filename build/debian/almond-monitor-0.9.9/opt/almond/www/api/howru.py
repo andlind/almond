@@ -9,13 +9,16 @@ import threading
 import subprocess
 import os, os.path
 from venv import logger
-from flask import request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
+from flask import Flask,request, jsonify, render_template, redirect, url_for, send_from_directory, make_response
 from werkzeug.datastructures import MultiDict
 from admin_page import admin_page
 from auth2fa import auth_blueprint
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+app.config.setdefault('IS_CONTAINER', 'false')
+app.config.setdefault('AUTH_TYPE', None)
+app.config.setdefault('AUTH2FA_P', 'false')
 app_started = False
 data = None
 settings = None
@@ -58,7 +61,7 @@ ok_quotes = ["I'm ok, thanks for asking!", "I'm all fine, hope you are too!", "I
 warn_quotes = ["I'm so so", "I think someone should check me out", "Something is itching, scratch my back!", "I think I'm having a cold", "I'm not feeling all well"]
 crit_quotes = ["I'm not fine", "I feel sick, please call the doctor", "Not good, please get a technical guru to check me out", "Code red, code red", "I have fever, an aspirin needed"]
 
-current_version = '0.9.9.6'
+current_version = '0.9.9.8'
 
 app.secret_key = 'BAD_SECRET_KEY'
 app.register_blueprint(admin_page)
@@ -1847,6 +1850,42 @@ def api_show_alias(Alias):
         err_res = {"howru-version":current_version, "alias": Alias, "result":"Unknown api call. Call or alias does not exists."}
         return jsonify(err_res)
 
+#def create_app():
+#    global logger
+#    global current_version
+#    global sleep_time
+#    global enable_mods
+#    global app_started
+#    global admin_auth_type
+#
+#    app = Flask(__name__)
+#    app.secret_key = 'BAD_SECRET_KEY'
+#    app.register_blueprint(admin_page)
+#    app.register_blueprint(auth_blueprint)
+#    logging.basicConfig(filename='/var/log/almond/howru.log', filemode='a', format='%(asctime)s | %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+#    logger = logging.getLogger()
+#    logger.setLevel(logging.DEBUG)
+#    handler = logging.FileHandler('/var/log/almond/howru.log')
+#    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#    handler.setFormatter(formatter)
+#    app.logger.addHandler(handler)
+#    app.logger.setLevel(logging.DEBUG)
+#    app.logger.info('Starting howru api (version:' + current_version + ')')
+#    use_port = load_conf()
+#    app.logger.info("Configuration read.")
+#    app.config['AUTH_TYPE'] = admin_auth_type
+#    if is_container:
+#        app.config['IS_CONTAINER'] = 'true'
+#    else:
+#        app.config['IS_CONTAINER'] = 'false'
+#    if persistant_2fa:
+#        app.config['AUTH2FA_P'] = 'true'
+#    else:
+#        app.config['AUTH2FA_P'] = 'false'
+#    use_ssl = useCertificate()
+#    context = getCertificates()
+#    return app
+
 def main():
     global logger
     global current_version
@@ -1905,6 +1944,7 @@ def main():
 if run_with_wsgi:
     if __name__ == "__main__":
         app.run('0.0.0.0', port=80)
+    #create_app().run(host="0.0.0.0", port=80)
 else:
     if __name__ == '__main__':
         main()
