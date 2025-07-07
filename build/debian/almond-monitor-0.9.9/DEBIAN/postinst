@@ -1,4 +1,7 @@
 #!/bin/sh
+# install pyopt
+/usr/bin/pip3 install pyopt
+
 # Create log dir
 /bin/mkdir -p /var/log/almond
 
