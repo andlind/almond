@@ -17,6 +17,7 @@
 /bin/chown root:root /lib/systemd/system/almond.service
 /bin/chmod 655 /lib/systemd/system/howru.service
 /bin/chmod 655 /lib/systemd/system/almond.service
+/bin/chmod 750 /opt/almond/howru
 /bin/chmod 755 /opt/almond/gardener.py
 /bin/chmod 755 /opt/almond/www/api/rs.sh
 /bin/chmod 750 /opt/almond/utilities/almond-token-generator

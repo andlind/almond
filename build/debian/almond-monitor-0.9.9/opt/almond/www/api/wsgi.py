@@ -25,7 +25,7 @@ howru_conf_file="/etc/almond/api.conf"
 sleep_time = 10
 mods_list = []
 
-current_version = "0.9.7 Gunicorn"
+current_version = "0.9.9.8 Gunicorn"
 
 def useCertificate():
     global enable_ssl
@@ -139,7 +139,7 @@ def run_mods():
         time.sleep(sleep_time)
 
 def gc_main():
-    global enable_ssl, enable_mods, ssl_certificate, ssl_key, current_version
+    global enable_ssl, enable_mods, ssl_certificate, ssl_key, admin_auth_type, current_version
     logging.basicConfig(filename='/var/log/almond/howru.log', filemode='a', format='%(asctime)s | %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -151,6 +151,15 @@ def gc_main():
     app.logger.info('Starting howru api (version:' + current_version + ')')
     use_port = load_conf()
     app.logger.info("Configuration read.")
+    app.config['AUTH_TYPE'] = admin_auth_type
+    if is_container:
+        app.config['IS_CONTAINER'] = 'true'
+    else:
+        app.config['IS_CONTAINER'] = 'false'
+    if persistant_2fa:
+        app.config['AUTH2FA_P'] = 'true'
+    else:
+        app.config['AUTH2FA_P'] = 'false'
     use_ssl = useCertificate()
     context = getCertificates()
     tCheck = threading.Thread(target=check_config, daemon=True)

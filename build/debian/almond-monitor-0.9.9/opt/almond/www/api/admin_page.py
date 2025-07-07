@@ -156,7 +156,7 @@ def set_new_password(username, password):
     # Ensure we remove leading/trailing whitespace
     username = username.strip()
     password = password.strip()
-
+    user = session.get('user', 'Unknown user')
     logger.info(session['user'] + " trying to set new password for user '" + username + "'.")
 
     # Validate input upfront
