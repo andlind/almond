@@ -48,13 +48,13 @@ def verify_password(username, password):
     return False
 
 def load_key():
-    key = os.getenv("FERNET_KEY")
+    key = os.getenv("HOWRU_FERNET_KEY")
     if key is None:
-        #raise Exception("FERNET_KEY environment variable not set!")
+        #raise Exception("HOWRU_FERNET_KEY environment variable not set!")
         key = Fernet.generate_key()
         logger.info("Auth2fa: Generated new fernet key")
-        os.environ["FERNET_KEY"] = key.decode()
-        print(os.getenv("FERNET_KEY"))
+        os.environ["HOWRU_FERNET_KEY"] = key.decode()
+        print(os.getenv("HOWRU_FERNET_KEY"))
     return key.encode() if isinstance(key, str) else key
 
 def encrypt_data(data: bytes, fernet: Fernet) -> bytes:
@@ -80,7 +80,7 @@ def load_user_secret(username: str, filepath: str = "/etc/almond/auth2fa.enc") -
         except Exception as e:
             print("Error decrypting file:", e)
             print("Possible causes: incorrect key, corrupted file, or bad encryption.")
-            print(os.getenv("FERNET_KEY"))
+            print(os.getenv("HOWRU_FERNET_KEY"))
             return None
         
     return secrets.get(username)
