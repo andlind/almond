@@ -1,0 +1,91 @@
+{% include 'head.html' %}
+	<p align="center"><img src="{{ logo_image }}" alt="Logo Image"></p>
+	<hr size="1">
+	<table style="margin-left:auto;margin-right:auto;border:1px solid #000000; text-align:center; " width="90%">
+	<tr style="text-align:center">
+		<td>
+			<p style="font-family: Verdana; color: #491c0f; font-size: 22px;font-weight:bold">Run Almond API Query</p>
+		</td>
+	</tr>
+	</table>
+	<form name="action_api" method="post" action="/almond/admin">
+	<input type="hidden" name="action_type" value="actionapi">
+	<input type="hidden" name="action_id" value="{{ action }}"">
+	<table width="60%" align="center" style="margin-left:auto; margin-right:auto;">
+        {% if (action == "1" or action == "2" or action == "3") %}
+	<tr>
+		<td>
+			<label for="name">Name</label>
+			<select name="name" id="name">
+                                {% for plugin in plugins %}
+                                <option value="{{ loop.index }}" name="{{plugin}}">{{plugin}}</option>
+                                {% endfor %}
+                        </select>
+		</td>
+	</tr>
+	{% endif %}
+	<tr>
+		<td>
+			{% if action == "1" %}
+			<label for="flags">Flags</label>&nbsp;&nbsp;<select name="flags" id="flags">
+				<option value="1">Verbose</option>
+				<option value="2">None</option>
+				<option value="3">All</option>
+			</select>
+			{% elif (action == "2" or  action == "3") %}
+			<label for="flags">Flags</label>&nbsp;&nbsp;<select name="flags" id="flags">
+                                <option value="1">Verbose</option>
+                                <option value="2" selected>None</option>
+                        </select>
+			{% elif action == "4" %}
+			<p>Get all metrics</p>
+			{% elif (action == "6" or action == "7") %}
+			<label for="function">Function</label>&nbsp;&nbsp;<select name="function" id="function">
+				<option value="cleancache">Clean cache</option>
+				<option value="gardener">Gardener</option>
+				<option value="standalone">Standalone</option>
+				<option value="timetuner">Time tuner</option>
+				<option value="quickstart">Quick start</option>
+			</select>
+			{% elif (action == "5" or action == "8") %}
+                        <label for="variable">Server variable</label>&nbsp;&nbsp;<select name="variable" id="variable">
+				<option value="jsonfilename">Json filename</option>
+				<option value="kafkastartid">Kafka start id</option>
+				<option value="kafkatag">Kafka tag</option>
+                                <option value="kafkatopic">Kafka topic</option>
+				<option value="metricsfilename">Metrics filename</option>
+				<option value="metricsprefix">Metrics prefix</option>
+                                <option value="pluginoutput">Plugin output</option>
+                                <option value="saveonexit">Save on exit</option>
+                                <option value="sleep">Sleep</option>
+				<option value="hostname">Virtual hostname</option>
+                        </select>
+			{% endif %}
+		</td>
+	</tr>
+	{% if action == "8" %}
+        <tr>
+                <td>
+                        <label for="value">Value</label>
+                        <input type="text" name="value" id="value" size="10">
+                </td>
+        </tr>
+        {% endif %}
+	{% if (action == "2" or action == "3" or action == "6" or action == "7" or action == "8") %}
+	<tr>
+		<td>
+			<label for="token">Token</label>
+			<input type="text" name="token" id="token" size="30">
+		</td>
+	</tr>
+	{% endif %}
+	<tr>
+		<td>
+			<input type="submit" name="submit" id="submit" value="RUN">&nbsp;&nbsp;&nbsp;
+			<input type="button" name="goback" id="goback" value="Go back" onClick="javascript:history.back()">
+		</td>
+	</tr>
+	</table>
+	</form>
+	<p>&nbsp;</p>
+{% include 'foot.html' %}

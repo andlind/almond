@@ -1,7 +1,0 @@
-ALMOND MODS
-
-Almond mods is scripts that integrate with almond.conf and can be executed from the howru service
-if mods are enabled in the configuration. You can write your own mods, preferable in Python and place
-them in the mods directory. However, it is not recommended to have more than two mods enabled at the
-same time and they should not do any heavy tasks rather a simple conversion or calculation based on the
-json output from the Almond process.
