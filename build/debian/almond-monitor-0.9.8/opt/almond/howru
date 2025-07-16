@@ -1,3 +1,0 @@
-#!/bin/bash
-#/usr/bin/python3 /opt/almond/www/api/howru.py
-/usr/local/bin/gunicorn --user root --bind 0.0.0.0:80 --chdir=/opt/almond/www/api --log-file /var/log/almond/gunicorn.log --log-level info wsgi:app --daemon
