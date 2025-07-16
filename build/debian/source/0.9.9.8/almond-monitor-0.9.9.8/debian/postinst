@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -e  # Bail out on any error
+set -u  # Treat unset variables as errors
+
+# Only run once (avoid re-running on upgrades)
+if [ "$1" = "configure" ]; then
+
+  # 1. Create almond group and user if they don’t exist
+  if ! getent group almond >/dev/null; then
+    addgroup --system almond
+  fi
+  if ! getent passwd almond >/dev/null; then
+    adduser  --system \
+             --no-create-home \
+             --gecos "" \
+             --ingroup almond \
+             --shell /usr/sbin/nologin \
+             almond
+  fi
+
+  # 2. Create and fix permissions on log and config directories
+  install -d -m0750 -o almond -g almond /var/log/almond
+  install -d -m0755 /etc/almond
+  chown root:root /etc/almond
+
+  # 3. Symlink Nagios plugins into /opt/almond
+  install -d -m0755 /opt/almond/plugins
+  for plugin in /usr/lib/nagios/plugins/*; do
+    ln -fs "$plugin" /opt/almond/plugins/$(basename "$plugin")
+  done
+  chown -R almond:almond /opt/almond/plugins
+
+  # 4. Fix permissions on shipped binaries and scripts
+  find /opt/almond -type d -exec chmod 0750 {} +
+  find /opt/almond -type f -exec chmod 0755 {} +
+  chown -R almond:almond /opt/almond
+
+  # 5. Reload & enable systemd services
+  if command -v systemctl >/dev/null; then
+    systemctl daemon-reload
+    systemctl enable almond.service howru.service
+  fi
+
+fi
+
+#DEBHELPER#

@@ -1,0 +1,14 @@
+Format: http://dep.debian.net/deps/dep5
+Upstream-Name: almond-monitor
+Upstream-Contact: Andreas Lindell <andreas.lindell@almondmonitor.com>
+Source: https://github.com/andlind/almond
+
+Files: *
+Copyright: 2025 Andreas Lindell
+License: MIT
+ Permission is hereby granted, free of charge, to any person obtaining...
+ .
+ Copyright text continues...
+ .
+END OF TERMS AND CONDITIONS
+

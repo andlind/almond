@@ -1,0 +1,7 @@
+almond-monitor (0.9.9.8-2) unstable; urgency=medium
+
+  * Initial source build.
+  * Adds almond binary, installs to /opt/almond.
+  * Includes shared libraries in /usr/lib/almond.
+
+ -- Andreas Lindell <andreas.lindell@almondmonitor.com>  Wed, 16 Jul 2025 10:15:00 +0200

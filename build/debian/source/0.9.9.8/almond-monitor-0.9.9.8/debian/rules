@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+
+# Default target: invoke debhelper sequencer
+%:
+	dh $@
+
+# Override the build step to call gcc with your flags
+override_dh_auto_build:
+	$(MAKE)
+
+override_dh_auto_clean:
+	rm -f almond
+
+# Override the install step to stage files in debian/<pkgname>/
+override_dh_auto_install:
+	# Create target directory under /opt
+	install -d debian/almond-monitor/opt/almond
+	# Copy the compiled binary there
+	install -m 755 almond debian/almond-monitor/opt/almond/almond
+
+override_dh_installsystemd:
+	dh_installsystemd --name=almond.service
+	dh_installsystemd --name=howru.service

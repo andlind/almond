@@ -1,0 +1,13 @@
+Package: almond-monitor-dbgsym
+Package-Type: ddeb
+Source: almond-monitor
+Version: 0.9.9.8-2
+Auto-Built-Package: debug-symbols
+Architecture: arm64
+Maintainer: Andreas Lindell <andreas.lindell@ealmondmonitor.com>
+Installed-Size: 83
+Depends: almond-monitor (= 0.9.9.8-2)
+Section: debug
+Priority: optional
+Description: debug symbols for almond-monitor
+Build-Ids: 243403507ed3b26df787fc4c190e09f391b0615b
