@@ -1,8 +1,12 @@
 * INSTALLATION OF ALMOND 0.9.x ON REDHAT/ROCKY LINUX
+The Almond version without support for Avro is easy enough to install. Make sure you have the right dependecies and install it
 
-Instaling the new version of Almond Monitor is a little bit tricky, since it depends on Confluent libraries which is not yet supplied to RHEL9.
+rpm -ivh almond-monitor-0.9.10-1.el9.x86_64.rpm
+
+Instaling the of Almond Monitor with Avro support  is a little bit tricky, since it depends on Confluent libraries which is not yet supplied to RHEL9.
 
 If you have your own repositories you might already have the packages needed or you would choose to build them and upload them to your repository so that you could just install the supplied Almond rpm.
+If you don´t have libserdes and libavro installed, or in the wrong versions since Confluent has not yet released them for RedHat 9 you need to work a bit,
 
 This will guide you through the process of installing Almond Monitor 0.9.10 on a bare metal RedHat server, without having access to any of the third party packages needed by the program.
 
@@ -121,4 +125,4 @@ ldconfig
 
 - Now finally when all things are in place, you can install almond-monitor:
 
-rpm -ivh almond-monitor-0.9.10-1.el9.x86_64.rpm
+rpm -ivh almond-monitor-0.9.10-1.avro.el9.x86_64.rpm
