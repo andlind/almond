@@ -111,6 +111,10 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Fri Jul 18 2025 0.9.10
+<andreas.lindell@almondmonitor.com>
+- Updated build structure
+- Compile, build with or without avro support
 * Thu Jul 03 2025 0.9.9.8
 - Improved API socket handling
 * Wed Jul 02 2025 0.9.9.7-8

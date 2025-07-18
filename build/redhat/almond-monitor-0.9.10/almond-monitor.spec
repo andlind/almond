@@ -106,6 +106,10 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Fri Jul 18 2025 0.9.10
+<andreas.lindell@almondmonitor.com>
+- Updated build structure
+- Compile, build with or without avro support
 * Fri Jun 27 2025 0.9.9.6-3
 <andreas.lindell@almondmonitor.com>
 - New status API for Almond
