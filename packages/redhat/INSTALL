@@ -1,0 +1,128 @@
+* INSTALLATION OF ALMOND 0.9.x ON REDHAT/ROCKY LINUX
+The Almond version without support for Avro is easy enough to install. Make sure you have the right dependecies and install it
+
+rpm -ivh almond-monitor-0.9.10-1.el9.x86_64.rpm
+
+Instaling the of Almond Monitor with Avro support  is a little bit tricky, since it depends on Confluent libraries which is not yet supplied to RHEL9.
+
+If you have your own repositories you might already have the packages needed or you would choose to build them and upload them to your repository so that you could just install the supplied Almond rpm.
+If you don´t have libserdes and libavro installed, or in the wrong versions since Confluent has not yet released them for RedHat 9 you need to work a bit,
+
+This will guide you through the process of installing Almond Monitor 0.9.10 on a bare metal RedHat server, without having access to any of the third party packages needed by the program.
+
+* INSTALLATION PROCESS
+  So let´s go through the process of installing Almond on RedHat/Rocky 9. We will need to set up prerequisites both for the Almond process itself, but also we need to build some packages 
+  which are not available in standard repositories - before we install the Almond application. Be prepared for quite a long process to run.
+
+* INSTALL ALMOND DEPENDECIES
+- First make sure your system is up to date:
+
+yum update -y && yum upgrade -y
+
+- Make sure you have the needed repositories:
+
+dnf install -y epel-release
+dnf config-manager --set-enabled crb
+dnf makecache
+
+- Install dependecies
+dnf install -y ksh perl python3 sysstat procps-ng python3-cryptography python3-flask python3-gunicorn python3-simplejson python3-yaml openssl openssl-libs json-c jsoncpp libstdc++ librdkafka python3-pip
+pip3 install Flask-HTTPAuth matplotlib pyotp qrcode
+
+* INSTALL BUILD TOOLS
+
+- Next we need to install some developement tools to build the requirements not found in standard repositories:
+
+dnf groupinstall -y "Development Tools" && dnf install -y wget cmake git gcc-c++ libstdc++-static curl-devel jansson-devel openssl-devel python3  ruby ruby-devel gcc make rpm-build
+gem install fpm
+
+* INSTALL BOOST, AVRO AND LIBSERDES
+
+- We now will install boost, libserdes and boost from source. So let´s first make a directory where we compile them:
+
+mkdir /buildroot
+cd /buildroot
+
+- Install boost 0.66 (backport). Be aware that boost take a while to compile!cd
+
+wget https://sourceforge.net/projects/boost/files/boost/1.66.0/boost_1_66_0.tar.gz/download -O boost_1_66_0.tar.gz && \
+    tar -xzf boost_1_66_0.tar.gz && \
+    cd boost_1_66_0 && \
+    ./bootstrap.sh && \
+./b2 --with-filesystem --with-system --with-program_options --with-regex --with-iostreams -j$(nproc) install
+
+- Add the library to your build configuration
+
+echo "/usr/local/lib" >> /etc/ld.so.conf.d/boost.conf
+ldconfig
+
+- Install Avro, both with C and C++ headers:
+
+cd /buildroot
+
+git clone https://github.com/apache/avro.git
+cd avro/lang/c++
+
+- Edit the Avro CMakeLists.txt file to use Boost 1.66
+
+  Replace find_package (Boost 1.70 REQUIRED CONFIG COMPONENTS system)  with
+  set(Boost_NO_BOOST_CMAKE TRUE)
+  find_package(Boost 1.66 REQUIRED COMPONENTS system)
+
+- Build avro C++ with support for old Boost:
+
+mkdir build && cd build && \
+cmake .. \ 
+  -DCMAKE_INSTALL_PREFIX=/usr/local \ 
+  -DBOOST_ROOT=/usr/local \ 
+  -DCMAKE_PREFIX_PATH=/usr/local \ 
+  -DBoost_NO_BOOST_CMAKE=TRUE && \ 
+  make -j$(nproc) && \ 
+  make install
+
+- Build Avro C (start with moving to avro/lang/c):
+
+cd ../../c/src
+
+- Edit the CMakeLists.txt file
+  Replace set_target_properties(avro static PROPERTIES OUTPUT_NAME avro) with
+  set_target_properties(avro-static PROPERTIES VERSION 24.0.0 OUTPUT_NAME avro)
+
+cd ../
+mkdir build && cd build
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DBUILD_SHARED_LIBS=ON \
+  -DCMAKE_SHARED_LIBRARY_SOVERSION=24 \
+  -DCMAKE_SHARED_LIBRARY_VERSION=24.0.0
+make -j$(nproc)
+make install
+ 
+- Build libserdes
+
+cd /buildroot
+git clone https://github.com/confluentinc/libserdes.git
+cd libserdes
+
+./configure --prefix=/usr/local
+make CXXFLAGS="-std=c++17 -I ../src" -j$(nproc)
+make install
+
+echo "/usr/local/lib" > /etc/ld.so.conf.d/local-libserdes.conf
+#cd /usr/local/lib
+#gcc -shared -Wl,-soname,libavro.so.24 -o libavro.so.24 libavro.so.23.0.0
+#ldconfig
+
+- Finally we build phone rpms to meet the need of the Almond install
+
+cp /usr/local/lib/libserdes.so.1 /usr/lib64/
+cp /usr/local/lib64/libavro.so.24 /usr/lib64
+cd /buildroot
+fpm -s dir -t rpm -n libavro -v 24.0.0 --provides 'libavro.so.24()(64bit)' --architecture x86_64 --prefix=/lib64 -C /usr/local/lib64   libavro.so.24 libavro.so.24.0.1
+fpm -s dir -t rpm -n libserdes -v 1.0.0 --provides 'libserdes.so.1()(64bit)' --architecture x86_64 --prefix=/usr/lib64/libserdes.so.1 /usr/local/lib/libserdes.so.1
+rpm -ivh --replacepkgs libavro-24.0.0-1.x86_64.rpm libserdes-1.0.0-1.x86_64.rpm 
+ldconfig
+
+- Now finally when all things are in place, you can install almond-monitor:
+
+rpm -ivh almond-monitor-0.9.10-1.avro.el9.x86_64.rpm
