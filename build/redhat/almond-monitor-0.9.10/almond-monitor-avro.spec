@@ -1,10 +1,11 @@
+%global _lto_cflags %{nil}
 %define name almond-monitor
 %define version 0.9.10
 %define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        2%{?dist}
+Release:        1.avro%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -27,6 +28,7 @@ Almond scheduler and Howru API, compatible with Nagios plugins
 %setup -q
 
 %build
+%configure --prefix /opt/almond --enable-avro
 make %{?_smp_mflags}
 
 %install

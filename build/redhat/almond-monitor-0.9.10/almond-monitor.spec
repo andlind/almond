@@ -1,3 +1,4 @@
+%global _lto_cflags %{nil}
 %define name almond-monitor
 %define version 0.9.10
 %define _build_id_links none
@@ -26,6 +27,7 @@ Almond scheduler and Howru API, compatible with Nagios plugins
 %setup -q
 
 %build
+%configure --disable-avro --prefix /opt/almond
 make %{?_smp_mflags}
 
 %install
@@ -63,6 +65,7 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 
 %files
 %global default_attr 0640 almond almond
+%attr(0770,almond,almond) /opt/almond/almond
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/almond.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/plugins.conf
 %attr(0644,almond,almond) %config(noreplace) /etc/almond/aliases.conf
