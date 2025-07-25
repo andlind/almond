@@ -1,11 +1,16 @@
 %global _lto_cflags %{nil}
+%global optflags -O2 -g
+%undefine _hardened_build
+%undefine _package_note_flags
+%undefine _annotated_build
+
 %define name almond-monitor
 %define version 0.9.10
 %define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -41,22 +46,23 @@ mkdir -p %{buildroot}/opt/almond/utilities/
 mkdir -p %{buildroot}/opt/almond/www
 mkdir -p %{buildroot}/opt/almond/api_cmd/
 mkdir -p %{buildroot}/lib/systemd/system/
-cp almond.conf %{buildroot}/etc/almond/
-cp plugins.conf %{buildroot}/etc/almond/
-cp users.conf %{buildroot}/etc/almond/
-cp aliases.conf %{buildroot}/etc/almond/
-cp memalloc.conf %{buildroot}/etc/almond/
-cp tokens %{buildroot}/etc/almond/
-cp auth2fa.enc %{buildroot}/etc/almond/
-cp gardener.py %{buildroot}/opt/almond/
-cp howru %{buildroot}/opt/almond/
-cp memalloc.alm %{buildroot}/opt/almond/
-cp apicmd.inf %{buildroot}/opt/almond/api_cmd/
-cp metrics.template %{buildroot}/opt/almond/templates/
+install -m 0750 %{buildroot}/usr/bin/almond %{buildroot}/opt/almond/
+rm -f %{buildroot}/usr/bin/almond
+install -m 0644 -D almond.conf %{buildroot}/etc/almond/almond.conf
+install -m 0644 -D plugins.conf %{buildroot}/etc/almond/plugins.conf
+install -m 0644 -D aliases.conf %{buildroot}/etc/almond/aliases.conf
+install -m 0644 -D users.conf %{buildroot}/etc/almond/users.conf
+install -m 0644 -D memalloc.conf %{buildroot}/etc/almond/memalloc.conf
+install -m 0600 -D auth2fa.enc %{buildroot}/etc/almond/auth2fa.enc
+install -m 0644 -D tokens %{buildroot}/etc/almond/tokens
+install -m 0755 -D gardener.py %{buildroot}/opt/almond/gardener.py
+install -m 0644 -D metrics.template %{buildroot}/opt/almond/templates/metrics.template
+install -m 0755 -D howru %{buildroot}/opt/almond/howru
+install -m 0600 -D apicmd.inf %{buildroot}/opt/almond/api_cmd/apicmd.inf
 cp -r www/* %{buildroot}/opt/almond/www/
 cp rs.sh %{buildroot}/opt/almond/www/api/
 cp -r system/* %{buildroot}/lib/systemd/system/
-cp -r plugins/* %{buildroot}/opt/almond/plugins/
+install -m 0705 plugins/* %{buildroot}/opt/almond/plugins/
 cp -r utilities/* %{buildroot}/opt/almond/utilities/
 
 #Enable mods
@@ -65,18 +71,23 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 
 %files
 %global default_attr 0640 almond almond
-%attr(0770,almond,almond) /opt/almond/almond
-%attr(0644,almond,almond) %config(noreplace) /etc/almond/almond.conf
-%attr(0644,almond,almond) %config(noreplace) /etc/almond/plugins.conf
-%attr(0644,almond,almond) %config(noreplace) /etc/almond/aliases.conf
-%attr(0644,almond,almond) %config(noreplace) /etc/almond/users.conf
-%attr(0644,almond,almond) %config(noreplace) /etc/almond/memalloc.conf
-%attr(0644,almond,almond) %config(noreplace) /etc/almond/tokens
-%attr(0600,almond,almond) %config(noreplace) /etc/almond/auth2fa.enc
-%attr(0600,almond,almond) /opt/almond/memalloc.alm
-%attr(0600,almond,almond) /opt/almond/api_cmd/apicmd.inf
+%exclude /opt/almond/www/api/mods/enabled/modxml.py
+%exclude /opt/almond/www/api/mods/enabled/modyaml.py
+%exclude /opt/almond/www/api/rs.sh
+%exclude /opt/almond/gardener.py
+%defattr(755,almond,almond,755)
+/opt/almond/www/*
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/almond.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/users.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/plugins.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/memalloc.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/aliases.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/auth2fa.enc
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/tokens
+%attr(0750, almond, almond) /opt/almond/almond
+%attr(0750, almond, almond) /opt/almond/howru
+%attr(0600, almond, almond) /opt/almond/api_cmd/apicmd.inf
 %attr(0755,almond,almond) /opt/almond/gardener.py
-%attr(0755,almond,almond) /opt/almond/howru
 %attr(0755,almond,almond) /opt/almond/www/api/rs.sh
 %attr(0755,almond,almond) /opt/almond/utilities/almond-token-generator
 %attr(0755,almond,almond) /opt/almond/utilities/almond-collector
@@ -84,14 +95,12 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0750,almond,almond) /opt/almond/utilities/howru-user-admin.py
 %attr(0750,almond,almond) /opt/almond/utilities/token-to-user.py
 %attr(0644,almond,almond) /opt/almond/templates/metrics.template
-%attr(0770,almond,almond) /opt/almond/almond
 %attr(0755,almond,almond) /var/log/almond/
 %attr(0755,almond,almond) /opt/almond/plugins/
-%attr(0750,almond,almond) /opt/almond/www/api/mods/
+%attr(0750,almond,almond) /opt/almond/www/api/mods/enabled/modxml.py
+%attr(0750,almond,almond) /opt/almond/www/api/mods/enabled/modyaml.py
 %attr(0644,root,root) /lib/systemd/system/almond.service
 %attr(0644,root,root) /lib/systemd/system/howru.service
-%defattr(755,almond,almond,755)
-/opt/almond/www/*
 
 %doc
 
@@ -106,10 +115,10 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Fri Jul 18 2025 0.9.10
+* Fri Jul 25 2025 0.9.10
 <andreas.lindell@almondmonitor.com>
-- Updated build structure
-- Compile, build with or without avro support
+- Memory leaks covered
+- Bugg fixes, updated build
 * Fri Jun 27 2025 0.9.9.6-3
 <andreas.lindell@almondmonitor.com>
 - New status API for Almond
