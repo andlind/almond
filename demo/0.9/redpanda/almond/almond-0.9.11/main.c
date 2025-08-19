@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #define _XOPEN_SOURCE 700
 #define _DEFAULT_SOURCE
 #include <stdio.h>
@@ -5,6 +6,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <netdb.h>
@@ -12,9 +14,16 @@
 #include <pthread.h>
 #include <signal.h>
 #include <math.h>
+#include <malloc.h>
+#include <zlib.h>
+#include <stddef.h>
+#include <limits.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <arpa/inet.h>
 #include <json-c/json.h>
 #include <openssl/ssl.h>
@@ -22,6 +31,7 @@
 #include <openssl/err.h>
 #include "data.h"
 #include "config.h"
+#include "logger.h"
 #include "mod_kafka.h"
 
 #define MAX_COLUMNS 2
@@ -55,6 +65,7 @@
 #define API_DISABLE_QUICKSTART 57
 #define API_ENABLE_STANDALONE 58
 #define API_DISABLE_STANDALONE 59
+#define API_SET_SCHEDULER_TYPE 69
 #define API_SET_PLUGINOUTPUT 70
 #define API_SET_SAVEONEXIT 71
 #define API_SET_KAFKATAG 72
@@ -77,18 +88,39 @@
 #define API_GET_KAFKATOPIC 89
 #define API_GET_KAFKA_START_ID 90
 #define API_GET_PLUGIN_RELOAD_TS 91
+#define API_GET_SCHEDULER 113
 #define API_CHECK_PLUGIN_CONFIG 92
 #define API_RELOAD_ALMOND 93
 #define API_RELOAD_CONFIG_HARD 94
 #define API_RELOAD_CONFIG_SOFT 95
+#define API_ALMOND_VERSION 110
+#define API_ALMOND_STATUS 111
+#define API_ALMOND_PLUGINSTATUS 112
 #define API_NAME_END 96
 #define API_DENIED 66
 #define API_ERROR 2 
 #define KAFKA_EXPORT_TAG 10
 #define KAFKA_EXPORT_ID 20
 #define KAFKA_EXPORT_IDTAG 30
-#define VERSION "0.9.9"
+#define MAX_PLUGINS 256
+#define TIME_BUF_LEN 80
+#define VERSION "0.9.11"
+/*#if defined(_BSD_SOURCE) || defined(_SVID_SOURCE) || defined(_XOPEN_SOURCE)
+#define HAS_BIRTHTIME 1
+#else
+#define HAS_BIRTHTIME 0
+#endif*/
 
+enum shutdown_reason {
+    SR_NORMAL,
+    SR_SIGINT,
+    SR_SIGKILL,
+    SR_SIGTERM,
+    SR_SIGSTOP,
+    SR_ERROR
+};
+
+void safe_free_str(char **ptr);
 char constantsFile[26] = "/opt/almond/memalloc.alm";
 char* confDir = NULL;
 char* dataDir = NULL;
@@ -123,7 +155,8 @@ char* server_message = NULL;
 char* client_message = NULL;
 char* almondCertificate = NULL;
 char* almondKey = NULL;
-//char* apiMessage;
+char* schemaRegistryUrl = NULL;
+char schemaName[100] = "almond-monitor-topic-value"; 
 PluginItem *declarations = NULL;
 PluginOutput *outputs = NULL;
 PluginItem *update_declarations = NULL;
@@ -154,9 +187,11 @@ int enableKafkaSSL = 0;
 int enableKafkaTag = 0;
 int enableKafkaId = 0;
 int enableTimeTuner = 0;
+int kafkaAvro = 0;
 int timeTunerMaster = 1;
 int timeTunerCycle = 15;
 int timeTunerCounter = 0;
+int truncateLog = 0;
 int local_port = 9909;
 int local_api = 0;
 int standalone = 0;
@@ -165,6 +200,9 @@ int use_ssl = 0;
 int timeScheduler = 0;
 int tspr = 0;
 int config_memalloc_fails = 0;
+int trunc_time = 0;
+int external_scheduler = 0;
+int max_try = 60;
 size_t infostr_size = 400;
 size_t gardenermessage_size = 1035;
 size_t pluginmessage_size = 2300;
@@ -173,7 +211,6 @@ size_t apimessage_size = 2000;
 size_t socketservermessage_size = 2000;
 size_t socketclientmessage_size = 2000;
 size_t logmessage_size = 1545;
-int server_fd;
 size_t confdir_size = 50;
 size_t datadir_size = 50;
 size_t plugindeclarationfile_size = 75;
@@ -200,6 +237,7 @@ size_t declaration_size = 0;
 size_t output_size = 0;
 size_t update_output_size = 0;
 size_t update_declaration_size = 0;
+signed int truncateLogInterval = 604800;
 unsigned int socket_is_ready = 0;
 unsigned int gardenerInterval = 43200;
 unsigned int clearDataCacheInterval = 300;
@@ -212,7 +250,7 @@ time_t tnextGardener;
 time_t tnextClearDataCache;
 time_t tPluginFile;
 struct sockaddr_in address;
-int server_fd;
+int server_fd = -1;
 int api_action = 0;
 char* api_args = NULL;
 int args_set = 0;
@@ -220,11 +258,15 @@ FILE *fptr = NULL;
 char constants[MAX_CONSTANTS][50];
 int values[50];
 unsigned short *threadIds = NULL;
-//char *logmessages[5];
 int logmessage_id[5];
 int logrecord = 0;
-unsigned short volatile is_stopping = 0;
-pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
+int shutdown_phase = 0;
+volatile sig_atomic_t is_stopping = 0;
+volatile sig_atomic_t shutdown_reason = SR_NORMAL;
+static volatile sig_atomic_t already_exiting = 0;
+//pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pid_t plugin_pid_set[MAX_PLUGINS];
+static pthread_mutex_t plugin_set_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t file_opened = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t update_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -247,6 +289,9 @@ void apiCheckPluginConf();
 void apiReloadConfigHard();
 void apiReloadConfigSoft();
 void apiReload();
+void apiShowVersion();
+void apiShowStatus();
+void apiShowPluginStatus();
 void runPluginCommand(int, char*);
 void runPlugin(int, int);
 void runPluginArgs(int, int, int);
@@ -285,6 +330,7 @@ void process_kafka_producer_certificate(ConfVal);
 void process_kafka_start_id(ConfVal);
 void process_kafka_tag(ConfVal);
 void process_kafka_topic(ConfVal);
+void process_kafka_avro(ConfVal);
 void process_almond_key(ConfVal);
 void process_data_dir(ConfVal);
 void process_log_dir(ConfVal);
@@ -295,11 +341,16 @@ void process_run_gardener_at_start(ConfVal);
 void process_store_results(ConfVal);
 void process_almond_sleep( ConfVal);
 void process_store_dir(ConfVal);
+void process_truncate_log(ConfVal);
+void process_truncate_log_interval(ConfVal);
 void process_tune_master(ConfVal);
 void process_tune_cycle(ConfVal);
 void process_tune_timer(ConfVal);
 void process_almond_scheduler_type(ConfVal);
 void process_almond_api_tls(ConfVal);
+void process_external_scheduler(ConfVal);
+void process_schema_registry_url(ConfVal);
+void process_schema_name(ConfVal);
 
 ConfigEntry config_entries[] = {
     {"almond.api", process_almond_api},
@@ -330,6 +381,7 @@ ConfigEntry config_entries[] = {
     {"scheduler.gardenerScript", process_gardener_script},
     {"scheduler.hostName", process_host_name},
     {"scheduler.initSleepMs", process_init_sleep},
+    {"scheduler.kafkaAvro", process_kafka_avro},
     {"scheduler.kafkaBrokers", process_kafka_brokers},
     {"scheduler.kafkaCACertificate", process_kafka_ca_certificate},
     {"scheduler.kafkaProducerCertificate", process_kafka_producer_certificate},
@@ -342,34 +394,20 @@ ConfigEntry config_entries[] = {
     {"scheduler.logToStdout", process_log_to_stdout},
     {"scheduler.quickStart", process_almond_quickstart},
     {"scheduler.runGardenerAtStart", process_run_gardener_at_start},
+    {"scheduler.schemaName", process_schema_name},
+    {"scheduler.schemaRegistryUrl", process_schema_registry_url},
     {"scheduler.storeResults", process_store_results},
     {"scheduler.sleepMs", process_almond_sleep},
     {"scheduler.storeDir", process_store_dir},
+    {"scheduler.truncateLog", process_truncate_log},
+    {"scheduler.truncateLogInterval", process_truncate_log_interval},
     {"scheduler.tuneMaster", process_tune_master},
     {"scheduler.tuneCycle", process_tune_cycle},
     {"scheduler.tuneTimer", process_tune_timer},
     {"scheduler.type", process_almond_scheduler_type},
+    {"scheduler.useExternal", process_external_scheduler},
     {"scheduler.useTLS", process_almond_api_tls}
 };
-
-/*struct Constant constantss[] = {
-	{"CONFDIR_SIZE", () -> 	{
-				       	writeLog("Memory for variable 'confDir' will be allocated by constants file.", 0, 1); 
-				       	confdir_size = (size_t)(values[i] * sizeof(char)+1);
-			       	}},
-	{"DATADIR_SIZE", () -> 	{
-				       	writeLog("Memory for variable 'dataDir' will be allocated by constants file.", 0, 1); 
-				       	datadir_size = (size_t)(values[i] * sizeof(char)+1);
-			       	}},
-	{"PLUGINDECLARATIONFILE_SIZE", () -> {
-					writeLog("Memory for variable 'pluginDeclarationSize' will be allocated by constants file.", 0, 1); 
-					plugindeclarationfile_size = (size_t)(values[i] * sizeof(char)+1);
-				}},
-        { "JSONFILENAME_SIZE", () -> {
-					writeLog("Memory for variable 'pluginDeclarationSize' will be allocated by constants file.", 0, 1); 
-					jsonfilename_size = (size_t)(values[i] * sizeof(char)+1);
-				}}
-}*/
 
 char *trim(char *s) {
     char *ptr;
@@ -413,9 +451,87 @@ char *replaceWord(char *sentence, char *find, char *replace) {
 		memcpy(insert_point, replace, repl_len);
         	insert_point += repl_len;
         	tmp = p + needle_len;
-    }
-    strcpy(dest, buffer);
-    return dest;
+	}
+    	strcpy(dest, buffer);
+    	return dest;
+}
+
+void add_plugin_pid(pid_t pid) {
+    	pthread_mutex_lock(&plugin_set_mtx);
+    	for (int i = 0; i < MAX_PLUGINS; i++) {
+        	if (plugin_pid_set[i] == 0) { plugin_pid_set[i] = pid; break; }
+    	}
+    	pthread_mutex_unlock(&plugin_set_mtx);
+}
+
+void remove_plugin_pid(pid_t pid) {
+    	pthread_mutex_lock(&plugin_set_mtx);
+    	for (int i = 0; i < MAX_PLUGINS; i++) {
+        	if (plugin_pid_set[i] == pid) { plugin_pid_set[i] = 0; break; }
+    	}
+    	pthread_mutex_unlock(&plugin_set_mtx);
+}
+
+int is_plugin_pid(pid_t pid) {
+    	int found = 0;
+    	pthread_mutex_lock(&plugin_set_mtx);
+    	for (int i = 0; i < MAX_PLUGINS; i++) {
+        	if (plugin_pid_set[i] == pid) { found = 1; break; }
+    	}
+    	pthread_mutex_unlock(&plugin_set_mtx);
+    	return found;
+}
+
+TrackedPopen tracked_popen(const char *cmd) {
+	int pfd[2];
+    	if (pipe(pfd) == -1) { perror("pipe"); return (TrackedPopen){NULL, -1}; }
+
+    	pid_t pid = fork();
+    	if (pid < 0) {
+        	perror("fork");
+        	close(pfd[0]); close(pfd[1]);
+        	return (TrackedPopen){NULL, -1};
+    	}
+    	if (pid == 0) {
+        	// child
+        	close(pfd[0]);
+        	dup2(pfd[1], STDOUT_FILENO);
+        	close(pfd[1]);
+        	execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
+        	_exit(127);
+    	}
+
+    	close(pfd[1]);
+    	FILE *fp = fdopen(pfd[0], "r");
+    	return (TrackedPopen){fp, pid};
+}
+
+int tracked_pclose(TrackedPopen *tp) {
+    	/*int status = -1, rc = -1;
+    	if (tp->fp) {
+        	fclose(tp->fp);
+        	rc = waitpid(tp->pid, &status, 0);
+        	if (rc == tp->pid) {
+            		if (WIFEXITED(status)) return WEXITSTATUS(status);
+            		else return -1;
+        	}
+    	}
+    	return -1;*/
+	if (!tp || !tp->fp) return -1;
+	fclose(tp->fp);
+	int status, rc;
+	do {
+        	rc = waitpid(tp->pid, &status, 0);
+    	} while (rc == -1 && errno == EINTR);
+	if (rc == -1) {
+		return -1;
+	}
+	if (WIFEXITED(status))       
+		return WEXITSTATUS(status);
+    	else if (WIFSIGNALED(status)) 
+		return 128 + WTERMSIG(status);
+    	else         
+                return -1;
 }
 
 int getNextMessage() {
@@ -445,71 +561,6 @@ int getNextMessage() {
 	return 0;
 }
 
-void writeLog(const char *message, int level, int startup) {
-        char timeStamp[20];
-        size_t dest_size = 20;
-        time_t t = time(NULL);
-        struct tm tm = *localtime(&t);
-	//int message_id = 0;
-	
-        snprintf(timeStamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-	if (logrecord > 0) {
-                sleep(0.5);
-        }
-        logrecord = 1;
-	if (logmessage == NULL) {
-		printf("Failed to write logmessage, since memory allocation is already freed.\n");
-		printf("Message not written [Level] Message: %d, %s\n", level, message);
-		return;
-	}
-	else {
-		memset(logmessage, 0, (size_t)logmessage_size * sizeof(char)+1);
-		logmessage[0] = '\0';
-	}
-        strncpy(logmessage, timeStamp, (size_t)(sizeof(timeStamp)-1));
-	/*if (logmessage != NULL) {
-		free(logmessage);
-		logmessage = NULL;
-		logmessage = malloc(1545 * sizeof(char));
-		memset(logmessage, 0, logmessage_size * sizeof(char));
-	}*/
-	//message_id = getNextMessage();
-	strncpy(logmessage, timeStamp, logmessage_size -1);
-        strcat(logmessage, " | ");
-        switch (level) {
-                case 0:
-                        strcat(logmessage, "[INFO]\t");
-                        break;
-                case 1:
-                        strcat(logmessage, "[WARNING]\t");
-                        break;
-                case 2:
-                        strcat(logmessage, "[ERROR]\t");
-                        break;
-                default:
-                        strcat(logmessage, "[DEBUG]\t");
-        }
-        strcat(logmessage, message);
-	//strncpy(logmessages[message_id], logmessage, logmessage_size);
-	//logmessages[message_id][logmessage_size -1] = '\0';
-	//printf("DEBUG: logmessage[%d] = %s\n", message_id, logmessages[message_id]);
-	if (startup < 1) {
-	 	pthread_mutex_lock(&file_mutex);
-		while (!is_file_open) {
-			pthread_cond_wait(&file_opened, &file_mutex);
-		}
-        	fprintf(fptr, "%s\n", logmessage);
-		pthread_mutex_unlock(&file_mutex);
-	}
-	else {
-		fprintf(fptr, "%s\n", logmessage);
-	}
-	if (dockerLog > 0) {
-		printf("%s\n", logmessage);
-	}
-	logrecord = 0;
-}
-
 void logError(const char* message, int severity, int mode) {
         writeLog(message, severity, mode);
         fprintf(stderr, "%s\n", message);
@@ -518,23 +569,6 @@ void logError(const char* message, int severity, int mode) {
 void logInfo(const char*message, int severity,int mode) {
         writeLog(message, severity, mode);
         printf("%s\n", message);
-}
-
-void initLogger() {
-      	char ch = '/';
-
-        snprintf(logfile, logfile_size, "%s%c%s", logDir, ch, "almond.log");
-        pthread_mutex_lock(&file_mutex);
-        fptr = fopen(logfile, "a");
-        if (fptr == NULL) {
-		printf("Could not open '%s'\n", logfile);
-                perror("Error opening logfile");
-                exit(EXIT_FAILURE);
-        }
-        is_file_open = 1;
-        pthread_cond_broadcast(&file_opened);
-        pthread_mutex_unlock(&file_mutex);
-        //writeLog("Logger is initiated.", 0, 0);
 }
 
 void checkCtMemoryAlloc() {
@@ -637,6 +671,46 @@ int parse__conf_line(char *buf) {
                 return 0;
         else
                 return 2;
+}
+
+static char* getCurrentTimestamp() {
+	static char timestamp[20];
+	time_t now = time(NULL);
+	strftime(timestamp, sizeof(timestamp), "Y%m%d_%H%M%S", localtime(&now));
+	return timestamp;
+}
+
+static int compress_log(const char* src_filename, const char* dest_filename) {
+	gzFile dest = NULL;
+	FILE* source = NULL;
+	char buffer[8192];
+	size_t bytes_read;
+
+	source = fopen(src_filename, "rb");
+	if (!source) {
+		fprintf(stderr, "Error opening %s: %s\n", src_filename, strerror(errno));
+		writeLog("Failed to open the log source file for compression.", 1, 1);
+		return -1;
+	}
+	dest = gzopen(dest_filename, "wb");
+	if (!dest) {
+		fprintf(stderr, "Error opening %s: %s\n", dest_filename, strerror(errno));
+		writeLog("Failed to create the compressed log file.", 1, 1);
+		if (source) fclose(source);
+		return -1;
+	}
+	while ((bytes_read = fread(buffer, 1, sizeof(buffer), source)) > 0) {
+		if (gzwrite(dest, buffer, bytes_read) != bytes_read) {
+			fprintf(stderr, "Compression failed: %s\n", strerror(errno));
+			writeLog("Compression of log file failed.", 1, 1);
+			fclose(source);
+			gzclose(dest);
+			return -1;
+		}
+	}
+	fclose(source);
+	gzclose(dest);
+	return 0;
 }
 
 int toggleHostName(char *name) {
@@ -746,7 +820,7 @@ int toggleExportFileName(char *name, int mode) {
 
         int changed = 0;
         while ((fgets(buffer, 1000, fPtr)) != NULL){
-                char *pch;
+                char *pch = NULL;
 	        if (mode == 0)
 			pch = strstr(buffer, dFile);
 		else if (mode == 1)
@@ -858,7 +932,7 @@ void updateFileName(char value[100], int mode) {
        		toggleExportFileName(jsonFileName, 0);
 	else if (mode == 1)
 		toggleExportFileName(metricsFileName, 1);
-       	char * removeFileName;
+       	char * removeFileName = NULL;
         if (mode == 0)
 		removeFileName = malloc(datafilename_size);
 	else if (mode == 1)
@@ -908,6 +982,37 @@ int compare_timestamps(const void* a, const void* b) {
         return 0;
 }
 
+int get_thread_count() {
+    int count = 0;
+    DIR *dir = opendir("/proc/self/task");
+    if (dir) {
+        while (readdir(dir)) count++;
+        closedir(dir);
+    }
+    return count - 2; // subtract '.' and '..'
+}
+
+void print_io_stats() {
+    FILE *fp = fopen("/proc/self/io", "r");
+    if (!fp) return;
+
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        printf("%s", line);  // e.g., "read_bytes: 1024"
+    }
+    fclose(fp);
+}
+
+int get_fd_count() {
+    int count = 0;
+    DIR *dir = opendir("/proc/self/fd");
+    if (dir) {
+        while (readdir(dir)) count++;
+        closedir(dir);
+    }
+    return count - 2; // subtract '.' and '..'
+}
+
 int check_plugin_conf_file(char *pluginDeclarationFile) {
         FILE * fPtr = NULL;
         int i;
@@ -939,16 +1044,8 @@ int check_plugin_conf_file(char *pluginDeclarationFile) {
 }
 
 void rescheduleChecks() {
-	/*for (int i = 0; i < decCount; i++) {
-                printf("ID = %d\t", scheduler[i].id);
-                printf("Timestamp = %ld\n", (long)scheduler[i].timestamp);
-        }*/
         writeLog("Schedule new exectution times.", 0, 0);
         qsort(scheduler, decCount, sizeof(struct Scheduler), compare_timestamps);
-        /*for (int i = 0; i < decCount; i++) {
-                printf("ID = %d\t", scheduler[i].id);
-                printf("Timestamp = %ld\n", (long)scheduler[i].timestamp);
-        }*/
         flushLog();
 }
 
@@ -985,23 +1082,28 @@ int updateValuesFromUdfFile(char id[3]) {
 		}
 		if (pId != -1) {
 			if (strcmp(columns[0], "item_lastruntimestamp") == 0) {
-				strncpy(declarations[pId].lastRunTimestamp, trim(columns[1]), 20);
+				//strncpy(declarations[pId].lastRunTimestamp, trim(columns[1]), 20);
+				snprintf(declarations[pId].lastRunTimestamp, 20, "%s", trim(columns[1])); 
 			}
 			else if (strcmp(columns[0], "item_lastchangetimestamp") == 0) {
-				strncpy(declarations[pId].lastChangeTimestamp, trim(columns[1]), 20);
+				//strncpy(declarations[pId].lastChangeTimestamp, trim(columns[1]), 20);
+				snprintf(declarations[pId].lastChangeTimestamp, 20, "%s", trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "item_nextruntimestamp") == 0) {
-				strncpy(declarations[pId].nextRunTimestamp, trim(columns[1]), 20);
+				//strncpy(declarations[pId].nextRunTimestamp, trim(columns[1]), 20);
+				snprintf(declarations[pId].nextRunTimestamp, 20, "%s", trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "item_statuschanged") == 0) {
-				strncpy(declarations[pId].statusChanged, trim(columns[1]), 1);
+				//strncpy(declarations[pId].statusChanged, trim(columns[1]), 1);
+				snprintf(declarations[pId].statusChanged, 2, "%s", trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "output_retcode") == 0) {
 				//strcpy(outputs[pId].retCode, trim(columns[1]));
 				outputs[pId].retCode = atoi(trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "output_retstring") == 0) {
-				strcpy(outputs[pId].retString, trim(columns[1]));
+				//strcpy(outputs[pId].retString, trim(columns[1]));
+				snprintf(outputs[pId].retString, pluginoutput_size, "%s", trim(columns[1])); 
 			}
 		}
 		columnCount = 0;
@@ -1098,46 +1200,40 @@ int runApiCmds(char * cmd) {
 		toggleHostName(trim(columns[1]));
         }
 	else if (strcmp(columns[0], "kafkatag") == 0) {
-		 if (kafka_tag == NULL) {
-                 	kafka_tag = malloc((size_t)strlen(columns[1])+1);
+		if (kafka_tag == NULL) {
+			kafka_tag = malloc((strlen(columns[1]) + 1) * sizeof(char));
                  	if (kafka_tag != NULL)
-                 		memset(kafka_tag, '\0', (size_t)strlen(columns[1])+1 * sizeof(char));
+				memset(kafka_tag, 0, strlen(columns[1]) + 1);
 		 	else {
 				 writeLog("Failed to allocate memory for variable 'kafka_tag'.", 1, 0);
 				 return 2;
 		 	}
-		 }
-		 for (int i = 0; i < strlen(columns[1]); i++) {
-		        if (columns[1][i] == '\n')
-				break;
-			else
-                		kafka_tag[i] = columns[1][i];
-                	if (columns[1][i] == '\0')
-                        	break;
-        	 }
-		 kafka_tag[strlen(columns[1])+1] = '\0';
-                 snprintf(infostr, infostr_size, "Kafka tag is set to '%s'", kafka_tag);
-		 writeLog(infostr, 0, 0);
+		}
+		int i = 0;
+		while (columns[1][i] != '\n' && columns[1][i] != '\0') {
+        		kafka_tag[i] = columns[1][i];
+        		i++;
+    		}
+    		kafka_tag[i] = '\0'; 
+                snprintf(infostr, infostr_size, "Kafka tag is set to '%s'", kafka_tag);
+		writeLog(infostr, 0, 0);
 	}
 	else if (strcmp(columns[0], "kafkatopic") == 0) {
 		if (kafka_topic == NULL) {
-			kafka_topic = malloc((size_t)strlen(columns[1])+1);
+			kafka_topic = malloc((strlen(columns[1]) + 1) * sizeof(char));
 			if (kafka_topic != NULL)
-				memset(kafka_topic, '\0', (size_t)strlen(columns[1])+1 * sizeof(char));
+				memset(kafka_topic, 0, strlen(columns[1]) + 1);
 			else {
 				writeLog("Failed to allocate memory for variable 'kafka_topic'.", 1, 0);
 				return 2;
 			}
 		}
-		for (int i = 0; i < strlen(columns[1]); i++) {
-			if (columns[1][i] == '\n')
-				break;
-			else
-				kafka_topic[i] = columns[1][i];
-			if (columns[1][i] == '\0')
-				break;
-		}
-		kafka_topic[strlen(columns[1])+1] = '\0';
+		int i = 0;
+		while (columns[1][i] != '\n' && columns[1][i] != '\0') {
+        		kafka_topic[i] = columns[1][i];
+        		i++;
+    		}
+    		kafka_topic[i] = '\0'; 
 		snprintf(infostr, infostr_size, "Kafka topic is set to '%s'.", kafka_topic);
 		writeLog(infostr, 0, 0);
 	}
@@ -1156,16 +1252,12 @@ int runApiCmds(char * cmd) {
 		}
 	}
 	else if (strcmp(columns[0], "executeargs") == 0) {
-		//int id = atoi([columns[1]);
-		//command = trim(columns[2]);
 		writeLog("Execute plugin with added arguments from command file.", 0, 0);
 		parseExArgsCmd(columns[1]);
-		//runPluginArgs
 		if (timeScheduler == 1) {
 			rescheduleChecks();
 		}
 	}
-
 	else if (strcmp(columns[0], "metricsprefix") == 0) {
                 memset(metricsOutputPrefix, '\0', metricsoutputprefix_size);
 		for (int i = 0; i < strlen(columns[1]); i++) {
@@ -1184,6 +1276,27 @@ int runApiCmds(char * cmd) {
 		writeLog("Ready to run updates from udf-file.", 0, 0);
 		updateValuesFromUdfFile(columns[1]);
 	}
+	else if (strcmp(columns[0], "scheduler") == 0) {
+		char* scheduler_type;
+		scheduler_type = malloc((size_t)strlen(columns[1])+1);
+		for (int i = 0; i < strlen(columns[1]); i++) {
+                        if (columns[1][i] == '\n')
+                                break;
+                        else
+                                scheduler_type[i] = columns[1][i];
+                        if (columns[1][i] == '\0')
+                                break;
+                }
+		if (strcmp(trim(scheduler_type), "external") == 0) {
+			external_scheduler = 1;
+			writeLog("Almond scheduler type is set to external through command file.", 0, 0);
+		}
+		else {
+			external_scheduler = 0;
+			writeLog("Almond scheduler type is set to internal after running command file.", 0, 0);
+		}
+		free(scheduler_type);
+	}
 	if (remove(filename) == 0) {
         	writeLog("Command file was deleted.", 0, 0);
         }
@@ -1194,21 +1307,40 @@ int runApiCmds(char * cmd) {
 }
 
 int checkApiCmds() {
-        DIR *d;
-        struct dirent *entry;
-	//writeLog("Check for command files.", 0, 0);
-        if (!(d = opendir("/opt/almond/api_cmd"))) {
-                perror("Failed to open directory");
-		writeLog("Failed to open command file directory.", 1, 0);
-                return 1;
+    DIR *d;
+    struct dirent *entry;
+    const char *dirPath = "/opt/almond/api_cmd";  // Define your directory path
+
+    if (!(d = opendir(dirPath))) {
+        perror("Failed to open directory");
+        writeLog("Failed to open command file directory.", 1, 0);
+        return 1;
+    }
+
+    while ((entry = readdir(d)) != NULL) {
+        size_t len = strlen(entry->d_name);
+        if (len < 4)
+            continue;
+
+        if (strcmp(entry->d_name + len - 4, ".cmd") != 0)
+            continue;
+
+        if (entry->d_type == DT_REG) {
+            runApiCmds(entry->d_name);
         }
-        while ((entry = readdir(d)) != NULL) {
-                if (entry->d_type == DT_REG && strcmp(entry->d_name + strlen(entry->d_name) -4, ".cmd") == 0) {
-                        runApiCmds(entry->d_name);
-                }
+        else if (entry->d_type == DT_UNKNOWN) {
+            char fullPath[PATH_MAX];
+            snprintf(fullPath, sizeof(fullPath), "%s/%s", dirPath, entry->d_name);
+            struct stat st;
+            if (stat(fullPath, &st) == 0 && S_ISREG(st.st_mode)) {
+                runApiCmds(entry->d_name);
+            }
         }
-        return 0;
+    }
+    closedir(d);
+    return 0;
 }
+
 
 void initConstants() {
 	logmessage = calloc(logmessage_size+1, sizeof(char));
@@ -1310,109 +1442,19 @@ void initConstants() {
 	checkCtMemoryAlloc();
 }
 
-/*void allocateConstantsMemory(const Constant constant, size_t value) {
-	snprintf(infostr, infostr_size, "Memory for variable '%s' will be allcated by constants file.", constant.name);
-	writeLog(trim(infostr), 0, 1);
-	switch (constant.id) {
-		case 0:
-			confdir_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 1:
-			datadir_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 2:
-			plugindeclarationfile_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 3:
-			jsonfilename_size = (size_t)(value * sizeof(char)+1);
-                        break;
-		case 4:
-			metricsfilename_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 5:
-			gardenerscript_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 6:
-			hostname_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 7:
-			metricsoutputprefix_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 8:
-			storedir_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 9:
-			logdir_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 10:
-			infostr_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 11:
-			plugindir_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 12:
-			filename_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 13:
-			logmessage_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 14:
-			logfile_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 15:
-			datafilename_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 16:
-			backupdirectory_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 17:
-			newfilename_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 18:
-			gardenermessage_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 19:
-			plugincommand_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 20:
-			pluginmessage_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 21:
-			storename_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 22:
-			apimessage_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 23:
-			socketservermessage_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 24:
-			socketclientmessage_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 25:
-			pluginitemname_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 26:
-                        pluginitemdesc_size = (size_t)(value * sizeof(char)+1);
-                	break;
-		case 27:
-                        pluginitemcmd_size = (size_t)(value * sizeof(char)+1);
-			break;
-		case 28:
-                        pluginoutput_size = (size_t)(value * sizeof(char)+1);
-			break;
-		default:
-                        snprintf(infostr, infostr_size, "Constant '%s' not implemented by Almond %s", constant.name, VERSION);
-			writeLog(trim(infostr), 1, 1);
-	}
-}*/
-
 int getConstants() {
 	int count = 0;
 
 	if (logmessage == NULL) {
-		memset(logmessage, 0, logmessage_size);
-                logmessage[0] = '\0';
+		logmessage = malloc(logmessage_size);
+		if (logmessage == NULL) {
+			printf("Could not allocate memory for logmessage!\n");
+			return -1;
+		}
+		else {
+			memset(logmessage, 0, logmessage_size);
+                	logmessage[0] = '\0';
+		}
 	}
 
 	writeLog("Reading memory variable constants.", 0, 1);
@@ -1426,11 +1468,6 @@ int getConstants() {
         while (fscanf(file, "%s %d", constants[count], &values[count]) == 2) {
                 count++;
 		if (count == MAX_CONSTANTS) break;
-		/*Constant this_constant;
-		this_constant.id = count;
-		this_constant.name = constants[count];
-		this_constant.value = values[count];
-		allocateConstantsMemory(this_constant, values[count]);*/
         }
         for (int i = 0; i < count; i++) {
                 if (strcmp(constants[i], "CONFDIR_SIZE") == 0) {
@@ -1558,17 +1595,28 @@ int getConstants() {
 }
 
 void constructSocketMessage(const char* action, const char* message) {
-	int size = strlen(action) + strlen(message);
-	size += 11;
-	socket_message = malloc((size_t)size);
+	/*int size = strlen(action) + strlen(message);
+	size += 11;*/
+	int needed = snprintf(NULL, 0, "{ \"%s\":\"%s\" }\n", action, message);
+	if (needed <  0) {
+		perror("[constructSocketMessage] snprintf");
+		writeLog("Could not compute size of socket message.", 2, 0);
+		return;
+	} 
+	socket_message = malloc((size_t)needed + 1);
     	if (socket_message == NULL) {
         	printf("Memory allocation failed.\n");
 		writeLog("Memory allocation failed [constructSocketMessage:socket_message]", 2, 0);
         	return;
     	}
-	else
-		memset(socket_message, '\0', (size_t)size * sizeof(char));
-    	snprintf(socket_message, (size_t)size, "{ \"%s\":\"%s\" }\n", action, message);
+	//else
+	//	memset(socket_message, '\0', (size_t)size * sizeof(char));
+    	int written = snprintf(socket_message, (size_t)needed + 1, "{ \"%s\":\"%s\" }\n", action, message);
+	if (written != needed) {
+		writeLog("[constructSocketMessage] snprintf mismatch. This should not really ever happen.", 2, 0);
+		free(socket_message);
+		socket_message = NULL;
+	}
 }
 
 int directoryExists(const char *checkDir, size_t length) {
@@ -1584,18 +1632,6 @@ int directoryExists(const char *checkDir, size_t length) {
                 return 1;
         }
         else { return 2; }
-}
-
-void flushLog() {
-	pthread_mutex_lock(&file_mutex);
-	if (fptr != NULL) {
-		fclose(fptr);
-		fptr = NULL;
-		//fflush(fptr);
-		is_file_open = 0;
-	}
-	pthread_mutex_unlock(&file_mutex);
-	initLogger();
 }
 
 int getIdFromName(char *plugin_name) {
@@ -1655,7 +1691,6 @@ void startApiSocket() {
                 writeLog(trim(infostr), 2, 0);
 		return;
         }
-	//pthread_setname_np(thread_id, "API Connection Listener");
 	pthread_setspecific(thread_id, "API Connection Listener");
 	printf("New thread accepting socket created.\n");
         snprintf(infostr, infostr_size, "Created new thread (%lu) listening for connections on port %d \n", thread_id, local_port);
@@ -1696,8 +1731,6 @@ void changeSetValue(int id, int newval) {
 }
 
 void setMaintenanceStatus(int id, char* value) {
-	//char *search;
-	//FILE* pluginfile;
 	int maintenance_status_value = 1;
 	if (strcmp(value, "true") == 0) {
 		maintenance_status_value = 0;
@@ -1706,58 +1739,6 @@ void setMaintenanceStatus(int id, char* value) {
 		declarations[id].active = maintenance_status_value;
         snprintf(infostr, infostr_size, "Updating maintenance status to %d for plugin '%s'.", maintenance_status_value, declarations[id].name);
 	writeLog(infostr, 1, 0);
-	// Get name from declarations[id] to search in file and get row.
-	// Not needed to write to file from this call
-        /*search = malloc((size_t)pluginitemname_size * sizeof(char));
-	strncpy(search, declarations[id].name, pluginitemname_size);
-	pluginfile = fopen(pluginDeclarationFile, "r+");
-	if (!pluginfile) {
-		printf("DEBUG: No plugin declaration file found.\n");
-		return;
-	}
-	fseek(pluginfile, 0, SEEK_END);
-	long file_size = ftell(pluginfile);
-	rewind(pluginfile);
-	char * content = malloc(file_size +1);
-	fread(content, 1, file_size, pluginfile);
-	content[file_size] = '\0';
-	int line_number = 1;
-	char* token = strtok(content, "\n");
-	while (token != NULL) {
-		printf("Line: %s\n", token);
-		if (strstr(token, search) != NULL) {
-			printf("DEBUG: Found %s on line %d:\n%s", search, line_number, token);
-			// Update line
-			fseek(pluginfile,-strlen(token), SEEK_CUR);
-			char newline[255];
-			strcpy(newline, search);
-			strcat(newline, " ");
-			strcat(newline, declarations[id].description);
-			strcat(newline, ";");
-			strcat(newline, declarations[id].command);
-		        strcat(newline, ";");	
-			char msv[2];
-			sprintf(msv, "%d", maintenance_status_value);
-			strcat(newline, msv);
-			strcat(newline, ";");
-			char str[4];
-			sprintf(str, "%d", declarations[id].interval);
-			strcat(newline, str);
-		        printf("DEBUG: Newline:\n%s\n", newline);	
-			fputs(newline, pluginfile);
-			fflush(pluginfile);
-			fclose(pluginfile);
-			free(content);
-			free(search);
-			return;
-		}
-		line_number++;
-		token = strtok(NULL, "\n");
-	}
-	printf("DEBUG: String '%s' not found in plugin declaration file.\n", search);
-	fclose(pluginfile);
-	free(content);
-	free(search);*/
 }
 
 void setPluginOutput(int newval) {
@@ -1810,10 +1791,15 @@ int toggleQuickStart(int on) {
 }
 
 void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
-        char header[100] = "HTTP/1.1 200 OK\nContent-Type:application/txt\nContent-Length: ";
+        //char header[100] = "HTTP/1.1 200 OK\nContent-Type:application/txt\nContent-Length: ";
+	const char *fmt = 
+		"HTTP/1.1 200 OK\n"
+  		"Content-Type:application/txt\n"
+  		"Content-Length: %zu\n\n";
 	char * send_message = NULL;
 	size_t content_length = 0;
-	char len[4];
+	size_t total = 0;
+	//char lenbuf[21];
 
 	if (args_set == 0) {
 		switch (api_action) {
@@ -1935,6 +1921,10 @@ void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
                                 writeLog("Maintenance has been toggled through API call.", 1, 0);
                                 constructSocketMessage("maintenance", "Maintenance status has been updated.");
                                 break;
+			case API_SET_SCHEDULER_TYPE:
+				writeLog("Scheduler type changed through API call.", 1, 0);
+				constructSocketMessage("scheduler", "Scheduler type changed");
+				break;
 			case API_GET_HOSTNAME:
 				apiGetHostName();
 				break;
@@ -1968,6 +1958,9 @@ void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
 		        case API_GET_PLUGIN_RELOAD_TS:
 				apiGetVars(10);
 				break;
+			case API_GET_SCHEDULER:
+				apiGetVars(11);
+				break;
 			case API_CHECK_PLUGIN_CONFIG:
 				apiCheckPluginConf();
 				break;
@@ -1979,6 +1972,15 @@ void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
 				break;
 			case API_RELOAD_ALMOND:
 				apiReload();
+				break;
+			case API_ALMOND_VERSION:
+				apiShowVersion();
+				break;
+			case API_ALMOND_STATUS:
+				apiShowStatus();
+				break;
+			case API_ALMOND_PLUGINSTATUS:
+				apiShowPluginStatus();
 				break;
 			case API_DENIED:
 				constructSocketMessage("return", "Access denied: You need a valid token.");
@@ -1993,25 +1995,44 @@ void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
         }
 	else args_set = 0;
 	content_length = (size_t)strlen(socket_message); 
-	sprintf(len, "%li", content_length);
-        strcat(header, trim(len));
-        strcat(header, "\n\n");
-	content_length += (size_t)strlen(header);
-	/*if (send_message != NULL) {
-		printf("This is strange...Is it the threads spinning around?\n");
-		free(send_message);
-		send_message = NULL;
-	}*/
-	send_message = malloc((size_t)content_length+1 * sizeof(char));
+	int hdr_len = snprintf(NULL, 0, fmt, content_length);
+	if (hdr_len < 0) {
+		writeLog("[send_socket_message] snprintf size calculation failed.", 2, 0);
+		return;
+	}
+	//sprintf(len, "%li", content_length);
+	/*int written = snprintf(lenbuf, sizeof(lenbuf), "%zu", content_length);
+	if (written < 0) {
+		writeLog("[send_socket_message] snprintf error.", 2, 0);
+		return;
+	}
+	if (written >= sizeof(lenbuf)) {
+		writeLog("[send_socket_message] snprintf truncated output", 1, 0);
+	}
+        strcat(header, trim(lenbuf));
+        strcat(header, "\n\n");*/
+	char *header = malloc((size_t)hdr_len +1);
+	if (!header) {
+		writeLog("[send_socket_message] Out of memory allocating header.", 2, 0);
+		return;
+	}
+	snprintf(header, (size_t)hdr_len + 1, fmt, content_length);
+	//content_length += (size_t)strlen(header);
+	total = (size_t)hdr_len + content_length;
+	send_message = malloc(total +1);
 	if (send_message == NULL) {
 		perror("Failed to allocate memory for send_message");
 		writeLog("Could not allocate memory [send_socket_message:send_message]", 2, 0);
+		free(header);
 		return;
 	}
-	else
-		memset(send_message, '\0', (content_length+1) * sizeof(char));
-        strncpy(send_message, header, (size_t)(sizeof(header)));
-	strcat(send_message, socket_message);
+	//else
+	//	memset(send_message, '\0', (content_length+1) * sizeof(char));
+	memcpy(send_message, header, hdr_len);
+        //strncpy(send_message, header, (size_t)(sizeof(header)));
+	//strcat(send_message, socket_message);
+	memcpy(send_message + hdr_len, socket_message, content_length);
+	send_message[total] = '\0';
 	if (use_ssl > 0) {
 		if (SSL_write(ssl, send_message, strlen(send_message)) <= 0) {
 			writeLog("Could not send ssl message to client", 1, 0);
@@ -2025,6 +2046,7 @@ void send_socket_message(int socket, SSL* ssl,  int id, int aflags) {
 	writeLog("Message sent on socket. Closing connection.", 0, 0);
         close(socket);
 	free(send_message);
+	free(header);
 	send_message = NULL;
 	if (socket_message != NULL) {
 		free(socket_message);
@@ -2076,6 +2098,7 @@ void parseClientMessage(char str[], int arr[]) {
         }
         json_object_object_foreach(jobj, key, val) {
                 value = (char *) json_object_get_string(val);
+		(void)key;
         }
         jaction = getJsonValue(jobj, "action");
         jid = getJsonValue(jobj, "id");
@@ -2086,23 +2109,28 @@ void parseClientMessage(char str[], int arr[]) {
 	jvalue = getJsonValue(jobj, "value");
 	jmode = getJsonValue(jobj, "mode");
 	if (jid != NULL) {
-        	strncpy(sid, json_object_to_json_string_ext(jid, JSON_C_TO_STRING_PLAIN), 5);
+        	//strncpy(sid, json_object_to_json_string_ext(jid, JSON_C_TO_STRING_PLAIN), 5);
+		snprintf(sid, sizeof(sid), "%s", json_object_to_json_string_ext(jid, JSON_C_TO_STRING_PLAIN));
         	removeChar(sid, '"');
 	}
 	if (jaction != NULL) {
-        	strncpy(action, json_object_to_json_string_ext(jaction, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 12);
+        	//strncpy(action, json_object_to_json_string_ext(jaction, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 12);
+		snprintf(action, sizeof(action), "%s", json_object_to_json_string_ext(jaction, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
         	removeChar(action, '"');
 	}
 	if (jname != NULL) {
-		strncpy(name, json_object_to_json_string_ext(jname, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 50);
+		//strncpy(name, json_object_to_json_string_ext(jname, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 50);
+		snprintf(name, sizeof(name), "%s", json_object_to_json_string_ext(jname, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 		removeChar(name, '"');
 	}
 	if (jmode != NULL) {
-		strncpy(mode, json_object_to_json_string_ext(jmode, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 5);
+		//strncpy(mode, json_object_to_json_string_ext(jmode, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 5);
+		snprintf(mode, sizeof(mode), "%s", json_object_to_json_string_ext(jmode, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 		removeChar(mode, '"');
 	}
         if (jflags != NULL) {
-		strncpy(flags, json_object_to_json_string_ext(jflags, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY), 10);
+		//strncpy(flags, json_object_to_json_string_ext(jflags, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY), 10);
+		snprintf(flags, sizeof(flags), "%s", json_object_to_json_string_ext(jflags, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY));
 		removeChar(flags, '"');
 		if (strcmp(trim(flags), "verbose") == 0) {
 			aflags = 1;
@@ -2117,13 +2145,15 @@ void parseClientMessage(char str[], int arr[]) {
 		else aflags = 0;
 	}
 	if (jargs != NULL) {
-		strncpy(args, json_object_to_json_string_ext(jargs, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY), 100);
+		//strncpy(args, json_object_to_json_string_ext(jargs, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY), 100);
+		snprintf(args, sizeof(args), "%s", json_object_to_json_string_ext(jargs, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY));
 		removeChar(args, '"');
 		args_set++;
 	}
 	else args_set = 0;
 	if (jvalue != NULL) {
-		strncpy(sval, json_object_to_json_string_ext(jvalue, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY), 100);
+		//strncpy(sval, json_object_to_json_string_ext(jvalue, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY), 100);
+		snprintf(sval, sizeof(sval), "%s", json_object_to_json_string_ext(jvalue, JSON_C_TO_STRING_PLAIN | JSON_C_TO_STRING_PRETTY));
 		removeChar(sval, '"');
 	}
 	if (jtoken != NULL) {
@@ -2133,7 +2163,8 @@ void parseClientMessage(char str[], int arr[]) {
 		}
 		else
 			memset(token, '\0', 30 * sizeof(char));
-                strncpy(token, json_object_to_json_string_ext(jtoken, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 30);
+                //strncpy(token, json_object_to_json_string_ext(jtoken, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY), 30);
+		snprintf(token, 30, "%s", json_object_to_json_string_ext(jtoken, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
                 removeChar(token, '"');
 		trim(token);
                 FILE *in_file = fopen("/etc/almond/tokens", "r");
@@ -2145,14 +2176,22 @@ void parseClientMessage(char str[], int arr[]) {
                         int i = 1;
                         while (fscanf(in_file, "%s", line) == 1) {
                                 if (i == 1){
-					fname = malloc((size_t)sizeof(line)+1);
+					/*fname = malloc((size_t)sizeof(line)+1);
 					if (fname == NULL) {
 						writeLog("Could not allocate message [parseClientMessage:fname]", 2, 0);
 						return;
 					}
 					else
 						memset(fname, '\0', (size_t)sizeof(line)+1 * sizeof(char));
-					strncpy(fname, trim(line), sizeof(line));
+					strncpy(fname, trim(line), sizeof(line));*/
+					char *trimmed_line = trim(line);
+					size_t len = strlen(trimmed_line);
+					fname = malloc(len +1);
+					if (fname == NULL) {
+						writeLog("Could not allocate message [parseClientMessage:fname]", 2, 0);
+       						 return;
+    					}
+					strcpy(fname, trimmed_line); 
                                 }
                                 if (i == 2){
                                         lname = malloc((size_t)sizeof(line)+1);
@@ -2278,6 +2317,7 @@ void parseClientMessage(char str[], int arr[]) {
 	else if ((strcmp(trim(action), "set") == 0) || (strcmp(trim(action), "setvar") == 0)) {
 		if (bExecute != 0) {
 			pthread_mutex_lock(&update_mtx);
+			//printf("DEBUG: sval = %s\n", trim(sval));
 			if (strcmp(trim(name), "pluginoutput") == 0) {
 				int val = atoi(trim(sval));
 				setPluginOutput(val);
@@ -2358,6 +2398,31 @@ void parseClientMessage(char str[], int arr[]) {
 				setApiCmdFile("metricsprefix", trim(sval));
 				api_action = API_SET_METRICSPREFIX;
 			}
+			else if (strcmp(trim(name), "scheduler") == 0) {
+				char* s_type = malloc(9);
+				if (!s_type) {
+					writeLog("Could not allocate memory[parseClientMessage: scheduler_type]\n", 1, 0);
+					exit(EXIT_FAILURE);
+				}
+				else
+					memset(s_type, '\0', 9);
+				strncpy(s_type, trim(sval), strlen(sval));
+				if (strcmp(s_type, "external") == 0) {
+					writeLog("External scheduler activated. Almond scheduler is now inactive.", 1, 0);
+					setApiCmdFile("scheduler", "external");
+					api_action = API_SET_SCHEDULER_TYPE;
+				}
+				else if (strcmp(s_type, "internal") == 0) {
+					writeLog("Almond scheduler now activated through API call.", 0, 0);
+					setApiCmdFile("scheduler", "internal");
+					api_action = API_SET_SCHEDULER_TYPE;
+				}
+				else {
+					writeLog("Failed to change scheduler type. Unrecognized value supplied.", 1, 0);
+					api_action = -1;
+				}
+				free(s_type);
+			}
 			else {
 				api_action = -1;
 			}
@@ -2399,6 +2464,9 @@ void parseClientMessage(char str[], int arr[]) {
 		else if (strcmp(trim(name), "kafkastartid") == 0) {
 			api_action = API_GET_KAFKA_START_ID;
 		}
+		else if (strcmp(trim(name), "scheduler") == 0) {
+			api_action = API_GET_SCHEDULER;
+		}
 		else {
 			api_action = -1;
 		}
@@ -2436,6 +2504,20 @@ void parseClientMessage(char str[], int arr[]) {
 			api_action = -1;
 		}
 	}
+	else if(strcmp(trim(action), "almond") == 0) {
+		if (strcmp(trim(name), "version") == 0) {
+			api_action = API_ALMOND_VERSION;
+		}
+		else if (strcmp(trim(name), "status") == 0) {
+			api_action = API_ALMOND_STATUS;
+		}
+		else if (strcmp(trim(name), "plugins") == 0) {
+			api_action = API_ALMOND_PLUGINSTATUS;
+		}
+		else {
+			api_action = -1;
+		}
+	}
         else {
                 api_action = 0;
         }
@@ -2468,7 +2550,8 @@ void parseClientMessage(char str[], int arr[]) {
                 }
                 id--;
 		if (args_set > 0 && (api_action == API_RUN || api_action == API_DRY_RUN || api_action == API_EXECUTE_AND_READ)) {
-			api_args = malloc((size_t)strlen(args)+1);
+			size_t arg_len = strlen(args) + 1;
+			api_args = malloc(arg_len);
 			if (api_args == NULL) {
 				fprintf(stderr, "Could not allocate memory.\n");
 				writeLog("Could not allocate memory [parseClientMessage:api_args]", 2, 0);
@@ -2476,7 +2559,11 @@ void parseClientMessage(char str[], int arr[]) {
 			}
 			else
 				memset(api_args, '\0', (size_t)strlen(args)+1 * sizeof(char));
-			strncpy(api_args, args, strlen(args));
+			//size_t len = strlen(args)+ 1;
+			/*strncpy(api_args, args, len-1);
+			api_args[len-1] = '\0';*/
+			//snprintf(api_args, len, "%s", args);
+			snprintf(api_args, arg_len, "%s", args);
 			runPluginArgs(id, aflags, api_action);
 			if (timeScheduler == 1) {
 				rescheduleChecks();
@@ -2527,10 +2614,21 @@ void configure_context(SSL_CTX *ctx) {
 int initSocket () {
         int opt = 1;
         if ((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-                perror("socket failed");
+                perror("Socket failed");
                 writeLog("Could not initiate socket.", 2, 0);
                 return -1;
         }
+	/*int flags = fcntl(server_fd, F_GETFL, 0);
+	if (flags == -1) {
+    		perror("fcntl F_GETFL failed");
+    		writeLog("Failed to get socket flags.", 2, 0);
+    		return -1;
+	}
+	if (fcntl(server_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+    		perror("fcntl F_SETFL failed");
+    		writeLog("Failed to set socket to non-blocking.", 2, 0);
+    		return -1;
+	}*/
         if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt,sizeof(opt))) {
                 perror("setsockopt");
                 writeLog("Setsockopt failed.", 2, 0);
@@ -2561,11 +2659,12 @@ int initSocket () {
 }
 
 int createSocket(int server_fd) {
+	char local_msg[infostr_size];
         int client_socket;
         socklen_t client_size;
         struct sockaddr_in client_addr;
 	int params[2];
-	SSL *ssl;
+	SSL *ssl = NULL;
 
 	server_message = malloc((size_t)socketservermessage_size+1);
 	if (server_message == NULL) {
@@ -2585,79 +2684,69 @@ int createSocket(int server_fd) {
                 perror("listen");
                 writeLog("Failed listening...", 2, 0);
                 socket_is_ready = 0;
+		free(server_message);
+		safe_free_str(&client_message);
                 return -1;
         }
-        snprintf(infostr, infostr_size, "Ready listening on port %d", local_port);
-        writeLog(trim(infostr), 0, 0);
-	free(infostr);
-	infostr = NULL;
-	infostr = malloc((size_t)infostr_size * sizeof(char));
-	if (infostr != NULL) {
-		memset(infostr, '\0', infostr_size * sizeof(char));
-		strncpy(infostr, "", 2);
-	}
-	else
-		printf("Failed to allocate memory for 'infostr'.\n");
+        snprintf(local_msg, infostr_size, "Ready listening on port %d", local_port);
+        writeLog(trim(local_msg), 0, 0);
         // Accept incoming connections
         client_size = sizeof(client_addr);
-	while(1) {
+	while(!is_stopping) {
         	client_socket = accept(server_fd, (struct sockaddr*)&client_addr, &client_size);
         	if (client_socket < 0){
-			if (is_stopping == 0) {
-				perror("ERROR on accept.");
-                		printf("Can't accept any socket requests.\n");
-                		writeLog("Could not accept client socket.", 1, 0);
-			}
-                	return -1;
-			//continue;
+			int e = errno;
+			if (e == EINTR || e == EBADF || e == EINVAL || is_stopping) {
+                                break;
+                        }
+			perror("ERROR on accept.");
+                        printf("Can't accept any socket requests.\n");
+                        writeLog("Could not accept client socket.", 1, 0);
+			continue;
         	}
 		if (use_ssl > 0) {
 			ssl = SSL_new(ctx);
 			SSL_set_fd(ssl, client_socket);
 
-			/*if (SSL_accept(ssl) <= 0) {
-				ERR_print_errorsfp(stderr);
-			}*/
 			if (SSL_accept(ssl) <= 0) {
 				ERR_print_errors_fp(stderr);
-				writeLog("Error while authenticating SSL connection.", 0, 0);
-				return -1;
+				writeLog("Error while authenticating SSL connection - SSL Handshake failed.",1, 0);
+				SSL_free(ssl);
+				close(client_socket);
+				continue;
 			}
-			else
-				writeLog("SSL client authenticated succesfully", 0, 0); 
+			writeLog("SSL client authenticated succesfully", 0, 0); 
 		}
         	printf("Client connected at IP: %s and port: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         	snprintf(infostr, infostr_size, "Client connected at IP: %s and port: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         	writeLog(trim(infostr), 0, 0);
 		pid_t pid = fork();
+		if (pid < 0) {
+			perror("fork");
+			writeLog("fork() failed",1,0);
+			if (ssl) SSL_free(ssl);
+            		close(client_socket);
+            		continue;
+        	}
 		if (pid == 0) {
 			close(server_fd);
-			if (client_message == NULL) return -1;
-			if (use_ssl > 0) {
-			       	SSL_CTX_free(ctx);
-				int bytes = SSL_read(ssl, client_message, socketclientmessage_size);
-				if (bytes > 0)
-				       writeLog("SSL client message received.", 0, 0);
-				else {
-					ERR_print_errors_fp(stderr);
-					writeLog("Failed to receive ssl client message.", 1, 0);
-					free(server_message);
-					free(client_message);
-					server_message = NULL;
-					client_message = NULL;
-					return -1;
-				}
+			if (client_message == NULL) { //return -1;
+				free(server_message);
+				safe_free_str(&client_message);
+				close(client_socket);
+				_exit(1);
 			}
-			else {	
-        			if (recv(client_socket, client_message, socketclientmessage_size, 0) < 0){
-					perror("recv failed\n");
-                			printf("Couldn't receive\n");
-                			writeLog("Could not receieve client message on socket.", 1, 0);
-					free(server_message);
-        				free(client_message);
-        				server_message = client_message = NULL;
-                			return -1;
-        			}
+			int n = use_ssl
+                  		? SSL_read(ssl, client_message, socketclientmessage_size)
+                  		: recv(client_socket, client_message, socketclientmessage_size, 0);
+			if (n <= 0) {
+				writeLog("Could not receive client message on socket.", 1, 0);
+				if (use_ssl) {
+					SSL_shutdown(ssl);
+					SSL_free(ssl);
+				}
+				close(client_socket);
+				_exit(1);
 			}
 			if (client_message == NULL) {
 				printf("Could not receive client message.\n");
@@ -2674,9 +2763,9 @@ int createSocket(int server_fd) {
 				writeLog("Message sent on socket. Closing connection.", 0, 0);
                 		close(client_socket);
 				free(server_message);
-				free(client_message);
+				safe_free_str(&client_message);
 				server_message = client_message = NULL;
-                		return -1;
+                		_exit(1);
 			}
         		char *e;
        	 		int index;
@@ -2686,7 +2775,7 @@ int createSocket(int server_fd) {
 			strncpy(message, client_message + index, strlen(client_message) - index);
 			if ((strlen(client_message)-index) > sizeof(message)) {
 				writeLog("Client message is longer than expected. [createSocket]", 1, 1);
-				message[150] = '\0';
+				message[149] = '\0';
 			}
         		parseClientMessage(message, params);
         		writeLog("Message received on socket.", 0, 0);
@@ -2698,27 +2787,31 @@ int createSocket(int server_fd) {
         			send_socket_message(client_socket, NULL, id, aflags);
 			if (server_message != NULL)
 				free(server_message);
-			if (client_message != NULL)
-				free(client_message);
+			if (client_message != NULL) {
+				safe_free_str(&client_message);
+			}
 			server_message = client_message = NULL;
 			printf("Close client socket %i\n", pid);
 			if (use_ssl > 0) {
-				//SSL_shutdown(ssl);
+				SSL_shutdown(ssl);
 				SSL_free(ssl);
 				SSL_CTX_free(ctx);
 			}
 			close(client_socket);
-        		return 0;
+			free(server_message);
+			safe_free_str(&client_message);
+			_exit(0);
 		}
-		else if (pid > 0) {
-			printf("Close client socket %i\n", pid);
-			close(client_socket);
-		}
-		else {
-			perror("Fork failed.");
-			return -2;
-		}
+		if (use_ssl) 
+			SSL_free(ssl);
+		printf("Close client socket %i\n", pid);
+		close(client_socket);
+		int status;
+		waitpid(pid, &status, 0);
 	}
+	close(server_fd);
+	free(server_message);
+	safe_free_str(&client_message);
 	return 0;
 }
 
@@ -2769,11 +2862,11 @@ void safe_free(void** ptr) {
 	}
 }
 
-void safe_free_str(void* ptr) {
-	if (ptr != NULL) {
-		free(ptr);
-		ptr = NULL;
-	}
+void safe_free_str(char **ptr) {
+	if (ptr && *ptr) {
+        	free(*ptr);
+        	*ptr = NULL;
+    	}
 }
 
 void free_kafka_vars() {
@@ -2800,29 +2893,30 @@ void free_kafka_vars() {
 }
 
 void free_constants() {
-	safe_free_str(confDir);
-	safe_free_str(dataDir);
-	safe_free_str(storeDir);
-	safe_free_str(logDir);
-	safe_free_str(pluginDeclarationFile);
-	safe_free_str(jsonFileName);
-	safe_free_str(metricsFileName);
-	safe_free_str(gardenerScript);
-	safe_free_str(infostr);
-	safe_free_str(pluginDir);
-	safe_free_str(hostName);
-	safe_free_str(fileName);
-	safe_free_str(metricsOutputPrefix);
-	//safe_free_str(logfile);
-	safe_free_str(dataFileName);
-	safe_free_str(backupDirectory);
-	safe_free_str(newFileName);
-	safe_free_str(gardenerRetString);
-	safe_free_str(pluginCommand);
-	safe_free_str(pluginReturnString);
-	safe_free_str(storeName);
-	safe_free_str(socket_message);
-	safe_free_str(client_message);
+	safe_free_str(&confDir);
+	safe_free_str(&dataDir);
+	safe_free_str(&storeDir);
+	safe_free_str(&logDir);
+	safe_free_str(&pluginDeclarationFile);
+	safe_free_str(&jsonFileName);
+	safe_free_str(&metricsFileName);
+	safe_free_str(&gardenerScript);
+	safe_free_str(&infostr);
+	safe_free_str(&pluginDir);
+	safe_free_str(&hostName);
+	safe_free_str(&fileName);
+	safe_free_str(&metricsOutputPrefix);
+	safe_free_str(&logfile);
+	safe_free_str(&dataFileName);
+	safe_free_str(&backupDirectory);
+	safe_free_str(&newFileName);
+	safe_free_str(&gardenerRetString);
+	safe_free_str(&pluginCommand);
+	safe_free_str(&pluginReturnString);
+	safe_free_str(&storeName);
+	safe_free_str(&socket_message);
+	safe_free_str(&client_message);
+	//safe_free_str(&logmessage);
 	writeLog("All constants freed from memory.", 0, 0);
 }
 
@@ -2859,10 +2953,6 @@ void freemem() {
 		free(socket_message);
 		socket_message = NULL;
 	}
-	/*if (logfile != NULL) {
-		free(logfile);
-		logfile = NULL;
-	}*/
 	dataFileName = NULL;
 	backupDirectory = NULL;
 	newFileName = NULL;
@@ -2897,104 +2987,101 @@ void freemem() {
 
 void destroy_mutexes() {
 	pthread_mutex_destroy(&mtx);
-	pthread_mutex_destroy(&file_mutex);
 	pthread_mutex_destroy(&update_mtx);
+	destroy_log_mutex();
 }
 
 void sig_exit_app() {
-	//safe_free_str(logmessage);
-	//safe_free_str(logfile);
+	is_file_open = 1;
+	pthread_cond_broadcast(&file_opened);
+	closeSocket();
+	shutdown_phase = 1;
+        flushLog();
+	printf("\nClosing ");
+	for (int i = 0; i < 6; i++) {
+		printf("%i ", i+1);
+		fflush(stdout);
+		sleep(1);
+	}
+	writeLog("Almond says goodbye.", 0, 0);
+	shutdown_phase = 2;
+	closeLog();
+        closejsonfile();
+        //int try_count = 0;
+        /*while (thread_counter > 0) {
+                writeLog("Waiting for threads to finish...", 0, 0);
+                fflush(fptr);
+                sleep(2);
+                printf("There are %i threads waiting to finish.\n", thread_counter);
+                try_count++;
+                if (try_count >= max_try) break;
+        }*/
+	for (int i = 0; i < thread_counter; ++i) {
+        	pthread_join(threadIds[i], NULL);
+    	}
+        free_structures(decCount);
+        free(declarations);
+        free(outputs);
+        free_kafka_vars();
+        free_constants();
+        free(threadIds);
+        freemem();
+
+	destroy_mutexes();
 	if (fptr != NULL) {
 		fclose(fptr);
         	fptr = NULL;
 	}
-	destroy_mutexes();
         fflush(stdout);
         fflush(stderr);
-        printf("Exiting application.\n");
+	if (logmessage) {
+        	memset(logmessage, 0, strlen(logmessage));  // Optional: zero out content
+                free(logmessage);
+                logmessage = NULL;
+        }
+        printf("\nExiting application.\n");
 }
 
-void sig_handler(int signal){
-	int max_try = 60;
-	int try_count = 0;
-    	switch (signal) {
+static void install_signals(void) {
+	struct sigaction sa;
+    	memset(&sa, 0, sizeof(sa));
+    	sa.sa_handler = sig_handler;
+    	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART | SA_ONSTACK;;
+	/*sigemptyset(&signal_set);
+        sigaddset(&signal_set, SIGINT);
+    	sigaddset(&signal_set, SIGTERM);
+    	pthread_sigmask(SIG_BLOCK, &signal_set, NULL);*/
+    	sigaction(SIGINT,  &sa, NULL);
+    	sigaction(SIGTERM, &sa, NULL);
+}
+
+void sig_handler(int sig){
+	if (already_exiting) return;
+	is_stopping = 1;
+	already_exiting = 1;
+	shutdown_reason = (sig == SIGINT ? SR_SIGINT
+        	: sig == SIGTERM ? SR_SIGTERM
+                : SR_NORMAL);
+    	/*switch (sigl) {
         	case SIGINT:
-			is_stopping = 1;
-			writeLog("Caught SIGINT, exiting program.", 0, 0);
-			flushLog();
-			closejsonfile();
-			closeSocket();
-			free_structures(decCount);
-			free(declarations);
-			free(outputs);
-			free_kafka_vars();
-			while (thread_counter > 0) {
-                                writeLog("Waiting for threads to finish...", 0, 0);
-                                fflush(fptr);
-                                sleep(2);
-                                printf("There are %i threads waiting to finish.\n", thread_counter);
-				try_count++;
-				if (try_count >= max_try) break;
-                        }
-			free_constants();
-			writeLog("Almond says goodbye.", 0, 0);
-			free(threadIds);
-			freemem();
-			sig_exit_app();
-            		exit(0);
+			shutdown_reason = SR_SIGINT;
+			break;
 		case SIGKILL:
-			is_stopping = 1;
-			writeLog("Caught SIGKILL, exiting progam.", 0, 0);
-			closejsonfile();
-			closeSocket();
-			free_structures(decCount);
-			free(declarations);
-			free(outputs);
-			free_kafka_vars();
-			while (thread_counter > 0) {
-                                writeLog("Waiting for threads to finish...", 0, 0);
-                                fflush(fptr);
-                                sleep(2);
-                                printf("There are %i threads waiting to finish.\n", thread_counter);
-				try_count++;
-				if (try_count >= max_try) break;
-                        }
-			free_constants();
-			writeLog("Almond says goodbye.", 0, 0);
-			printf("Let threads finsih...\n");
-			free(threadIds);
-			freemem();
-			sig_exit_app();
-			exit(0);
+			shutdown_reason = SR_SIGKILL;
+			break;
 		case SIGTERM:
+			shutdown_reason = SR_SIGTERM;
+			break;
 		case SIGSTOP:
-			is_stopping = 1;
-			printf("Caught signal to quit program.\n");
-			closejsonfile();
-			closeSocket();
-                        writeLog("Caught signal to terminate program.", 0, 0);
-			free_structures(decCount);
-			free(declarations);
-			free(outputs);
-			free_kafka_vars();
-			while (thread_counter > 0) {
-				writeLog("Waiting for threads to finish...", 0, 0);
-				fflush(fptr);
-				sleep(2);
-				printf("There are %i threads waiting to finish.\n", thread_counter);
-				try_count++;
-				if (try_count >= max_try)
-					break;
-			}
-                        free(threadIds);
-                        freemem();
-			free_constants();
-			writeLog("Almond says goodbye.", 0, 0);
-			sig_exit_app();
-			printf("Application is stopped.\n");
-                        exit(0);
-    	}
-//	stop = 1;
+			shutdown_reason = SR_SIGSTOP;
+			break;
+    	}*/
+	if (server_fd >= 0) {
+		shutdown(server_fd, SHUT_RDWR);
+       		close(server_fd);
+        	server_fd = -1;
+	}
 }
 
 int fileExists(const char *checkFile) {
@@ -3057,6 +3144,7 @@ void process_almond_certificate(ConfVal value) {
 		return;
 	}
 	strncpy(almondCertificate, value.strval, strlen(value.strval));
+	almondCertificate[strlen(value.strval)] = '\0';
 	writeLog("Almond certificate provided if TLS for API is enabled.", 0, 1);
 }
 
@@ -3069,6 +3157,7 @@ void process_almond_key(ConfVal value) {
 		return;
 	}
 	strncpy(almondKey, value.strval, strlen(value.strval));
+	almondKey[strlen(value.strval)] = '\0';
 	writeLog("Almond certificate key provided to be used by API to run with  SSL encryption.", 0, 1);
 }
 
@@ -3135,7 +3224,9 @@ void process_conf_dir(ConfVal value) {
 	if (confDir != NULL)
         	memset(confDir, '\0', 50 * sizeof(char));
 	if (directoryExists(value.strval, 255) == 0) {
-        	strncpy(confDir, value.strval, strlen(value.strval));
+        	//strncpy(confDir, value.strval, strlen(value.strval));
+		//confDir[strlen(value.strval)] = '\0';
+		snprintf(confDir, 50, "%s", value.strval);
         	confDirSet = 1;
 	}
         else {
@@ -3145,7 +3236,9 @@ void process_conf_dir(ConfVal value) {
         		writeLog("Error creating configuration directory.", 2, 1);
         	}
         	else {
-        		strncpy(confDir, value.strval, strlen(value.strval));
+        		//strncpy(confDir, value.strval, strlen(value.strval));
+			//confDir[strlen(value.strval)] = '\0';
+			snprintf(confDir, 50, "%s", value.strval);
         		confDirSet = 1;
         	}
         }
@@ -3188,7 +3281,9 @@ void process_almond_sleep(ConfVal value) {
 
 void process_data_dir(ConfVal value) {
 	if (directoryExists(value.strval, 255) == 0) {
-		strncpy(dataDir, value.strval, strlen(value.strval));
+		//strncpy(dataDir, value.strval, strlen(value.strval));
+		//dataDir[strlen(value.strval)] = '\0';
+		snprintf(dataDir, datadir_size, "%s", value.strval);
 		dataDirSet = 1;
 	}
 	else {
@@ -3199,7 +3294,9 @@ void process_data_dir(ConfVal value) {
 			return;
 		}
 		else {
-			strncpy(dataDir, value.strval, strlen(value.strval));
+			//strncpy(dataDir, value.strval, strlen(value.strval));
+			//dataDir[strlen(value.strval)] = '\0';
+			snprintf(dataDir, datadir_size, "%s", value.strval);
 			dataDirSet = 1;
 		}
 	}
@@ -3220,12 +3317,46 @@ void process_store_dir(ConfVal value) {
 			return;
                 }
                 else {
-                	strncpy(storeDir, value.strval, strlen(value.strval));
+                	//strncpy(storeDir, value.strval, strlen(value.strval));
+			//storeDir[strlen(value.strval)] = '\0';
+			snprintf(storeDir, storedir_size, "%s", value.strval);
                         storeDirSet = 1;
                 }
 	}
 	snprintf(infostr, infostr_size, "Almond store dir is set to %s.", storeDir);
         writeLog(infostr, 0, 1);
+}
+
+void process_truncate_log(ConfVal value) {
+        if (value.intval >= 1) {
+                writeLog("Almond will truncate it logs..", 0, 1);
+                truncateLog = 1;
+        }
+}
+
+void process_external_scheduler(ConfVal value) {
+	if (value.intval >= 1) {
+		writeLog("Almond is set to use external scheduler.", 0, 1);
+		writeLog("Almond will after initialization only respond to api calls to execute commands.", 1, 1);
+		external_scheduler = 1;
+		writeLog("Almond scheduler is inactivated for running command checks.", 0, 1);
+	}
+}
+
+void process_truncate_log_interval(ConfVal value) {
+	int i = strtol(value.strval, NULL, 0);
+	if (i < 3600) {
+		writeLog("Truncate log interval configuration value too low. Minumum value is 3600.", 1, 1);
+		writeLog("Truncate log interval value will not be changed.", 0, 1);
+	}
+	else if (i > 2147483647) {
+		writeLog("Truncate log interval configuration value too high. Maximum value is 2147483647.", 1, 1);
+		writeLog("Truncate log interval value will not be changed.", 0, 1);
+	}
+	else {
+		truncateLogInterval = i;
+		writeLog("Truncate log interval value updated from configuration.", 0, 1);
+	}
 }
 
 void process_log_to_stdout(ConfVal val) {
@@ -3235,7 +3366,9 @@ void process_log_to_stdout(ConfVal val) {
 
 void process_log_dir(ConfVal val) {
 	if (directoryExists(val.strval, 255) == 0) {
-		strncpy(logDir, val.strval, strlen(val.strval));
+		//strncpy(logDir, val.strval, strlen(val.strval));
+		//logDir[strlen(val.strval)] = '\0';
+		snprintf(logDir, logdir_size, "%s", val.strval);
                 logDirSet = 1;
         }
         else {
@@ -3245,16 +3378,19 @@ void process_log_dir(ConfVal val) {
                         writeLog("Error creating log directory.", 2, 1);
                 }
                 else {
-                	strncpy(logDir, val.strval, strlen(val.strval));
+                	//strncpy(logDir, val.strval, strlen(val.strval));
+			//logDir[strlen(val.strval)] = '\0';
+			snprintf(logDir, logdir_size, "%s", val.strval);
                         logDirSet = 1;
                 }
 	}
 	if (strcmp(val.strval, "/var/log/almond") != 0) {
 		char ch =  '/';
                 FILE *logFile;
-                strcpy(fileName, logDir);
+                /*strcpy(fileName, logDir);
                 strncat(fileName, &ch, 1);
-                strcat(fileName, "almond.log");
+                strcat(fileName, "almond.log");*/
+		snprintf(fileName, filename_size, "%s/%s", logDir, "almond.log");
                 writeLog("Closing logfile...", 0, 1);
                 fclose(fptr);
                 fptr = NULL;
@@ -3305,14 +3441,18 @@ void process_store_results(ConfVal value) {
 }
 
 void process_host_name(ConfVal value) {
-	strncpy(hostName, value.strval, strlen(value.strval));
+	/*strncpy(hostName, value.strval, strlen(value.strval));
+	hostName[strlen(value.strval)] = '\0';*/
+	snprintf(hostName, hostname_size, "%s", value.strval);
 	snprintf(infostr, infostr_size, "Scheduler will give this host the virtual name: %s", hostName);
 	writeLog(trim(infostr), 0, 1);
 }
 
 void process_plugin_directory(ConfVal value) {
 	if (directoryExists(value.strval, 255) == 0) {
-       		strcpy(pluginDir, value.strval);
+       		//strncpy(pluginDir, value.strval, strlen(value.strval));
+		//pluginDir[strlen(value.strval)-1] = '\0';
+		snprintf(pluginDir, plugindir_size, "%s", value.strval);
                 pluginDirSet = 1;
         }
         else {
@@ -3322,7 +3462,9 @@ void process_plugin_directory(ConfVal value) {
                         writeLog("Error creating plugins directory.", 2, 1);
                 }
                 else {
-			strncpy(pluginDir, value.strval, strlen(value.strval));
+			//strncpy(pluginDir, value.strval, strlen(value.strval));
+			//pluginDir[strlen(value.strval)-1] = '\0';
+			snprintf(pluginDir, plugindir_size, "%s", value.strval);
 			pluginDirSet = 1;
                 }
         }
@@ -3330,7 +3472,10 @@ void process_plugin_directory(ConfVal value) {
 
 void process_plugin_declaration(ConfVal v) {
 	if (access(v.strval, F_OK) == 0){
-		strncpy(pluginDeclarationFile, v.strval, strlen(v.strval));
+		/*strncpy(pluginDeclarationFile, v.strval, strlen(v.strval));
+		pluginDeclarationFile[strlen(v.strval)] = '\0';*/
+		//strlcpy(pluginDeclarationFile, v.strval, sizeof(pluginDeclarationFile);
+		snprintf(pluginDeclarationFile, plugindeclarationfile_size, "%s", v.strval);
         }
         else {
         	printf("ERROR: Plugin declaration file does not exist.");
@@ -3396,7 +3541,8 @@ void process_kafka_start_id(ConfVal val) {
 
 void process_kafka_brokers(ConfVal value) {
 	kafkaexportreqs++;
-	kafka_brokers = malloc((size_t)strlen(value.strval)+1);
+	size_t kf_len = strlen(value.strval) + 1;
+	kafka_brokers = malloc(kf_len);
 	if (kafka_brokers == NULL) {
 		fprintf(stderr, "Failed to allocate memory for kafka brokers.\n");
 		writeLog("Failed to allocate memory [kafka_brokers]", 2, 1);
@@ -3405,14 +3551,16 @@ void process_kafka_brokers(ConfVal value) {
 	}
 	else
 		memset(kafka_brokers, '\0', (size_t)(strlen(value.strval)+1) * sizeof(char));
-	strncpy(kafka_brokers, value.strval, strlen(value.strval));
+	//strncpy(kafka_brokers, value.strval, strlen(value.strval));
+	snprintf(kafka_brokers, kf_len, "%s", value.strval);
 	snprintf(infostr, infostr_size, "Kafka export brokers is set to '%s'", kafka_brokers);
 	writeLog(trim(infostr), 0, 1);
 }
 
 void process_kafka_topic(ConfVal val) {
 	kafkaexportreqs++;
-	kafka_topic = malloc((size_t)strlen(val.strval)+1);
+	size_t len = strlen(val.strval);
+	kafka_topic = malloc(len+1);
 	if (kafka_topic == NULL) {
        		fprintf(stderr, "Failed to allocate memory [kafka_topic].\n");
                 writeLog("Failed to allocate memory [kafka_topic]", 2, 1);
@@ -3421,13 +3569,16 @@ void process_kafka_topic(ConfVal val) {
 	}
 	else
 		memset(kafka_topic, '\0', (size_t)(strlen(val.strval)+1) * sizeof(char));
-	strncpy(kafka_topic, val.strval, strlen(val.strval));
+	//strncpy(kafka_topic, val.strval, len);
+	//kafka_topic[len] = '\0';
+	kafka_topic = strdup(val.strval);
         snprintf(infostr, infostr_size, "Kafka export topic is set to '%s'", kafka_topic);
         writeLog(trim(infostr), 0, 1);
 }
 
 void process_kafka_tag(ConfVal value) {
-	kafka_tag = malloc((size_t)strlen(value.strval+1));
+	size_t  kafka_tag_size = strlen(value.strval)+1;
+	kafka_tag = malloc(kafka_tag_size);
 	if (kafka_tag == NULL) {
 		fprintf(stderr, "Failed to allocate memory [kafka_tag].\n");
 		writeLog("Failed to allocate memory [kafka_tag]", 2, 1);
@@ -3436,7 +3587,8 @@ void process_kafka_tag(ConfVal value) {
 	}
 	else
 		memset(kafka_tag, '\0', (size_t)(strlen(value.strval)+1) * sizeof(char));
-	strncpy(kafka_tag, value.strval, strlen(value.strval));
+	//strncpy(kafka_tag, value.strval, strlen(value.strval));
+	snprintf(kafka_tag, kafka_tag_size, "%s", value.strval);
 	snprintf(infostr, infostr_size, "Kafka tag is set to '%s'", kafka_tag);
 	writeLog(trim(infostr), 0, 1);
 }
@@ -3461,6 +3613,7 @@ void process_kafka_ca_certificate(ConfVal val) {
 		return;
 	}
 	strncpy(kafkaCACertificate, val.strval, strlen(val.strval));
+	kafkaCACertificate[strlen(val.strval)] = '\0';
 	writeLog("Kafka CA certificate location stored from configuration file.", 0, 1);
 }
 
@@ -3473,6 +3626,7 @@ void process_kafka_producer_certificate(ConfVal value) {
 		return;
 	}
 	strncpy(kafkaProducerCertificate, value.strval, strlen(value.strval));
+	kafkaProducerCertificate[strlen(value.strval)] = '\0';
 	writeLog("Kafka Producer certificate location stored from configuration file.", 0, 1);
 }
 
@@ -3485,7 +3639,45 @@ void process_kafka_ssl_key(ConfVal val) {
 		return;
 	}
 	strncpy(kafkaSSLKey, val.strval, strlen(val.strval));
+	kafkaSSLKey[strlen(val.strval)] = '\0';
 	writeLog("Kafka SSL Key provided from configuration file.", 0, 1);
+}
+
+void process_schema_name(ConfVal val) {
+	if (val.strval == NULL) {
+		fprintf(stderr, "Schema registry name is NULL in config.\n");
+                writeLog("Schema registry name is NULL in configuration file.", 1, 1);
+		return;
+	}
+	if (strlen(val.strval) > 100) {
+		writeLog("Schema registry name is too long. Should be maximum 100 characters.", 1, 1);
+		return;
+	}
+        strncpy(schemaName, val.strval, sizeof(schemaName)-1);
+	schemaName[sizeof(schemaName)-1] = '\0';
+    	snprintf(infostr, infostr_size, "Kafka schema name is set to '%s'", schemaName);
+        writeLog(trim(infostr), 0, 1);
+}
+
+void process_schema_registry_url(ConfVal val) {
+        if (val.strval == NULL) {
+        	fprintf(stderr, "Schema registry URL is NULL\n");
+    		writeLog("Schema registry URL is NULL", 2, 1);
+    		config_memalloc_fails++;
+    		return;
+  	}
+	size_t len = strlen(val.strval);
+        schemaRegistryUrl = malloc(len+1);
+        if (schemaRegistryUrl == NULL) {
+                fprintf(stderr, "Failed to allocate memory [kafka_schemaRegistryUrl].\n");
+                writeLog("Failed to allocate memory [kafka_schemaRegistryUrl]", 2, 1);
+                config_memalloc_fails++;
+                return;
+        }
+        strncpy(schemaRegistryUrl, val.strval, len);
+	schemaRegistryUrl[len] = '\0';
+        snprintf(infostr, infostr_size, "Kafka schema registry url is set to '%s'", schemaRegistryUrl);
+        writeLog(trim(infostr), 0, 1);
 }
 
 void process_gardener_run_interval(ConfVal value) {
@@ -3548,7 +3740,9 @@ void process_run_gardener_at_start(ConfVal v) {
 
 void process_gardener_script(ConfVal value) {
 	if (access(value.strval, F_OK) == 0){
-		strncpy(gardenerScript, value.strval, strlen(value.strval));
+		strncpy(gardenerScript, value.strval, gardenerscript_size);
+		//gardenerScript[strlen(value.strval)] = '\0';
+		gardenerScript[gardenerscript_size] = '\0';
 	}
 	else {
 		enableGardener = 0;
@@ -3568,21 +3762,27 @@ void process_enable_clear_data_cache(ConfVal value) {
 }
 
 void process_json_file(ConfVal value) {
-	strncpy(jsonFileName, value.strval, strlen(value.strval));
-	jsonFileName[strlen(value.strval)] = '\0';
+	//strncpy(jsonFileName, value.strval, strlen(value.strval));
+	//jsonFileName[strlen(value.strval)] = '\0';
+	snprintf(jsonFileName, jsonfilename_size, "%s", value.strval);
 	snprintf(infostr, infostr_size, "Json data will be collected in file: %s.", jsonFileName);
 	writeLog(trim(infostr), 0, 1);
 }
 
 void process_metrics_file(ConfVal val) {
-	strncpy(metricsFileName, val.strval, strlen(val.strval));
+	/*strncpy(metricsFileName, val.strval, strlen(val.strval));
+        metricsFileName[strlen(val.strval)] = '\0';*/
+	snprintf(metricsFileName, metricsfilename_size, "%s", val.strval);
 	snprintf(infostr, infostr_size, "Metrics will be collected in file: %s", metricsFileName);
 	writeLog(trim(infostr), 0, 1);
 }
 
 void process_metrics_output_prefix(ConfVal value) {
 	if ((int)strlen(value.strval) <= 30) {
-		strncpy(metricsOutputPrefix, value.strval, strlen(value.strval));
+		//size_t len = strlen(value.strval);
+		//strncpy(metricsOutputPrefix, value.strval, len);
+		//metricsOutputPrefix[len] = '\0';
+		snprintf(metricsOutputPrefix, 31, "%s", value.strval);
 		snprintf(infostr, infostr_size, "Metrics output prefix is set to '%s'", metricsOutputPrefix);
 		writeLog(trim(infostr), 0, 1);
 	}
@@ -3599,6 +3799,16 @@ void process_save_on_exit(ConfVal value) {
 		writeLog("Data file will be saved in data directory after shutdown.", 0, 1);
 		saveOnExit = 1;
 	}
+}
+
+void process_kafka_avro(ConfVal value) {
+	if (value.intval == 1) {
+		writeLog("Kafka avro scheme enabled.", 0, 1);
+		writeLog("Using avro is an optional add on and you might need to recompile Almond. Make sure you know what to do.", 1, 1);
+		kafkaAvro = 1;
+	}
+	else
+		kafkaAvro = 0;
 }
 
 int getConfigurationValues() {
@@ -3624,10 +3834,12 @@ int getConfigurationValues() {
 		char * token = strtok(line, "=");
 		while (token != NULL) {
 			if (index == 0) {
-				strncpy(confName, token, sizeof(confName));
+				//strncpy(confName, token, sizeof(confName));
+				snprintf(confName, sizeof(confName), "%s", token);
                    	}
                    	else {
-				strncpy(confValue, token, sizeof(confValue));
+				//strncpy(confValue, token, sizeof(confValue));
+				snprintf(confValue, sizeof(confValue), "%s", token);
                    	}
                    	token = strtok(NULL, "=");
                    	index++;
@@ -3636,30 +3848,6 @@ int getConfigurationValues() {
 		ConfVal cvu;
 		cvu.intval = strtol(trim(confValue), NULL, 0);
 		cvu.strval = trim(confValue);
-		// DEBUG
-		/*printf("DEBUG: confValue = %s\n", confValue);
-		printf("DEBUG: cvu.intval = %i\n", cvu.intval);
-		printf("DEBUG: cvu.strval = %s\n", cvu.strval);
-		printf("DEBUG Union memory content: ");
-		for (int i = 0; i < sizeof(ConfVal); i++) {
-    			printf("%02x ", ((unsigned char*)&cvu)[i]);
-		}
-		printf("\n");
-		int* ptr = (int*)&cvu;
-		printf("DEBUG: Explicit integer access: %d\n", *ptr);
-		uint32_t swapped = 0;
-		for (int i = 0; i < 4; i++) {
-    			swapped |= ((uint8_t*)&cvu)[i] << (24 - i * 8);
-		}
-		printf("DEBUG: Swapped integer: %d\n", swapped);
-		uint32_t cvu_intval = 0;
-		for (int i = 0; i < sizeof(int); i++) {
-    			cvu_intval |= ((uint8_t*)&cvu)[i] << (24 - i * 8);
-		}
-		printf("DEBUG Corrected integer: %d\n", cvu_intval);*/
-		// END DEBUG
-		// OK - working with struct instead of union
-		// Should I try once assigning only the correct data?
 		for (int i = 0; i < sizeof(config_entries)/sizeof(ConfigEntry);i++) {
 			if (strcmp(confName, config_entries[i].name) == 0) {
 				config_entries[i].process(cvu);
@@ -4254,6 +4442,48 @@ int getConfigurationValues() {
    	return 0;
 }*/
 
+int truncateLogs() {
+	size_t compressed_name_size = logfile_size + 28;
+	char* compressed_name = malloc(compressed_name_size * sizeof(char));
+	strcpy(compressed_name, logfile);
+	strncat(compressed_name, getCurrentTimestamp(), 20);
+	strncat(compressed_name, ".tar.gz", 8);
+	if (compress_log(logfile, compressed_name) == -1) {
+		return -1;
+	}
+	if (truncate(logfile, 0) == -1) {
+		fprintf(stderr, "Failed to truncate log: %s\n", strerror(errno));
+		writeLog("Truncation of log file failed.", 1, 1); 
+		unlink(compressed_name);
+		return -1;
+	}
+	return 0;
+}
+
+int check_file_truncation() {
+	struct stat filestat;
+	time_t current_time, diff_seconds;
+
+	if (stat(logfile, &filestat) == -1) {
+		writeLog("Failed to get filestat from logfile. This will make truncation impossible", 1, 1);
+		return 0;
+	}
+	current_time = time(NULL);
+	#ifdef HAS_BIRTHTIME
+		diff_seconds = current_time - filestat.st_birthtime;
+	#else
+		diff_seconds = current_time - filestat.st_mtime;
+		writeLog("Could not get birthtime from file. Truncation will be omitted.", 1, 1);
+	#endif
+	if (diff_seconds > truncateLogInterval) {
+		printf("Will start truncating the Almond log.");
+		writeLog("It is time to truncate the Almond log.", 0, 1);
+		sleep(1);
+		truncateLogs();
+	}
+	return diff_seconds;
+}
+
 void apiDryRun(int plugin_id) {
 	char* pluginName = NULL;
 	char* message = NULL;
@@ -4261,7 +4491,6 @@ void apiDryRun(int plugin_id) {
         char ch = '/';
         PluginOutput output;
         int rc = 0;
-	FILE *fp = NULL;
 	
 	output.retString = malloc((size_t)pluginoutput_size);
 	message = malloc((size_t)(apimessage_size + 1) * sizeof(char));
@@ -4286,20 +4515,30 @@ void apiDryRun(int plugin_id) {
         strcat(message, pluginName);
         strcat(message, "\"");
         strcat(message, ",\n");
-        strcpy(pluginCommand, pluginDir);
+        /*strcpy(pluginCommand, pluginDir);
         strncat(pluginCommand, &ch, 1);
-        strcat(pluginCommand, declarations[plugin_id].command);
+        strcat(pluginCommand, declarations[plugin_id].command);*/
+	snprintf(pluginCommand, plugincommand_size, "%s%c%s", pluginDir, ch, declarations[plugin_id].command);
         snprintf(infostr, infostr_size, "Running: %s.", declarations[plugin_id].command);
         writeLog(trim(infostr), 0, 0);
-        fp = popen(pluginCommand, "r");
-        if (fp == NULL) {
+        TrackedPopen tp = tracked_popen(pluginCommand);
+        if (tp.fp == NULL) {
                 printf("Failed to run command\n");
-                writeLog("Failed to run command.", 2, 0);
+		writeLog("Failed to run command via tracked_popen()", 2, 0);
+		rc = -1;
         }
-        while (fgets(retString, sizeof(retString), fp) != NULL) {
+	else {
+		add_plugin_pid(tp.pid);
+		while (fgets(retString, sizeof(retString), tp.fp) != NULL) {
                 // VERBOSE  printf("%s", retString);
-        }
-        rc = pclose(fp);
+        	}
+        	rc = tracked_pclose(&tp);
+		if (rc == -1) {
+			snprintf(infostr, infostr_size,"[apiDryRun] tracked_pclose failed: errno %d (%s)", errno, strerror(errno));
+            		writeLog(trim(infostr), 1, 0);
+		}
+		remove_plugin_pid(tp.pid);
+	}
         if (rc > 0)
         {
                 if (rc == 256)
@@ -4421,10 +4660,10 @@ void runPluginArgs(int id, int aflags, int api_action) {
 	char* newcmd = NULL;
 	char* pluginName = NULL;
 	char* runArgsStr = NULL;
-	FILE *fp = NULL;
         char ch = '/';
         PluginOutput output;
-        char currTime[22];
+        //char currTime[22];
+	char currTime[TIME_BUF_LEN];
 	char rCode[3];
         int rc = 0;
 	char* message = NULL;
@@ -4474,12 +4713,20 @@ void runPluginArgs(int id, int aflags, int api_action) {
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
 	strcpy(command, declarations[id].command);
-        strcpy(newcmd, pluginDir);
+        /*strcpy(newcmd, pluginDir);
         strncat(newcmd, &ch, 1);
 	char * token = strtok(command, " ");
 	strcat(newcmd, token);
 	strcat(newcmd, " ");
-	strcat(newcmd, api_args);
+	strcat(newcmd, api_args);*/
+	char * token = strtok(command, " ");
+	if (pluginDir && token && api_args) {
+		snprintf(newcmd, 200, "%s%c%s %s", pluginDir, ch, token, api_args);
+	}
+	else {
+		writeLog("Failed to create new command.", 2, 0);
+		return;
+	}
 	runArgsStr = createRunArgsStr(id, newcmd);
 	if (runArgsStr != NULL) {
 		setApiCmdFile("executeargs", runArgsStr);
@@ -4489,8 +4736,8 @@ void runPluginArgs(int id, int aflags, int api_action) {
 		fprintf(stderr, "Failed to allocate memory for execute arguments command file.\n");
 		writeLog("Failed to allocate memory [setAPiCmdsFile: executeargs].", 2, 0);
 	}
-	fp = popen(newcmd, "r");
-        if (fp == NULL) {
+	TrackedPopen tp = tracked_popen(newcmd);
+        if (tp.fp == NULL) {
                 printf("Failed to run command\n");
                 writeLog("Failed to run command.", 2, 0);
 		strcpy(message, "\n{ \"failedToRun\":\"");
@@ -4515,10 +4762,11 @@ void runPluginArgs(int id, int aflags, int api_action) {
 		pluginName = NULL;
 		return;
         }
-	while (fgets(pluginReturnString, pluginmessage_size, fp) != NULL) {
+	add_plugin_pid(tp.pid);
+	while (fgets(pluginReturnString, pluginmessage_size, tp.fp) != NULL) {
                 // VERBOSE  printf("%s", pluginReturnString);
         }
-        rc = pclose(fp);
+        rc = tracked_pclose(&tp);
         if (rc > 0)
         {
                 if (rc == 256)
@@ -4530,12 +4778,15 @@ void runPluginArgs(int id, int aflags, int api_action) {
         }
         else
                 output.retCode = rc;
+	remove_plugin_pid(tp.pid);
         strcpy(output.retString, trim(pluginReturnString));
 	size_t dest_size = 20;
         time_t t = time(NULL);
         struct tm tm = *localtime(&t);
-        snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        
+        int len = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	if (len >= dest_size) {
+		writeLog("Possible truncation of timestamp in function 'runPluginArgs'.", 1, 0);
+	}
         if (api_action == API_DRY_RUN)
 		strcpy(message, "{\n     \"dryExecutePlugin\":\"");
 	else {
@@ -4552,7 +4803,10 @@ void runPluginArgs(int id, int aflags, int api_action) {
                 struct tm tNextTime;
                 memset(&tNextTime, '\0', sizeof(struct tm));
                 localtime_r(&nextTime, &tNextTime);
-                snprintf(declarations[id].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                len = snprintf(declarations[id].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+		if (len >= dest_size) {
+			writeLog("Possible truncation of timestamp in function 'runPluginArgs'.", 1, 0);
+		}
                 declarations[id].nextRun = nextTime;
 		if (timeScheduler == 1) {
 			scheduler[declarations[id].id].timestamp = nextTime;
@@ -4923,13 +5177,14 @@ void apiReadFile(char *fileName, int type) {
                 fseek(f, 0, SEEK_END);
                 length = ftell(f);
                 fseek(f, 0, SEEK_SET);
-                message = malloc((size_t)length);
+                message = malloc((size_t)length +1);
 		if (message == NULL) {
 			writeLog("Failed to allocate memory [apiReadFile:message]", 2, 0);
 			return;
 		}
                 if (message) {
                         fread(message, 1, length, f);
+			message[length] = '\0';
                 }
                 fclose(f);
 		f = NULL;
@@ -4937,15 +5192,16 @@ void apiReadFile(char *fileName, int type) {
         else err++;
 
         if (message) {
-		socket_message = malloc((size_t)length);
+		socket_message = malloc((size_t)length +1);
 		if (socket_message == NULL) {
 			fprintf(stderr,"Memory allocation failed.\n");
 			writeLog("Failed to allocate memory [apiReadFile:socket_message]", 2, 0);
 			return;
 		}
-		else
-			memset(socket_message, '\0', (size_t)length);
+		//else
+		//	memset(socket_message, '\0', (size_t)length);
                 strncpy(socket_message, message, (size_t)length);
+		socket_message[length] = '\0';
         }
         else err++;
         if (err > 0) {
@@ -4976,6 +5232,129 @@ void apiGetHostName() {
 	char nm[9];
 	strcpy(nm, "hostname");
 	constructSocketMessage(nm, hostName);
+}
+
+void apiShowVersion() {
+	char version[8];
+	strcpy(version, "version");
+	constructSocketMessage(version, VERSION);
+}
+
+void apiShowStatus() {
+	FILE *fp;
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+
+	double user_time = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6;
+	double system_time = usage.ru_stime.tv_sec + usage.ru_stime.tv_usec /1e6; 
+	pid_t pid = getppid();
+
+        json_object *jobj = json_object_new_object();
+	json_object_object_add(jobj, "hostname", json_object_new_string(hostName));
+        json_object_object_add(jobj, "almond_version", json_object_new_string(VERSION));
+	json_object_object_add(jobj, "pid", json_object_new_int(pid));
+	fp = fopen("/proc/uptime", "r");
+    	if (fp) { 
+		double uptime = 0.0;
+    		if (fscanf(fp, "%lf", &uptime) == 1) {
+        		json_object_object_add(jobj, "uptime_seconds", json_object_new_double(uptime));
+    		}
+    		fclose(fp);
+	}
+	json_object_object_add(jobj, "plugin_count", json_object_new_int(decCount));
+	json_object_object_add(jobj, "user_cpu_time", json_object_new_double(user_time));
+	json_object_object_add(jobj, "system_cpu_tume", json_object_new_double(system_time));
+	struct mallinfo2 mi = mallinfo2();  // glibc >= 2.33
+        json_object_object_add(jobj, "heap_allocated_kb", json_object_new_int64(mi.uordblks / 1024));
+        json_object_object_add(jobj, "heap_total_kb",     json_object_new_int64(mi.arena / 1024));
+	json_object_object_add(jobj, "max_resident_set_size_kb", json_object_new_int64(usage.ru_maxrss));
+	struct rlimit rl;
+    	if (getrlimit(RLIMIT_STACK, &rl) == 0) {
+        	json_object_object_add(jobj, "stack_size_kb", json_object_new_int64(rl.rlim_cur / 1024));
+    	}
+	fp = fopen("/proc/self/statm", "r");
+    	if (fp) {
+		long rss_pages = 0;
+    		if (fscanf(fp, "%*s %ld", &rss_pages) == 1) {
+        		long page_size_kb = sysconf(_SC_PAGESIZE) / 1024;
+        		json_object_object_add(jobj, "rss_kb", json_object_new_int64(rss_pages * page_size_kb));
+    		}
+    		fclose(fp);
+	}
+	json_object_object_add(jobj, "minor_page_faults", json_object_new_int64(usage.ru_minflt));
+	json_object_object_add(jobj, "major_page_faults", json_object_new_int64(usage.ru_majflt));
+	json_object_object_add(jobj, "swaps", json_object_new_int64(usage.ru_nswap));
+	json_object_object_add(jobj, "block_input_ops", json_object_new_int64(usage.ru_inblock));
+	json_object_object_add(jobj, "block_output_ops", json_object_new_int64(usage.ru_oublock));
+	json_object_object_add(jobj, "ipc_msgs_sent", json_object_new_int64(usage.ru_msgsnd));
+	json_object_object_add(jobj, "ipc_msgs_received", json_object_new_int64(usage.ru_msgrcv));
+	json_object_object_add(jobj, "signals_received", json_object_new_int64(usage.ru_nsignals));
+	json_object_object_add(jobj, "voluntary_context_switches", json_object_new_int64(usage.ru_nvcsw));
+	json_object_object_add(jobj, "involuntary_context_switches", json_object_new_int64(usage.ru_nivcsw));
+	json_object_object_add(jobj, "thread_count", json_object_new_int(get_thread_count()));
+	json_object_object_add(jobj, "open_file_descriptors", json_object_new_int64(get_fd_count()));
+	fp = fopen("/proc/self/io", "r");
+	if (fp) {
+		char line[256];
+    		while (fgets(line, sizeof(line), fp)) {
+        		char key[64];
+        		unsigned long long value;
+			if (sscanf(line, "%63[^:]: %llu", key, &value) == 2) {
+            			json_object_object_add(jobj, key, json_object_new_int64(value));
+        		}
+    		}
+		fclose(fp);
+	}
+        const char *json_str = json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PRETTY);
+        int size = strlen(json_str) + 2;
+        socket_message = malloc((size_t)size);
+        if (socket_message == NULL) {
+                printf("Memory allocation failed.\n");
+                writeLog("Memory allocation failed [constructSocketMessage:socket_message]", 2, 0);
+                return;
+        }
+        else
+                memset(socket_message, '\0', (size_t)size * sizeof(char));
+        snprintf(socket_message, (size_t)size, "%s\n", json_str);
+        json_object_put(jobj);
+}
+
+void apiShowPluginStatus() {
+	int num_of_oks = 0, num_of_warnings = 0, num_of_criticals = 0, num_of_unknowns = 0;
+	for (int i = 0; i < decCount; i++) {
+		switch(outputs[i].retCode) {
+			case 0:
+				num_of_oks++;
+				break;
+			case 1:
+				num_of_warnings++;
+				break;
+			case 2:
+				num_of_criticals++;
+				break;
+			default:
+				num_of_unknowns++;
+				break;
+		}
+	}
+	json_object *jobj = json_object_new_object();
+	json_object_object_add(jobj, "number_of_checks", json_object_new_int(decCount));
+	json_object_object_add(jobj, "ok", json_object_new_int(num_of_oks));
+	json_object_object_add(jobj, "warning", json_object_new_int(num_of_warnings));
+	json_object_object_add(jobj, "critical", json_object_new_int(num_of_criticals));
+	json_object_object_add(jobj, "unknown", json_object_new_int(num_of_unknowns));
+	const char *json_str = json_object_to_json_string(jobj);
+	int size = strlen(json_str) + 2;
+        socket_message = malloc((size_t)size);
+        if (socket_message == NULL) {
+                printf("Memory allocation failed.\n");
+                writeLog("Memory allocation failed [constructSocketMessage:socket_message]", 2, 0);
+                return;
+        }
+        else
+                memset(socket_message, '\0', (size_t)size * sizeof(char));
+        snprintf(socket_message, (size_t)size, "%s\n", json_str);
+	json_object_put(jobj);
 }
 
 void apiCheckPluginConf() {
@@ -5037,23 +5416,40 @@ void apiGetVars(int v) {
 			sprintf(plts, "%ld", tPluginFile);
 			constructSocketMessage("pluginslastchangets", plts);
 			break;
+		case 11:
+			if (external_scheduler == 0) {
+				constructSocketMessage("scheduler", "internal");
+			}
+			else {
+				constructSocketMessage("scheduler", "external");
+			}
+			break;
 		default:
 			constructSocketMessage("getvar", "No matching object found");
 	}
 }
 
 void apiReadAll() {
-	char ch = '/';
+	//char ch = '/';
 
-	strcpy(fileName, dataDir);
+	/*strcpy(fileName, dataDir);
 	strncat(fileName, &ch, 1);
-	strcat(fileName, jsonFileName);
-	apiReadFile(fileName, 0); 
+	strcat(fileName, jsonFileName);*/
+	int written = snprintf(fileName, filename_size, "%s/%s", dataDir, jsonFileName);
+	if (written < 0) {
+		writeLog("Could not read from jsonfile. Encoding error getting file name.", 1, 0);
+	}
+	else if ((size_t)written >= filename_size) {
+		writeLog("Could not get jsonfile. Name is too long.", 1, 0);
+	}
+	else 
+		apiReadFile(fileName, 0); 
 }
 
 void collectJsonData(int decLen){
-	char ch = '/';
+	//char ch = '/';
 	char* pluginName = NULL;
+	char plts[14];
 	FILE *fp = NULL;
         clock_t t;
 
@@ -5062,9 +5458,16 @@ void collectJsonData(int decLen){
 		return;
 	}
 	pthread_mutex_lock(&update_mtx);
-	strcpy(fileName, dataDir);
+	/*strcpy(fileName, dataDir);
 	strncat(fileName, &ch, 1);
-	strcat(fileName, jsonFileName);
+	strcat(fileName, jsonFileName);*/
+	int written = snprintf(fileName, filename_size, "%s/%s", dataDir, jsonFileName);
+	if (written < 0) {
+		writeLog("Could not write to json file", 2, 0);
+	}
+	if ((size_t)written >= filename_size) {
+		writeLog("Json file name truncated. Name is too long.", 1, 0);
+	}
 	snprintf(infostr, infostr_size, "Collecting data to file: %s", fileName);
 	writeLog(trim(infostr), 0, 0);
 	t = clock();
@@ -5073,17 +5476,21 @@ void collectJsonData(int decLen){
 	fprintf(fp, "   \"host\": {\n");
 	fprintf(fp, "      \"name\":\"");
 	fputs(hostName, fp);
-	fprintf(fp, "\"\n");
+	fprintf(fp, "\",\n");
+	fprintf(fp, "      \"pluginfileupdatetime\":\"");
+	sprintf(plts, "%ld", tPluginFile);
+        fputs(plts, fp);
+        fprintf(fp, "\"\n");
 	fputs("   },\n", fp);
 	fputs("   \"monitoring\": [\n", fp);
 	for (int i = 0; i < decLen; i++) {
-		pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
+		//pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
+		pluginName = strdup(declarations[i].name);
 		if (pluginName == NULL) {
 			fprintf(stderr, "Memory allocation failed.\n");
 			writeLog("Failed to allocate memory [collectJsonData:pluginName]", 2, 0);
 			return;
 		}
-		pluginName = strdup(declarations[i].name);
 		removeChar(pluginName, '[');
 		removeChar(pluginName, ']');
 		fputs("      {\n", fp);
@@ -5137,7 +5544,7 @@ void collectJsonData(int decLen){
 }
 
 void collectMetrics(int decLen, int style) {
-        char ch = '/';
+        //char ch = '/';
 	char* pluginName = NULL;
 	char* serviceName = NULL;
 	FILE *mf = NULL;
@@ -5147,9 +5554,10 @@ void collectMetrics(int decLen, int style) {
 
         t = clock();
 	pthread_mutex_lock(&update_mtx);
-        strncpy(storeName, storeDir, storedir_size);
+        /*strncpy(storeName, storeDir, storedir_size);
         strncat(storeName, &ch, 1);
-        strcat(storeName, metricsFileName);
+        strcat(storeName, metricsFileName);*/
+	snprintf(storeName, storename_size, "%s/%s", storeDir, metricsFileName); 
         mf = fopen(storeName, "w");
 	if (mf == NULL) {
 		writeLog("Failed to open metrics file", 1, 0);
@@ -5345,7 +5753,10 @@ void timeTune(int seconds) {
                 	struct tm tNextTime;
                 	memset(&tNextTime, '\0', sizeof(struct tm));
                	 	localtime_r(&nextTime, &tNextTime);
-                	snprintf(declarations[i].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                	int len = snprintf(declarations[i].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+			if (len >= dest_size) {
+				writeLog("Truncation of timestamp possible in funtion 'timeTune'", 1, 0);
+			}
                 	declarations[i].nextRun = nextTime;
 			if (timeScheduler == 1)
 				scheduler[declarations[i].id].timestamp = nextTime;
@@ -5361,20 +5772,16 @@ void writePluginResultToFile(int storeIndex, int update) {
 	char* checkName;
 	char timestr[35];
 	char ch = '/';
-	checkName = malloc((size_t)pluginitemname_size * sizeof(char)+1);
-	if (checkName == NULL) {
-		writeLog("Failed to allocate memory [runPlugin:checkName].", 2, 0);
-		return;
-	}
 	if (update == 0)
 		checkName = strdup(declarations[storeIndex].name);
 	else
 		checkName = strdup(update_declarations[storeIndex].name);
 	memmove(checkName, checkName+1,strlen(checkName));
 	checkName[strlen(checkName)-1] = '\0';
-	strcpy(fileName, storeDir);
+	/*strcpy(fileName, storeDir);
 	strncat(fileName, &ch, 1);
-	strcat(fileName, checkName);
+	strcat(fileName, checkName);*/
+	snprintf(fileName, filename_size, "%s%c%s", storeDir, ch, checkName);
 	free(checkName);
 	checkName = NULL;
 	time_t rawtime;
@@ -5411,12 +5818,16 @@ void writeToKafkaTopic(int storeIndex, int update) {
 	char *payload;
 	char *pluginName;
 	char *pluginStatus;
-	char currTime[22];
+	//char currTime[22];
+	char currTime[TIME_BUF_LEN];
 	size_t dest_size = 20;
         time_t tTime = time(NULL);
         struct tm tm = *localtime(&tTime);
 
-        snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        int len = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	if (len >= dest_size) {
+		writeLog("Possible truncation of timestamp in function 'writeToKafkaTopic'.", 1, 0);
+	}
 	pluginName = malloc((size_t)pluginitemname_size * sizeof(char));
         if (pluginName == NULL) {
         	fprintf(stderr, "Memory allocation failed.\n");
@@ -5490,14 +5901,33 @@ void writeToKafkaTopic(int storeIndex, int update) {
                         }
                 }
 	}
-        free(pluginName);
+        if (enableKafkaSSL == 0) {
+		if (kafkaAvro == 0)
+			send_message_to_kafka(kafka_brokers, kafka_topic, payload);
+		else {
+			int nKafkaId = kafka_start_id + storeIndex;
+                	int length = snprintf(NULL, 0, "%d", nKafkaId);
+                	char* kafka_id = malloc((size_t)length + 1);
+                	snprintf(kafka_id, (size_t)length+1, "%d", nKafkaId);
+			send_avro_message_to_kafka(kafka_brokers, kafka_topic, hostName, kafka_id, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+		}
+	}
+        else {
+		if (kafkaAvro == 0) {
+			send_ssl_message_to_kafka(kafka_brokers, kafkaCACertificate, kafkaProducerCertificate, kafkaSSLKey, kafka_topic, payload);
+		}
+		else {
+			int nKafkaId = kafka_start_id + storeIndex;
+                	int length = snprintf(NULL, 0, "%d", nKafkaId);
+                	char* kafka_id = malloc((size_t)length + 1);
+                	snprintf(kafka_id, (size_t)length+1, "%d", nKafkaId);
+        		send_ssl_avro_message_to_kafka(kafka_brokers, kafkaCACertificate, kafkaProducerCertificate, kafkaSSLKey, kafka_topic, hostName, kafka_id, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+		}
+	}
+	free(pluginName);
         free(pluginStatus);
         pluginName = NULL;
         pluginStatus = NULL;
-        if (enableKafkaSSL == 0)
-        	send_message_to_kafka(kafka_brokers, kafka_topic, payload);
-        else
-        	send_ssl_message_to_kafka(kafka_brokers, kafkaCACertificate, kafkaProducerCertificate, kafkaSSLKey, kafka_topic, payload);
         free(payload);
         payload = NULL;
 }
@@ -5506,8 +5936,8 @@ void runPluginCommand(int index, char* command) {
 	int prevRetCode = 0;
 	clock_t ct;
 	time_t t;
-	FILE *fp = NULL;
-	char currTime[22];
+	//char currTime[22];
+	char currTime[TIME_BUF_LEN];
 	int rc = 0;
 
 	if (strlen(command) > 100) {
@@ -5519,15 +5949,27 @@ void runPluginCommand(int index, char* command) {
 	time(&t);
 	snprintf(infostr, infostr_size, "Running %s.", trim(command));
 	writeLog(trim(infostr), 0, 0);
-	fp = popen(trim(command), "r");
-	if (fp == NULL) {
+	TrackedPopen tp = tracked_popen(trim(command));
+	if (tp.fp == NULL) {
 		printf("Failed to run command\n");
 		writeLog("Failed to run command.", 1, 0);
+		// Update with failed run
+		outputs[index].retCode = 3;
+		strncpy(outputs[index].retString, "UNKNOWN: Failed to run command", pluginoutput_size);
+		return;
 	}
-        while (fgets(pluginReturnString, pluginmessage_size, fp) != NULL) {
+	add_plugin_pid(tp.pid);
+        while (fgets(pluginReturnString, pluginmessage_size, tp.fp) != NULL) {
 		// // VERBOSE  printf("%s", pluginReturnString);
 	}
-	rc = pclose(fp);
+	rc = tracked_pclose(&tp);
+        if (rc == -1) {
+        	snprintf(infostr, infostr_size,
+                     "[runPlugin] tracked_pclose failed: errno %d (%s)",
+                     errno, strerror(errno));
+        	writeLog(trim(infostr), 1, 0);
+        }
+
 	if (rc > 0) {
         	if (rc == 256)
         		outputs[index].retCode = 1;
@@ -5538,6 +5980,7 @@ void runPluginCommand(int index, char* command) {
         }
         else
         	outputs[index].retCode = rc;
+	remove_plugin_pid(tp.pid);
 	if (pluginReturnString != NULL && outputs[index].retString != NULL) {
 		if (strlen(trim(pluginReturnString)) < pluginoutput_size)
                 	strncpy(outputs[index].retString, trim(pluginReturnString), pluginoutput_size);
@@ -5549,9 +5992,12 @@ void runPluginCommand(int index, char* command) {
 	size_t dest_size = 20;
         time_t tTime = time(NULL);
         struct tm tm = *localtime(&tTime);
-	snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	int tlen = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	if (tlen >= dest_size) {
+		writeLog("Possible truncation of timestamp in function 'runPluginCommand'.", 1, 0);
+	}
 	if (outputs[index].prevRetCode != -1){
-        	//snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        	//snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
                 if (prevRetCode != outputs[index].retCode){
                 	strcpy(declarations[index].statusChanged, "1");
                 	strcpy(declarations[index].lastChangeTimestamp, currTime);
@@ -5564,7 +6010,10 @@ void runPluginCommand(int index, char* command) {
                 struct tm tNextTime;
                 memset(&tNextTime, '\0', sizeof(struct tm));
                 localtime_r(&nextTime, &tNextTime);
-                snprintf(declarations[index].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                int len = snprintf(declarations[index].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+		if (len >= dest_size) {
+			writeLog("Possible truncation of timestamp in 'runPluginCommand'.", 1, 0);
+		}
                 declarations[index].nextRun = nextTime;
                 outputs[index].prevRetCode = outputs[index].retCode;
                 if (timeScheduler == 1) {
@@ -5583,6 +6032,7 @@ void runPluginCommand(int index, char* command) {
                 o_info = malloc((size_t)o_info_size * sizeof(char));
                 if (o_info == NULL) {
                         writeLog("Could not allocate memory for variable 'o_info'.", 2, 0);
+			return;
                 }
                 snprintf(o_info, (size_t)o_info_size, "%s : %s", declarations[index].name, pluginReturnString);
                 writeLog(trim(o_info), 0, 0);
@@ -5598,12 +6048,12 @@ void runPluginCommand(int index, char* command) {
 }
 
 void runPlugin(int storeIndex, int update) {
-	FILE *fp = NULL;
 	char ch = '/';
 	int prevRetCode = 0;
 	clock_t ct;
 	time_t t;
-	char currTime[22];
+	//char currTime[22];
+	char currTime[TIME_BUF_LEN];
 	int rc = 0;
 	char sPluginCommand[plugincommand_size];
 
@@ -5612,8 +6062,10 @@ void runPlugin(int storeIndex, int update) {
 	ct = clock();
 	time(&t);
 	// Test local var
-	strcpy(sPluginCommand, pluginDir);
-	strncat(sPluginCommand, &ch, 1);
+	//strcpy(sPluginCommand, pluginDir);
+	//strncat(sPluginCommand, &ch, 1);
+	//sPluginCommand[plugincommand_size -1] = '\0';
+	snprintf(sPluginCommand, plugincommand_size, "%s%c", pluginDir, ch);
 	if (update > 0) {
                 strcat(sPluginCommand, update_declarations[storeIndex].command);
                 snprintf(infostr, infostr_size, "Running: %s.", update_declarations[storeIndex].command);
@@ -5623,16 +6075,25 @@ void runPlugin(int storeIndex, int update) {
                 snprintf(infostr, infostr_size, "Running: %s.", declarations[storeIndex].command);
         }
 	writeLog(trim(infostr), 0, 0);
-	fp = popen(sPluginCommand, "r");
-	if (fp == NULL) {
+	TrackedPopen tp = tracked_popen(sPluginCommand);
+	if (tp.fp == NULL) {
 		printf("Failed to run command\n");
-		writeLog("Failed to run command.", 2, 0);
+		writeLog("Failed to run comman via tracked_popen().", 2, 0);
+		rc = -1;
 	}
-	while (fgets(pluginReturnString, pluginmessage_size, fp) != NULL) {
-		// VERBOSE  printf("%s", pluginReturnString);
-		// printf("DEBUG: %s\n", pluginReturnString);
+	else {
+		add_plugin_pid(tp.pid);
+		while (fgets(pluginReturnString, pluginmessage_size, tp.fp) != NULL) {
+			// VERBOSE  printf("%s", pluginReturnString);
+			// printf("DEBUG: %s\n", pluginReturnString);
+		}
+		rc = tracked_pclose(&tp);
+		if (rc == -1) {
+			snprintf(infostr, infostr_size, "[runPlugin] tracked_pclose failed with errno %d (%s)", errno, strerror(errno));
+			writeLog(trim(infostr), 1, 0);
+		}
+		remove_plugin_pid(tp.pid);
 	}
-	rc = pclose(fp);
 	switch (update) {
 		case 0:
 			if (rc > 0)
@@ -5693,13 +6154,16 @@ void runPlugin(int storeIndex, int update) {
 	size_t dest_size = 20;
         time_t tTime = time(NULL);
         struct tm tm = *localtime(&tTime);
-        snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        int len = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	if (len >= dest_size) {
+		writeLog("Possible truncation of timestamp while running plugin.", 1, 0);
+	}
 	if (update == 0) {
 		if (outputs[storeIndex].prevRetCode != -1){
 			/*size_t dest_size = 20;
                 	time_t t = time(NULL);
                 	struct tm tm = *localtime(&t);
-                	snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);*/
+                	snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);*/
                 	if (prevRetCode != outputs[storeIndex].retCode){
 				strcpy(declarations[storeIndex].statusChanged, "1");
 				strcpy(declarations[storeIndex].lastChangeTimestamp, currTime);
@@ -5717,10 +6181,10 @@ void runPlugin(int storeIndex, int update) {
 						char oldTime[20];
 						struct tm time;
 						strcpy(oldTime, declarations[timeTunerMaster].lastRunTimestamp);
-						strptime(oldTime, "%d-%02d-%02d %02d:%02d:%02d", &time);
+						strptime(oldTime, "%04d-%02d-%02d %02d:%02d:%02d", &time);
 						time_t ttOldTime = 0, ttCurTime = 0;
 						int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
-						if (sscanf(oldTime, "%d-%02d-%02d %02d:%02d:%02d", &year, &month, &day, &hour, &minute, &second) == 6) {
+						if (sscanf(oldTime, "%04d-%02d-%02d %02d:%02d:%02d", &year, &month, &day, &hour, &minute, &second) == 6) {
 							struct tm breakdown = {0};
 							breakdown.tm_year = year + 1900;
 							breakdown.tm_mon = month - 1;
@@ -5733,7 +6197,7 @@ void runPlugin(int storeIndex, int update) {
           							fprintf(stderr, "Could not convert time input to time_t\n");
        							}
 						}
-						if (sscanf(currTime, "%d-%02d-%02d %02d:%02d:%02d", &year, &month, &day, &hour, &minute, &second) == 6) {
+						if (sscanf(currTime, "%04d-%02d-%02d %02d:%02d:%02d", &year, &month, &day, &hour, &minute, &second) == 6) {
                                                         struct tm breakdown = {0};
                                                         breakdown.tm_year = year + 1900;
                                                         breakdown.tm_mon = month - 1;
@@ -5757,7 +6221,10 @@ void runPlugin(int storeIndex, int update) {
                 	struct tm tNextTime;
                 	memset(&tNextTime, '\0', sizeof(struct tm));
                 	localtime_r(&nextTime, &tNextTime);
-                	snprintf(declarations[storeIndex].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                	len = snprintf(declarations[storeIndex].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+			if (len >= dest_size) {
+				writeLog("Possible truncation of timestamp in 'runPlugin'.", 1, 0);
+			}
 			declarations[storeIndex].nextRun = nextTime;
                 	outputs[storeIndex].prevRetCode = outputs[storeIndex].retCode;
 			if (timeScheduler == 1) {
@@ -5802,157 +6269,35 @@ void runPlugin(int storeIndex, int update) {
 	}
 	if (pluginResultToFile == 1) {
 		writePluginResultToFile(storeIndex, update);
-		/*char* checkName;
-		char timestr[35];
-		char ch = '/';
-		checkName = malloc((size_t)pluginitemname_size * sizeof(char)+1);
-		if (checkName == NULL) {
-			writeLog("Failed to allocate memory [runPlugin:checkName].", 2, 0);
-			return;
-		}
-		if (update == 0) 
-			checkName = strdup(declarations[storeIndex].name);
-		else
-			checkName = strdup(update_declarations[storeIndex].name);
-		memmove(checkName, checkName+1,strlen(checkName));
-                checkName[strlen(checkName)-1] = '\0';
-        	strcpy(fileName, storeDir);
-        	strncat(fileName, &ch, 1);
-        	strcat(fileName, checkName);
-		free(checkName);
-                checkName = NULL;
-		time_t  rawtime;
-		struct tm * timeinfo;
-		time(&rawtime);
-		timeinfo = localtime(&rawtime);
-		strcpy(timestr, asctime(timeinfo));
-		timestr[strlen(timestr)-1] = '\0';
-		if (fileExists(fileName) == 0) {
-			fp = fopen(fileName, "a");
-		}
-		else {
-			fp = fopen(fileName, "w+");
-		}
-		if (update == 0) {
-			if (declarations[storeIndex].name && pluginReturnString) {
-				if (fp != NULL)
-					fprintf(fp, "%s, %s, %s\n", timestr, declarations[storeIndex].name, pluginReturnString);
-				else {
-					printf("DEBUG: Could not find file stream. Error.\n");
-					return;
-				}
-			}
-			fflush(fp);
-		}
-		else
-			fprintf(fp, "%s, %s, %s\n", timestr, update_declarations[storeIndex].name, pluginReturnString);
-		fclose(fp);
-		fp = NULL;*/
 	}
 	if (enableKafkaExport == 1) {
 		writeToKafkaTopic(storeIndex, update);
-		/*char *payload;
-		char *pluginName;
-		char *pluginStatus;
-		pluginName = malloc((size_t)pluginitemname_size * sizeof(char));
-		if (pluginName == NULL) {
-			fprintf(stderr, "Memory allocation failed.\n");
-			writeLog("Failed to allocate memory [runPlugin:enableKafkaExport:pluginName]", 2, 0);
-			return;
-		}
-		if (update == 0)
-			pluginName = strdup(declarations[storeIndex].name);
-		else
-			pluginName = strdup(update_declarations[storeIndex].name);
-		removeChar(pluginName, '[');
-                removeChar(pluginName, ']');
-		switch(outputs[storeIndex].retCode) {
-                        case 0:
-			   pluginStatus = malloc(3);
-			   strcpy(pluginStatus, "OK");
-                           break;
-                        case 1:
-			   pluginStatus = malloc(8);
-			   strcpy(pluginStatus, "WARNING");
-                           break;
-                        case 2:
-			   pluginStatus = malloc(9);
-			   strcpy(pluginStatus, "CRITICAL");
-                           break;
-                        default:
-			   pluginStatus = malloc(8);
-			   strcpy(pluginStatus, "UNKNOWN");
-                           break;
-                }
-		int count_bytes = strlen(hostName) + strlen(declarations[storeIndex].lastChangeTimestamp) + strlen(declarations[storeIndex].lastRunTimestamp) + strlen(declarations[storeIndex].name) + strlen(declarations[storeIndex].nextRunTimestamp);
-		count_bytes += pluginitemdesc_size + pluginoutput_size;
-                count_bytes += strlen(pluginStatus) + strlen(declarations[storeIndex].statusChanged);
-		count_bytes += 185;
-		int kafka_export_addons = 0;
-                if (enableKafkaTag > 0) {
-			count_bytes += strlen(kafka_tag);
-                        count_bytes += 12; // {"tag":""}
-			kafka_export_addons += 10;
-		}
-		if (enableKafkaId > 0) {
-			count_bytes += 9; // {"id":""}
-			int length = snprintf(NULL, 0, "%d", kafka_start_id);
-                        count_bytes += length;
-			kafka_export_addons += 20;
-		}
-		payload = malloc((size_t)count_bytes);
-		if (payload == NULL) {
-			fprintf(stderr, "Could not allocate memory for payload.\n");
-			writeLog("Failed to allocate memory [runPlugin:enableKafkaExport:payload]", 2, 0);
-			return;
-		}
-                if (kafka_export_addons < 1) {
-			sprintf(payload, "{\"name\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
-			printf("Payload = %s\n", payload);
-                }
-                else {
-			if (kafka_export_addons == KAFKA_EXPORT_TAG) {
-				sprintf(payload, "{\"name\":\"%s\", \"tag\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
-			}
-			else {
-				int nKafkaId = kafka_start_id + storeIndex;
-                                int length = snprintf(NULL, 0, "%d", nKafkaId);
-                                char* kafka_id = malloc((size_t)length + 1);
-                                snprintf(kafka_id, (size_t)length+1, "%d", nKafkaId);
-				if (kafka_export_addons == KAFKA_EXPORT_ID) {
-					sprintf(payload, "{\"name\":\"%s\", \"id\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_id, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
-				}
-				else if (kafka_export_addons == KAFKA_EXPORT_IDTAG) {
-					sprintf(payload, "{\"name\":\"%s\", \"id\":\"%s\",\"tag\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_id, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
-				}
-			}
-                }
-		free(pluginName);
-		free(pluginStatus);
-		pluginName = NULL;
-		pluginStatus = NULL;
-		if (enableKafkaSSL == 0)
-			send_message_to_kafka(kafka_brokers, kafka_topic, payload);
-		else
-			send_ssl_message_to_kafka(kafka_brokers, kafkaCACertificate, kafkaProducerCertificate, kafkaSSLKey, kafka_topic, payload);
-		free(payload);
-		payload = NULL;*/
 	}
 }
 
 void runGardener() {
-	FILE *fp = NULL;
 	int rc = 0;
 
-	fp = popen(gardenerScript, "r");
-        if (fp == NULL) {
+	TrackedPopen tp = tracked_popen(gardenerScript);
+        if (tp.fp == NULL) {
                 printf("Failed to run gardener script\n");
                 writeLog("Failed to run gardener script.", 2, 0);
+		rc = -1;
         }
-        while (fgets(gardenerRetString, gardenermessage_size, fp) != NULL) {
-                // VERBOSE  printf("%s", gardenerRetString);
+	else {
+		add_plugin_pid(tp.pid);
+        	while (fgets(gardenerRetString, gardenermessage_size, tp.fp) != NULL) {
+                	// VERBOSE  printf("%s", gardenerRetString);
+		}
+        	rc = tracked_pclose(&tp);
+		if (rc == -1) {
+			snprintf(infostr, infostr_size,
+                     		"[runPlugin] tracked_pclose failed: errno %d (%s)",
+                     		errno, strerror(errno));
+            		writeLog(trim(infostr), 1, 0);
+		}
+		remove_plugin_pid(tp.pid);
         }
-        rc = pclose(fp);
 	snprintf(infostr, infostr_size, "Gardener script executed with return code %i.", rc);
         if (rc > 1) {
 		writeLog(trim(infostr), 2, 0);
@@ -5989,7 +6334,11 @@ void runClearDataCache() {
 }
 
 void* pluginExeThread(void* data) {
-	long storeIndex = (long)data;
+	/*sigset_t sigset;
+    	sigemptyset(&sigset);
+    	sigaddset(&sigset, SIGCHLD);
+    	pthread_sigmask(SIG_BLOCK, &sigset, NULL);*/
+	intptr_t storeIndex = (intptr_t)data;
 	pthread_detach(pthread_self());
 	// VERBOSE printf("Executing %s in pthread %lu\n", declarations[storeIndex].description, pthread_self());
 	pthread_mutex_lock(&mtx);
@@ -6000,11 +6349,15 @@ void* pluginExeThread(void* data) {
 	}
 	thread_counter--;
 	pthread_mutex_unlock(&mtx);
+        threadIds[(short)storeIndex] = 0;
 	pthread_exit(NULL);
-	threadIds[(short)storeIndex] = 0;
 }
 
 void* gardenerExeThread(void* data) {
+ 	/*sigset_t sigset;
+        sigemptyset(&sigset);
+        sigaddset(&sigset, SIGCHLD);
+        pthread_sigmask(SIG_BLOCK, &sigset, NULL);*/
 	pthread_detach(pthread_self());
 	runGardener();
 	pthread_mutex_lock(&mtx);
@@ -6014,6 +6367,10 @@ void* gardenerExeThread(void* data) {
 }
 
 void* clearDataCacheThread(void* data) {
+	/*sigset_t sigset;
+        sigemptyset(&sigset);
+        sigaddset(&sigset, SIGCHLD);
+        pthread_sigmask(SIG_BLOCK, &sigset, NULL);*/
 	pthread_detach(pthread_self());
 	runClearDataCache();
 	pthread_mutex_lock(&mtx);
@@ -6025,7 +6382,6 @@ void* clearDataCacheThread(void* data) {
 int countDeclarations(char *file_name) {
 	FILE *fp = NULL;
 	int i = 0;
-	//char c;
         int ch;
 
 	if (file_name == NULL || strlen(file_name) == 0) {
@@ -6039,115 +6395,151 @@ int countDeclarations(char *file_name) {
 		writeLog("Error opening and counting declarations file.", 2, 0);
                 exit(EXIT_FAILURE);
         }
-	/*for (c = getc(fp); c != EOF; c = getc(fp)){
-                printf("%c", c); 
-		if (c == '\n')
-			i++;
-	}*/
         while ((ch = fgetc(fp)) != EOF) {
 		if (ch == '\n')
 			i++;
 	}
 	fclose(fp);
 	fp = NULL;
-        //printf("Declaration count = %i\n", i);
 	return i-1;
 }
 
-int loadPluginDeclarations(char *pluginDeclarationsFile, int reload) {
-	int counter = 0;
-	int i;
-	int index = 0;
-        char* line = NULL;
-	char *token = NULL;
-	char *name = NULL;
-        size_t len = 0;
-        ssize_t read;
-        FILE *fp = NULL;
-	char *saveptr = NULL;
+int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
+    	int counter      = 0;
+    	int i, index     = 0;
+    	int ret          = 0;     // return code, 0 on success, <0 on error
+    	char *line       = NULL;
+    	char *linecopy   = NULL;
+    	size_t len       = 0;
+    	ssize_t read;
+    	FILE *fp         = NULL;
 
-        fp = fopen(pluginDeclarationsFile, "r");
-	if (fp == NULL)
-        {
-		writeLog("Error opening the plugin declarations file.", 2, 0);
-                perror("Error while opening the file[loadPluginDeclations].\n");
-                exit(EXIT_FAILURE);
-        }
-	while ((read = getline(&line, &len, fp)) != -1) {
-		index++;
-		if (strchr(line, '#') == NULL){
-			for (i = 1, line;; i++, line=NULL) {
-		        	token = strtok_r(line, ";", &saveptr);
-			       	if (token == NULL)
-				       break;
-			       	switch(i) {
-					case 1:
-                                        	name = strtok(token, " ");
-					       	if (reload == 0)
-					       		declarations[counter].name = strdup(name);
-						else
-							update_declarations[counter].name = strdup(name);
-					       	token = strtok(NULL, "?");
-						if (reload == 0)
-					       		declarations[counter].description = strdup(token);
-						else {
-							if (token != NULL && update_declarations[counter].description != NULL)
-								update_declarations[counter].description = strdup(token);
-							else
-								printf("Could not update. This is an error.\n");
-						}
-					       	break;
-				       	case 2: 
-						if (strlen(token) < 5) {
-							printf("Command seems well to short. Config error.\n");
-							return 2;
-						}
-					       	if (reload == 0 )
-					       		declarations[counter].command = strdup(token);
-						else
-							update_declarations[counter].command = strdup(token);
-					       	break;
-				       	case 3: 
-						if (reload == 0)
-					       		declarations[counter].active = atoi(token);
-						else
-							update_declarations[counter].active = atoi(token);
-					       	break;
-				       	case 4: 
-						if (reload == 0) {
-					       		declarations[counter].interval = atoi(token);
-					       		declarations[counter].id = index-1;
-						}
-						else {
-							update_declarations[counter].interval = atoi(token);
-                                                        update_declarations[counter].id = index-1;
-						}
-			       	}
-		       	}
-		       	if (reload == 0) {
-		       		strcpy(declarations[counter].lastRunTimestamp, "");
-		       		strcpy(declarations[counter].nextRunTimestamp, "");
-		       		strcpy(declarations[counter].lastChangeTimestamp, "");
-		       		strcpy(declarations[counter].statusChanged, "");
-			}
-			else {
-				strcpy(update_declarations[counter].lastRunTimestamp, "");
-                                strcpy(update_declarations[counter].nextRunTimestamp, "");
-                                strcpy(update_declarations[counter].lastChangeTimestamp, "");
-                                strcpy(update_declarations[counter].statusChanged, "");
-			}
-		       	snprintf(infostr, infostr_size, "Declaration with index %d is created.\n", counter);
-		       	writeLog(trim(infostr), 0, 0);
-                       	counter++;
-		}
-	}
-        fclose(fp);
-	fp = NULL;
-        if (line) {
-                free(line);
-		line = NULL;
-	}
-	return 0;
+    	fp = fopen(pluginDeclarationsFile, "r");
+    	if (!fp) {
+        	writeLog("Error opening plugin declarations file.", 2, 0);
+        	ret = -1;
+        	goto cleanup;
+    	}
+
+    	while ((read = getline(&line, &len, fp)) != -1) {
+        	index++;
+        	if (strchr(line, '#')) {
+            		// comment or empty → skip
+            		continue;
+        	}
+
+        	linecopy = strdup(line);
+        	if (!linecopy) {
+            		writeLog("Failed to duplicate line", 2, 0);
+            		ret = -2;
+            		goto cleanup;
+        	}
+
+        	{
+           		char *token      = NULL;
+            		char *name       = NULL;
+            		char *saveptr    = NULL;
+            		int   parsingErr = 0;
+
+            		for (i = 1; ; i++) {
+                		token = strtok_r(i == 1 ? linecopy : NULL, ";", &saveptr);
+                		if (!token) 
+                    			break;
+
+                		switch (i) {
+                  			case 1:
+                    				name = strtok(token, " ");
+                    				if (!name) {
+                        				parsingErr = 1;
+                        				break;
+                    				}
+                    				{
+                        				char *desc = strtok(NULL, "?");
+                        				if (!reload) {
+                            					free(declarations[counter].name);
+                            					declarations[counter].name = strdup(name);
+                            					free(declarations[counter].description);
+                            					declarations[counter].description = desc 
+                                					? strdup(desc) 
+                                					: NULL;
+                        				} else {
+                            					free(update_declarations[counter].name);
+                            					update_declarations[counter].name = strdup(name);
+                            					if (desc) {
+                                					free(update_declarations[counter].description);
+                                					update_declarations[counter].description = strdup(desc);
+                            					} else {
+                                					parsingErr = 1;
+                            					}
+                        				}
+                    				}
+                    				break;
+                  			case 2:
+                    				if (strlen(token) < 5) {
+                        				parsingErr = 1;
+                        				break;
+                    				}
+                    				if (!reload) {
+                        				free(declarations[counter].command);
+                        				declarations[counter].command = strdup(token);
+                    				} else {
+                        				free(update_declarations[counter].command);
+                        				update_declarations[counter].command = strdup(token);
+                    				}
+                    				break;
+                  			case 3:
+                    				if (!reload)
+                        				declarations[counter].active = atoi(token);
+                    				else
+                        				update_declarations[counter].active = atoi(token);
+                    				break;
+                  			case 4:
+                    				if (!reload) {
+                        				declarations[counter].interval = atoi(token);
+                        				declarations[counter].id = index - 1;
+                    				} else {
+                        				update_declarations[counter].interval = atoi(token);
+                        				update_declarations[counter].id = index - 1;
+                    				}
+                    				break;
+                  			default:
+                    				break;
+                		}
+
+                		if (parsingErr)
+                    			break;
+            		}  // end for‐token loop
+            		free(linecopy);
+            		linecopy = NULL;
+            		if (parsingErr) {
+                		continue;
+            		}
+        	}
+        	if (!reload) {
+            		declarations[counter].lastRunTimestamp[0]     = '\0';
+            		declarations[counter].nextRunTimestamp[0]    = '\0';
+            		declarations[counter].lastChangeTimestamp[0] = '\0';
+            		declarations[counter].statusChanged[0]       = '\0';
+        	} else {
+            		update_declarations[counter].lastRunTimestamp[0]     = '\0';
+            		update_declarations[counter].nextRunTimestamp[0]    = '\0';
+            		update_declarations[counter].lastChangeTimestamp[0] = '\0';
+            		update_declarations[counter].statusChanged[0]       = '\0';
+        	}
+        	snprintf(infostr, infostr_size,"Declaration with index %d is created.\n", counter);
+        	writeLog(trim(infostr), 0, 0);
+        	counter++;
+    	}
+
+	cleanup:
+    		if (linecopy) free(linecopy);
+    		if (line) free(line);
+    		if (fp) {
+        		fclose(fp);
+        		fp = NULL;
+    		}
+
+   	return (ret == 0 ? counter : ret);
 }
 
 void copyPluginItem(PluginItem *dest, const PluginItem *src, int mode) {
@@ -6763,14 +7155,14 @@ int updatePluginDeclarations() {
 	item.name = (char *)malloc((size_t)pluginitemname_size * sizeof(char));
 	item.description = (char *)malloc((size_t)pluginitemdesc_size * sizeof(char));
 	item.command = (char *)malloc((size_t)pluginitemcmd_size * sizeof(char));
+	item.active = -1;
+	item.interval = 1;
 
 	int newCount = checkNewConfig(pluginDeclarationFile);
 	if (newCount < 0) {
 		// Abort if duplicates
 		return newCount;
 	}
-	// Temporary use of hard reload until redeclare is fine.
-	//return hardReloadPlugins(newCount);
 
 	if (newCount > decCount) {
 		int retVal = redeclarePluginDeclarations(0, newCount);
@@ -6816,7 +7208,8 @@ int updatePluginDeclarations() {
         	while ((read = getline(&line, &len, fp)) != -1) {
                 	index++;
                 	if (strchr(line, '#') == NULL){
-                        	for (i = 1, line;; i++, line=NULL) {
+                        	//for (i = 1, line;; i++, line=NULL) {
+				for (i = 1; ; i++, line=NULL) {
                                		token = strtok_r(line, ";", &saveptr);
                                		if (token == NULL)
                                        		break;
@@ -6841,18 +7234,21 @@ int updatePluginDeclarations() {
                        		strcpy(item.statusChanged, "");
 				if (strcmp(declarations[counter].name, item.name) != 0) {
 					snprintf(infostr, infostr_size, "Declaration name for item %i changed from %s to %s.", counter, declarations[counter].name, item.name);
-					strncpy(declarations[counter].name, item.name, strlen(item.name) + 1);
+					//strncpy(declarations[counter].name, item.name, strlen(item.name) + 1);
+					snprintf(declarations[counter].name, pluginitemname_size, "%s", item.name);
 					reload_required = 1;
                                         writeLog(trim(infostr), 0, 0);
 				}
 				if (strcmp(declarations[counter].description, item.description) != 0) {
 					snprintf(infostr, infostr_size, "Declaration description for %s changed from %s to %s.", declarations[counter].name, declarations[counter].description, item.description);
-					strncpy(declarations[counter].description, item.description, strlen(item.description) + 1);
+					//strncpy(declarations[counter].description, item.description, strlen(item.description) + 1);
+					snprintf(declarations[counter].description, pluginitemdesc_size, "%s", item.description);
                                         writeLog(trim(infostr), 0, 0);
 				}
 				if (strcmp(declarations[counter].command, item.command) != 0) {
 					snprintf(infostr, infostr_size, "Declaration command for %s changed to %s.", declarations[counter].name, item.command);
-					strncpy(declarations[counter].command, item.command, strlen(item.command) + 1);
+					strncpy(declarations[counter].command, item.command, sizeof(declarations[counter].command -1));
+					declarations[counter].command[sizeof(declarations[counter].command -1)] = '\0';
 					writeLog(trim(infostr), 0, 0);
 				}
 				if (declarations[counter].active != item.active) {
@@ -6918,7 +7314,8 @@ int updatePluginDeclarations() {
 }
 
 void initNewPlugin(int index) {
-	char currTime[22];
+	//char currTime[80];
+	char currTime[TIME_BUF_LEN];
 	snprintf(infostr, infostr_size, "Initiating new plugin: %s\n", update_declarations[index].name);
 	writeLog(trim(infostr), 0, 0);
 	printf("Initiating new plugin with id %d\n", index);
@@ -6926,21 +7323,28 @@ void initNewPlugin(int index) {
 		snprintf(infostr, infostr_size, "%s is now active. Id %d\n", update_declarations[index].name, update_declarations[index].id-1);
 		writeLog(trim(infostr), 0, 0);
 		update_outputs[index].prevRetCode = -1;
-		strcpy(update_declarations[index].statusChanged, "0");
+		//strcpy(update_declarations[index].statusChanged, "0");
+		snprintf(update_declarations[index].statusChanged, 2, "%s", "0");
 		runPlugin(index, 1);
 		if (timeScheduler == 1)
 			rescheduleChecks();
 		size_t dest_size = 20;
                 time_t t = time(NULL);
                 struct tm tm = *localtime(&t);
-                snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+                int plen = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		if (plen >= dest_size) {
+			writeLog("Possible truncation of timestamp while init new plugin.", 1, 0);
+		}
                 strcpy(update_declarations[index].lastRunTimestamp, currTime);
                 strcpy(update_declarations[index].lastChangeTimestamp, currTime);
                 time_t nextTime = t + (update_declarations[index].interval *60);
                 struct tm tNextTime;
                 memset(&tNextTime, '\0', sizeof(struct tm));
                 localtime_r(&nextTime, &tNextTime);
-                snprintf(update_declarations[index].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                int len = snprintf(update_declarations[index].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+		if (len >= dest_size) {
+			writeLog("[initNewPlugin] possible truncation of timestamp.", 1, 0);
+		}
                 update_declarations[index].nextRun = nextTime;
 		usleep(500);
 	}
@@ -6964,7 +7368,8 @@ int initTimeScheduler() {
 }
 
 void initScheduler(int numOfP, int msSleep) {
-	char currTime[22];
+	//char currTime[22];
+	char currTime[TIME_BUF_LEN];
 	time_t nextTime;
 	float sleepTime = msSleep/1000;
 	//printf("Initiating scheduler\n");
@@ -6981,12 +7386,16 @@ void initScheduler(int numOfP, int msSleep) {
 			snprintf(infostr, infostr_size, "%s is active. Id %d\n", declarations[i].name, declarations[i].id);
 			writeLog(trim(infostr), 0, 0);
 			outputs[i].prevRetCode = -1;
-			strncpy(declarations[i].statusChanged, "0", 2);
+			//strncpy(declarations[i].statusChanged, "0", 2);
+			snprintf(declarations[i].statusChanged, 2, "%s", "0");
 			runPlugin(i, 0);
 			size_t dest_size = 20;
 			time_t t = time(NULL);
   			struct tm tm = *localtime(&t);
-			snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+			int len = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+			if (len >= dest_size) {
+				writeLog("[InitScheduler] possible truncation of timestamp.", 1, 0);
+			}
 			strcpy(declarations[i].lastRunTimestamp, currTime);
 			strcpy(declarations[i].lastChangeTimestamp, currTime);
 			if (quick_start == 1) {
@@ -7000,7 +7409,10 @@ void initScheduler(int numOfP, int msSleep) {
 			struct tm tNextTime;
 			memset(&tNextTime, '\0', sizeof(struct tm));
 			localtime_r(&nextTime, &tNextTime);
-			snprintf(declarations[i].nextRunTimestamp, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+			len = snprintf(declarations[i].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+			if (len >= dest_size) {
+				writeLog("[Init scheduler] Possible truncation at nextTimeRuntimestamp", 1, 0);
+			}
 			declarations[i].nextRun = nextTime;
 			if (timeScheduler == 1) {
 				scheduler[i].id = i;
@@ -7073,7 +7485,7 @@ void initScheduler(int numOfP, int msSleep) {
 void startPluginThread(int plugin_id) {
 	int rc;
 	pthread_t thread_id;
-	long vpid;
+	intptr_t vpid = (intptr_t)plugin_id;
 
 	vpid = plugin_id;
 
@@ -7081,7 +7493,7 @@ void startPluginThread(int plugin_id) {
 	if(rc) {
 		snprintf(infostr, infostr_size, "Error: return code from phtread_create is %d\n", rc);
 		writeLog(trim(infostr), 2, 0);
-	}
+		}
 	else {
 		snprintf(infostr, infostr_size, "Created new thread (%lu) for plugin %s\n", thread_id, declarations[plugin_id].name);
 		writeLog(trim(infostr), 0, 0);
@@ -7093,21 +7505,20 @@ void startPluginThread(int plugin_id) {
 }
 
 void runPluginThreads(int loopVal){
-	char currTime[22];
+	//char currTime[22];
+	char currTime[TIME_BUF_LEN];
 	pthread_t thread_id;
         int rc;
         int i;
 	time_t t = time(NULL);
         struct tm tm = *localtime(&t);
-	size_t dest_size = 20;
+	//size_t dest_size = 20;
 
-	snprintf(currTime, dest_size, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	snprintf(currTime, sizeof(currTime), "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
 	if (timeScheduler == 1) {
 		i = 1;
 		struct Scheduler do_run = scheduler[0];
-		//printf("do_run timestamp = %ld\n", (long)do_run.timestamp);
-		//printf("t timestamp = %ld\n", (long)t);
 		while(i > 0) {
 			if ((t >= do_run.timestamp) && (declarations[do_run.id].active == 1)) {
 				//printf("DEBUG: startPluginThread id %d\n", do_run.id);
@@ -7119,9 +7530,6 @@ void runPluginThreads(int loopVal){
 				break;
 			}
 			do_run = scheduler[0];
-                       	//printf("do_run new id = %d\n", do_run.id);
-                        //printf("do_run timestamp = %ld\n", (long)do_run.timestamp);
-                        //printf("t timestamp = %ld\n", (long)t);
 		}
 		return;
 	}
@@ -7202,7 +7610,7 @@ void apiReloadConfigSoft() {
 
 void scheduleChecks(){
 	float sleepTime = schedulerSleep/1000;
-	const int i = 1;
+	int i = 1;
 	int repeate_write = 0;
 
 	logInfo("Almond started succesfully. Ready to schedule checks.", 0, 0);
@@ -7217,6 +7625,7 @@ void scheduleChecks(){
 	flushLog();
 	// Timer is an eternal loop :P
 	while (i > 0) {
+		if (is_stopping != 0) i--;
 		if (timeScheduler != 1)
 			writeLog("Check for command files.", 0, 0);
 		else {
@@ -7226,7 +7635,9 @@ void scheduleChecks(){
 			}
 		}
 		checkApiCmds();
-		runPluginThreads(decCount);
+		if (external_scheduler == 0) {
+			runPluginThreads(decCount);
+		}
 		if (timeScheduler != 1) {
 			snprintf(infostr, infostr_size, "Sleeping for %.3f seconds.\n", sleepTime);
                 	writeLog(trim(infostr), 0, 0);
@@ -7275,7 +7686,7 @@ void scheduleChecks(){
 				sleep(10);
 				executeGardener();
 				tnextGardener = seconds + gardenerInterval;
-				sleep(10);
+				sleep(1);
 			}
 
 		}
@@ -7289,6 +7700,19 @@ void scheduleChecks(){
 			}
 		}
 		flushLog();
+		if (truncateLog > 0) {
+			if (trunc_time == 0) {
+				check_file_truncation();
+			}
+			// Check truncation only every 10th cycle
+			trunc_time++;
+			if (trunc_time >= 10) {
+				trunc_time = 0;
+			}
+		}
+		else {
+			//printf("TruncateLog not active.\n");
+		}
 	}
 }
 
@@ -7327,7 +7751,7 @@ void initialLogging() {
         printf("Starting almond version %s.\n", VERSION);
         initConstants();
         writeLog("Almond constants initialized.", 0, 1);
-        writeLog("Starting almond (0.9.9)...", 0, 1);
+        writeLog("Starting almond (0.9.11)...", 0, 1);
 }
 
 int closeFileHandler() {
@@ -7337,18 +7761,6 @@ int closeFileHandler() {
 }
 
 void setupSignalHandlers() {
-	/*if (signal(SIGINT, sig_handler) == SIG_ERR) {
-                logError("An error occurred while setting the SIGINT signal handler.", 2, 1);
-                fclose(fptr);
-                fptr = NULL;
-                return EXIT_FAILURE;
-        }
-        if (signal(SIGTERM, sig_handler) == SIG_ERR) {
-                logError("An error occured while setting sigterm signal handler.", 2, 1);
-                fclose(fptr);
-                fptr = NULL;
-                return EXIT_FAILURE;
-        }*/
 	struct sigaction sa;
 
     	memset(&sa, 0, sizeof(sa));
@@ -7446,7 +7858,7 @@ int loadPlugins() {
         }
         output_size = (size_t)decCount;
         int pluginDeclarationResult = loadPluginDeclarations(pluginDeclarationFile, 0);
-        time_t dummy; //= time(NULL);
+        time_t dummy = time(NULL);
         checkPluginFileStat(pluginDeclarationFile, dummy, 1);
         if (pluginDeclarationResult != 0){
                 logInfo("Problem reading from plugin declaration file.", 1, 0);
@@ -7467,9 +7879,48 @@ void apiReload() {
 	}
 }
 
+void* zombieReaper(void* arg) {
+	sigset_t set;
+    	sigemptyset(&set);
+    	sigaddset(&set, SIGCHLD);
+
+    	int sig;
+
+	while(!is_stopping) {
+		if (sigwait(&set, &sig) == 0 && sig == SIGCHLD) {
+			pid_t pid;
+			int status;
+			while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+				if (is_plugin_pid(pid)) {
+					continue;
+				}
+				snprintf(infostr, infostr_size, "Reaper thread cleaned up orphan PID %d", pid);
+				writeLog(trim(infostr), 0, 0);
+			}
+		}
+	}
+	writeLog("Reaper thread exiting gracefully", 0, 0);
+	return NULL;
+}
+
 int main(int argc, char* argv[]) {
+	#if defined(_BSD_SOURCE) || defined(_SVID_SOURCE)
+		#define HAS_BIRTHTIME 1
+	#else
+		#define HAS_BIRTHTIME 0
+	#endif
+        /*sigset_t set;
+    	sigemptyset(&set);
+    	sigaddset(&set, SIGCHLD);
+    	pthread_sigmask(SIG_BLOCK, &set, NULL);*/
+	//atexit(sig_exit_app);
+	/*signal(SIGINT, sig_handler);
+	signal(SIGKILL, sig_handler);
+	signal(SIGTERM, sig_handler);
+	signal(SIGSTOP, sig_handler);*/
+	//signal(SIGCHLD, reap_zombie_children);
+	install_signals();
 	initialLogging();
-	setupSignalHandlers();
 	int configResult = loadConfiguration();
 	if (configResult != 0) {
 		logError("Failed to load configuration", 1, 1);
@@ -7481,12 +7932,19 @@ int main(int argc, char* argv[]) {
 	if (strcmp(hostName, "None") == 0) { 
 		strncpy(hostName, getHostName(), 255);
 	}
+	/*writeLog("Starting reaper thread...", 0, 1);
+        pthread_t reaperThread;
+	if (pthread_create(&reaperThread, NULL, zombieReaper, NULL) != 0) {
+		perror("Failed to start zombie reaper.");
+		exit(1);
+	}*/
 	writeLog("Initiate logger thread.", 0, 1);
 	initLoggerThread();
 	if (check_plugin_conf_file(pluginDeclarationFile) != 0) {
                 logError("plugins.conf file seems to be corrupt. Program will shut down.", 2, 0);
                 return 2;
         }
+	checkPluginFileStat(pluginDeclarationFile, tPluginFile, 0);
 	logInfo("No errors found in plugins.conf", 0, 0);
 	if (loadPlugins() != 0) {
 		logError("Failed to load plugin declarations", 2, 0);
@@ -7495,8 +7953,22 @@ int main(int argc, char* argv[]) {
 	}
 	flushLog();
         initScheduler(decCount, initSleep);
-        scheduleChecks();
-	sig_handler(SIGSTOP);
+	while (!is_stopping) {
+        	scheduleChecks();
+		if (is_stopping) break;
+	}
+	switch (shutdown_reason) {
+        	case SR_SIGINT:
+            		writeLog("Caught SIGINT, exiting program.", 0, 0);
+            		break;
+        	case SR_SIGKILL:
+            		writeLog("Caught SIGKILL, exiting program.", 0, 0);
+            		break;
+        	default:
+            		writeLog("Normal program termination.", 0, 0);
+            		break;
+    	}
+        sig_exit_app();
 
    	return 0;
 }

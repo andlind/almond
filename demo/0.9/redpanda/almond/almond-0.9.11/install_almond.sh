@@ -12,7 +12,7 @@
 MAKE=/usr/bin/make
 echo "Setting up installation"
 aclocal
-autoreconf
+autoreconf -fi
 ./configure --prefix=/opt/almond 
 if [ $? -ne 0 ] 
 then

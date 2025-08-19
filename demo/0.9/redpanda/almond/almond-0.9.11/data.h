@@ -26,5 +26,10 @@ typedef struct Scheduler {
 	time_t timestamp;
 } Scheduler;
 
+typedef struct TrackedPopen {
+	FILE *fp;
+	pid_t pid;
+} TrackedPopen;
+
 #endif
 

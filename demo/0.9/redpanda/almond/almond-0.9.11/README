@@ -85,11 +85,30 @@ ________________________________________________________________________________
    This script will compile and install Almond monitoring daemon and copy initial configuration and
    plugin files.
 
+   If you want to compile yourself take note below:
    To compile almond with support for kafka_export, make sure you have the correct dependecies installed and run:
-   gcc -g -Wall main.c mod_kafka.c -pthread -L/usr/lib/x86_64-linux-gnu -I/usr/include/json_c -I/usr/include/librdkafka -std=c99 -O0 -ljson-c -lrdkafka -lssl -lcrypto -lz -fstack-protector -o almond
+   gcc -g -Wall main.c logger.c mod_kafka.c -pthread -L/usr/lib/x86_64-linux-gnu -I/usr/include/json_c -I/usr/include/librdkafka -std=c99 -O0 -ljson-c -lrdkafka -lssl -lcrypto -lz -fstack-protector -o almond
+
+   To compile with Avro support for Kafka, you need to install required dependecies and edit the schema registry path in the mod_avro.c file. You also need to rename mod_avro.c and mod_avro.h to mod_kafka.c and mod_kafka.h, overwriting existing files and then compile with
+   gcc -g -Wall main.c logger.c mod_avro.c -pthread -L/usr/lib/x86_64-linux-gnu -I/usr/include/json_c -I/usr/include/librdkafka -I /usr/include/avro -I /usr/include/libserdes -std=c99 -O0 -ljson-c -lserdes -lavro -lrdkafka -lssl -lcrypto -lz -fstack-protector -o almond
+   Also make sure to register the schema used by the Almond Kafka producer:
+   curl -X POST http://localhost:18081/subjects/almond-monitor-topic-value/versions \
+     -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+     -d @<(echo '{"schema": '"$(jq -Rs . < plugins_status.avsc)"'}')
+   Also take note that this schema requires you to use kafkaStartId and kafkaTag meta data options.
 
    To just compile almond without Kafka you need to remove Kafka references in the source code then you write:
-   gcc main.c -lpthread -ljson-c -lssl -lcrypto -o almond
+   gcc main.c logger.c -lpthread -ljson-c -lssl -lcrypto -o almond
+
+   To compile with automake run the following commands:
+   autoreconf -fi
+   ./configure --prefix /opt/almond
+   make
+   make install
+
+   to install Almond without support for Kafka avro schemas. 
+   If you want to use Kafka with avro support just change the configure line to:
+   ./configure --enable-avro --prefix /opt/almond
 
 3. START THE ALMOND PROCESS
    After running the install script you can start Almond with the following command:
