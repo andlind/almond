@@ -10,7 +10,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -32,7 +32,7 @@ Almond scheduler and Howru API, compatible with Nagios plugins
 %setup -q
 
 %build
-%configure --disable-avro --prefix /opt/almond
+%configure --prefix /opt/almond
 make %{?_smp_mflags}
 
 %install
