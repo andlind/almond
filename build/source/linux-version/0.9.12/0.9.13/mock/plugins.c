@@ -72,7 +72,36 @@ static void addPlugin(const PluginItem *d) {
     printf("Added plugin %s (id=%d)\n", pi->name, pi->id);
 }
 
-static void removePlugin(const char *name) {
+static void removePlugin(PluginItem *plugin) {
+    if (plugin == NULL) return;
+
+    // Free all dynamically allocated fields
+    if (plugin->name != NULL) {
+        free(plugin->name);
+        plugin->name = NULL;
+    }
+    if (plugin->description != NULL) {
+        free(plugin->description);
+        plugin->description = NULL;
+    }
+    if (plugin->command != NULL) {
+        free(plugin->command);
+        plugin->command = NULL;
+    }
+
+    // Clear timestamps
+    memset(plugin->lastRunTimestamp, 0, sizeof(plugin->lastRunTimestamp));
+    memset(plugin->nextRunTimestamp, 0, sizeof(plugin->nextRunTimestamp));
+    memset(plugin->lastChangeTimestamp, 0, sizeof(plugin->lastChangeTimestamp));
+
+    // Reset other fields
+    plugin->active = 0;
+    plugin->interval = 0;
+    plugin->id = 0;
+    plugin->nextRun = 0;
+}
+
+/*static void removePlugin(const char *name) {
     for (size_t i = 0; i < g_plugin_count; i++) {
         if (g_plugins[i].name && strcmp(g_plugins[i].name, name) == 0) {
             printf("Removing plugin %s (id=%d)\n", g_plugins[i].name, g_plugins[i].id);
@@ -102,7 +131,7 @@ static void removePlugin(const char *name) {
             return;
         }
     }
-}
+}*/
 
 void updatePlugin(PluginItem *old, const PluginItem *new) {
     bool changed = false;
@@ -200,6 +229,12 @@ static int decl_cmp(const void *a, const void *b) {
     return strcmp(((PluginItem*)a)->name, ((PluginItem*)b)->name);
 }
 
+void mock_runCommand(int index, char* cmd) {
+	printf("Run: %s\n", cmd);
+        fill_timestamp(g_plugins[index].lastRunTimestamp);
+	fill_timestamp(g_plugins[index].nextRunTimestamp);
+}
+
 void init_plugins(const char *path, size_t *cnt) {
 	printf("Initiate plugins\n");
 	g_plugins = load_declarations(path, cnt);
@@ -210,11 +245,13 @@ void init_plugins(const char *path, size_t *cnt) {
 	// DEBUG: inspect exactly what you got back
     	printf("DEBUG: loaded %zu plugins\n", *cnt);
     	for (size_t i = 0; i < *cnt; i++) {
-        printf("  [%zu] name=%s cmd=\"%s\"\n",
-               i,
-               g_plugins[i].name,
-               g_plugins[i].command);
+        	printf("  [%zu] name=%s cmd=\"%s\"\n",
+               		i,
+               		g_plugins[i].name,
+               		g_plugins[i].command);
+		//mock_runCommand(i, g_plugins[i].command);
     }
+    
 }
 
 int findPluginIndexByName(const char *name) {
@@ -228,726 +265,158 @@ size_t getPluginCount(void) {
     return g_plugin_count;
 }
 
-/*void updatePluginDeclarations(void) {
-    // 1) Snapshot the original count
-    size_t orig_count = g_plugin_count;
-
-    // 2) Load new declarations
-    size_t new_count;
-    PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) return;
-
-    // 3) Allocate matched[] against the OLD count
-    bool *matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        free_declarations(new_decls, new_count);
-        return;
-    }
-
-    // 4) Loop over new decls
-    for (size_t i = 0; i < new_count; i++) {
-        PluginItem *new = &new_decls[i];
-        new->id = i + 1;
-        bool found = false;
-
-        // Pre-extract once per new
-        char *new_base_cmd = extract_base_command(new->command);
-
-        // Compare only against the original set
-        for (size_t j = 0; j < orig_count; j++) {
-            PluginItem *old = &g_plugins[j];
-            char *old_base_cmd = extract_base_command(old->command);
-
-            if (strcmp(old->name, new->name) == 0) {
-                found = true;
-
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    // Rule c: base command changed
-                    removePlugin(old->name);
-                    addPlugin(new);
-
-                    // Newly added plugin lives at the *end*, so its index is g_plugin_count-1
-                    matched[j] = true;  
-                }
-                else {
-                    // Rule d: soft update in place
-                    matched[j] = true;
-                    old->id = new->id;
-
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
-                }
-            }
-
-            free(old_base_cmd);
-        }
-
-        free(new_base_cmd);
-
-        if (!found) {
-            // Rule b: brand-new plugin
-            addPlugin(new);
-
-            // Mark the slot in the *new* array that corresponds to this add
-            size_t added_idx = g_plugin_count - 1;
-            if (added_idx < orig_count)  // sanity check
-                matched[added_idx] = true;
-        }
-    }
-
-       // 5) Compact out the “false” slots in matched[], remove as you go
-    size_t write = 0;
-    for (size_t read = 0; read < orig_count; ++read) {
-        if (matched[read]) {
-            // keep this one – if read!=write, slide it down
-            if (write != read) {
-                g_plugins[write] = g_plugins[read];
-            }
-            ++write;
-        }
-        else {
-            // drop this one
-            removePlugin(g_plugins[read].name);
-
-            // if removePlugin() doesn’t free the strings for you:
-            // free(g_plugins[read].name);
-            // free(g_plugins[read].command);
-            // free(g_plugins[read].description);
-        }
-    }
-
-    // now “write” is the new count
-    g_plugin_count = write;
-
-    // 6) Cleanup
-    free(matched);
-    free_declarations(new_decls, new_count);
-}*/
-
-/*void updatePluginDeclarations(void) {
-    size_t orig_count = g_plugin_count;
-    PluginItem *new_decls = NULL;
-    bool *matched = NULL;
-    
-    // Step 1: Load new declarations
-    new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) {
-        goto cleanup;
-    }
-
-    // Step 2: Allocate matched array
-    matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        goto cleanup;
-    }
-
-    // ... rest of the function remains the same ...
-
-cleanup:
-    if (matched) free(matched);
-    if (new_decls) free_declarations(new_decls, new_count);
-    return;
-}*/
-
-/*void updatePluginDeclarations(void) {
-    size_t orig_count = g_plugin_count;
-
-    // Load new declarations
-    size_t new_count;
-    PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) return;
-
-    // Track which original plugins were matched
-    bool *matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        free_declarations(new_decls, new_count);
-        return;
-    }
-
-    // Phase 1: Match and update
-    for (size_t i = 0; i < new_count; i++) {
-        PluginItem *new = &new_decls[i];
-        new->id = i + 1;
-        bool found = false;
-
-        char *new_base_cmd = extract_base_command(new->command);
-
-        for (size_t j = 0; j < orig_count; j++) {
-            PluginItem *old = &g_plugins[j];
-            char *old_base_cmd = extract_base_command(old->command);
-
-            if (strcmp(old->name, new->name) == 0) {
-                found = true;
-                matched[j] = true;
-
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    removePlugin(old->name);
-                    addPlugin(new);
-                } else {
-                    old->id = new->id;
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
-                }
-            }
-
-            free(old_base_cmd);
-        }
-
-        free(new_base_cmd);
-
-        if (!found) {
-            // Brand-new plugin
-            addPlugin(new);
-        }
-    }
-
-    // Phase 2: Remove unmatched original plugins
-    for (size_t i = 0; i < orig_count; i++) {
-        if (!matched[i]) {
-            removePlugin(g_plugins[i].name);
-	    memset(&g_plugins[i], 0, sizeof(PluginItem));
-        }
-    }
-
-    // Phase 3: Rebuild g_plugins to contain only current plugins
-    size_t new_total = 0;
-    //for (size_t i = 0; i < g_plugin_count; i++) {
-    //    PluginItem *p = &g_plugins[i];
-    //    if (p->name && strlen(p->name) > 0) {
-    //        if (new_total != i) {
-    //            g_plugins[new_total] = g_plugins[i];
-    //        }
-    //        new_total++;
-    //    }
-    //}
-
-    for (size_t i = 0; i < g_plugin_count; i++) {
-    	if (g_plugins[i].name && strlen(g_plugins[i].name) > 0) {
-        	if (new_total != i)
-            		g_plugins[new_total] = g_plugins[i];
-        	new_total++;
-    	}
-    }
-
-    g_plugin_count = new_total;
-
-    free(matched);
-    free_declarations(new_decls, new_count);
-}*/
-
-/*void updatePluginDeclarations(void) {
-    size_t orig_count = g_plugin_count;
-
-    // Load new declarations
-    size_t new_count;
-    PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) return;
-
-    // Track which original plugins were matched
-    bool *matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        free_declarations(new_decls, new_count);
-        return;
-    }
-
-    // Phase 1: Match and update
-    for (size_t i = 0; i < new_count; i++) {
-        PluginItem *new = &new_decls[i];
-        new->id = i + 1;
-        bool found = false;
-
-        char *new_base_cmd = extract_base_command(new->command);
-
-        for (size_t j = 0; j < orig_count; j++) {
-            PluginItem *old = &g_plugins[j];
-            char *old_base_cmd = extract_base_command(old->command);
-
-            if (strcmp(old->name, new->name) == 0) {
-                found = true;
-
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    removePlugin(old->name);
-                    addPlugin(new);
-                    memset(&g_plugins[j], 0, sizeof(PluginItem)); // Clear removed slot
-                } else {
-                    matched[j] = true; // Only mark as matched if we keep the original
-                    old->id = new->id;
-
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
-                }
-            }
-
-            free(old_base_cmd);
-        }
-
-        free(new_base_cmd);
-
-        if (!found) {
-            // Brand-new plugin
-            addPlugin(new);
-        }
-    }
-
-    // Phase 2: Remove unmatched original plugins
-    for (size_t i = 0; i < orig_count; i++) {
-        if (!matched[i]) {
-            removePlugin(g_plugins[i].name);
-            memset(&g_plugins[i], 0, sizeof(PluginItem)); // Clear removed slot
-        }
-    }
-
-    // Phase 3: Rebuild g_plugins to contain only current plugins
-    size_t new_total = 0;
-    for (size_t i = 0; i < g_plugin_count; i++) {
-        if (g_plugins[i].name != NULL && g_plugins[i].name[0] != '\0') {
-            if (new_total != i)
-                g_plugins[new_total] = g_plugins[i];
-            new_total++;
-        }
-    }
-
-    g_plugin_count = new_total;
-
-    free(matched);
-    free_declarations(new_decls, new_count);
-}*/
-
-/*void updatePluginDeclarations(void) {
-    size_t orig_count = g_plugin_count;
-
-    // Load new declarations
-    size_t new_count;
-    PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) return;
-
-    // Track which original plugins were matched
-    bool *matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        free_declarations(new_decls, new_count);
-        return;
-    }
-
-    // Phase 1: Match and update
-    for (size_t i = 0; i < new_count; i++) {
-        PluginItem *new = &new_decls[i];
-        new->id = i + 1;
-        bool found = false;
-
-        char *new_base_cmd = extract_base_command(new->command);
-
-        for (size_t j = 0; j < orig_count; j++) {
-            PluginItem *old = &g_plugins[j];
-            char *old_base_cmd = extract_base_command(old->command);
-
-            if (strcmp(old->name, new->name) == 0) {
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    // Base command changed — treat as replacement
-                    removePlugin(old->name);
-                    addPlugin(new);
-                    memset(&g_plugins[j], 0, sizeof(PluginItem)); // Clear removed slot
-                    // Do NOT mark as matched or found
-                } else {
-                    // Base command matches — update in place
-                    matched[j] = true;
-                    found = true;
-                    old->id = new->id;
-
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
-                }
-            }
-
-            free(old_base_cmd);
-        }
-
-        free(new_base_cmd);
-
-        if (!found) {
-            // Brand-new plugin
-            addPlugin(new);
-        }
-    }
-
-    // Phase 2: Remove unmatched original plugins
-    for (size_t i = 0; i < orig_count; i++) {
-        if (!matched[i]) {
-            removePlugin(g_plugins[i].name);
-            memset(&g_plugins[i], 0, sizeof(PluginItem)); // Clear removed slot
-        }
-    }
-
-    // Phase 3: Rebuild g_plugins to contain only current plugins
-    size_t new_total = 0;
-    for (size_t i = 0; i < g_plugin_count; i++) {
-        if (g_plugins[i].name != NULL && g_plugins[i].name[0] != '\0') {
-            if (new_total != i)
-                g_plugins[new_total] = g_plugins[i];
-            new_total++;
-        }
-    }
-
-    g_plugin_count = new_total;
-
-    free(matched);
-    free_declarations(new_decls, new_count);
-}*/
-
-/*void updatePluginDeclarations(void) {
-    size_t orig_count = g_plugin_count;
-
-    // Load new declarations
-    size_t new_count;
-    PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) return;
-
-    // Track which original plugins were matched
-    bool *matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        free_declarations(new_decls, new_count);
-        return;
-    }
-
-    // Phase 1: Match and update
-    for (size_t i = 0; i < new_count; i++) {
-        PluginItem *new = &new_decls[i];
-        new->id = i + 1;
-        bool found = false;
-
-        char *new_base_cmd = extract_base_command(new->command);
-
-        for (size_t j = 0; j < orig_count; j++) {
-            PluginItem *old = &g_plugins[j];
-
-            if (strcmp(old->name, new->name) == 0) {
-                char *old_base_cmd = extract_base_command(old->command);
-
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    // Base command changed — replace plugin
-                    removePlugin(old->name);
-                    addPlugin(new);
-                    memset(&g_plugins[j], 0, sizeof(PluginItem)); // Clear removed slot
-                    // Don't mark as matched or found
-                } else {
-                    // Base command matches — update in place
-                    matched[j] = true;
-                    found = true;
-                    old->id = new->id;
-
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
-                }
-
-                free(old_base_cmd);
-                break; // Stop after matching by name
-            }
-        }
-
-        free(new_base_cmd);
-
-        if (!found) {
-            // Brand-new plugin
-            addPlugin(new);
-        }
-    }
-
-    // Phase 2: Remove unmatched original plugins
-    for (size_t i = 0; i < orig_count; i++) {
-        if (!matched[i]) {
-            removePlugin(g_plugins[i].name);
-            memset(&g_plugins[i], 0, sizeof(PluginItem)); // Clear removed slot
-        }
-    }
-
-    // Phase 3: Rebuild g_plugins to contain only current plugins
-    size_t new_total = 0;
-    for (size_t i = 0; i < g_plugin_count; i++) {
-        if (g_plugins[i].name != NULL && g_plugins[i].name[0] != '\0') {
-            if (new_total != i)
-                g_plugins[new_total] = g_plugins[i];
-            new_total++;
-        }
-    }
-
-    g_plugin_count = new_total;
-
-    free(matched);
-    free_declarations(new_decls, new_count);
-}*/
-
-/*void updatePluginDeclarations(void) {
-    size_t orig_count = g_plugin_count;
-
-    // Load new declarations
-    size_t new_count;
-    PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) return;
-
-    // Track which original plugins were matched
-    bool *matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        free_declarations(new_decls, new_count);
-        return;
-    }
-
-    // Phase 1: Match and update
-    for (size_t i = 0; i < new_count; i++) {
-        PluginItem *new = &new_decls[i];
-        new->id = i + 1;
-        bool found = false;
-
-        for (size_t j = 0; j < orig_count; j++) {
-            PluginItem *old = &g_plugins[j];
-
-            if (strcmp(old->name, new->name) == 0) {
-                found = true;
-
-                char *old_base_cmd = extract_base_command(old->command);
-                char *new_base_cmd = extract_base_command(new->command);
-
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    // Base command changed — replace plugin
-                    removePlugin(old->name);
-                    addPlugin(new);
-                    memset(&g_plugins[j], 0, sizeof(PluginItem)); // Clear removed slot
-                    // Don't mark as matched
-                } else {
-                    // Base command matches — update in place
-                    matched[j] = true;
-                    old->id = new->id;
-
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
-                }
-
-                free(old_base_cmd);
-                free(new_base_cmd);
-                break; // Stop after matching by name
-            }
-        }
-
-        if (!found) {
-            // Brand-new plugin
-            addPlugin(new);
-        }
-    }
-
-    // Phase 2: Remove unmatched original plugins
-    for (size_t i = 0; i < orig_count; i++) {
-        if (!matched[i]) {
-            removePlugin(g_plugins[i].name);
-            memset(&g_plugins[i], 0, sizeof(PluginItem)); // Clear removed slot
-        }
-    }
-
-    // Phase 3: Rebuild g_plugins to contain only current plugins
-    size_t new_total = 0;
-    for (size_t i = 0; i < g_plugin_count; i++) {
-        if (g_plugins[i].name != NULL && g_plugins[i].name[0] != '\0') {
-            if (new_total != i)
-                g_plugins[new_total] = g_plugins[i];
-            new_total++;
-        }
-    }
-
-    g_plugin_count = new_total;
-
-    free(matched);
-    free_declarations(new_decls, new_count);
-}*/
-
-/*void updatePluginDeclarations(void) {
-    size_t orig_count = g_plugin_count;
-
-    // Load new declarations
-    size_t new_count;
-    PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
-    if (!new_decls) return;
-
-    // Track which original plugins were matched
-    bool *matched = calloc(orig_count, sizeof(bool));
-    if (!matched) {
-        free_declarations(new_decls, new_count);
-        return;
-    }
-
-    // Phase 1: Match and update
-    for (size_t i = 0; i < new_count; i++) {
-        PluginItem *new = &new_decls[i];
-        new->id = i + 1;
-        bool found = false;
-
-        for (size_t j = 0; j < orig_count; j++) {
-            PluginItem *old = &g_plugins[j];
-
-            if (strcmp(old->name, new->name) == 0) {
-                found = true;
-
-                char *old_base_cmd = extract_base_command(old->command);
-                char *new_base_cmd = extract_base_command(new->command);
-
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    // Base command changed — replace plugin
-                    removePlugin(old->name);
-                    memset(&g_plugins[j], 0, sizeof(PluginItem)); // Clear removed slot
-                    addPlugin(new); // Add new plugin
-                } else {
-                    // Base command matches — update in place
-                    matched[j] = true;
-                    old->id = new->id;
-
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
-                }
-
-                free(old_base_cmd);
-                free(new_base_cmd);
-                break; // Stop after matching by name
-            }
-        }
-
-        if (!found) {
-            // Brand-new plugin
-            addPlugin(new);
-        }
-    }
-
-    // Phase 2: Remove unmatched original plugins
-    for (size_t i = 0; i < orig_count; i++) {
-        if (!matched[i]) {
-            removePlugin(g_plugins[i].name);
-            memset(&g_plugins[i], 0, sizeof(PluginItem)); // Clear removed slot
-        }
-    }
-
-    // Phase 3: Rebuild g_plugins to contain only current plugins
-    size_t new_total = 0;
-    for (size_t i = 0; i < g_plugin_count; i++) {
-        if (g_plugins[i].name != NULL && g_plugins[i].name[0] != '\0') {
-            if (new_total != i)
-                g_plugins[new_total] = g_plugins[i];
-            new_total++;
-        }
-    }
-
-    g_plugin_count = new_total;
-
-    free(matched);
-    free_declarations(new_decls, new_count);
-}*/
-
 void updatePluginDeclarations(void) {
     size_t orig_count = g_plugin_count;
-
-    // Load new declarations
     size_t new_count;
     PluginItem *new_decls = load_declarations(pluginDeclarationFile, &new_count);
     if (!new_decls) return;
 
-    // Track which original plugins were matched
     bool *matched = calloc(orig_count, sizeof(bool));
     if (!matched) {
         free_declarations(new_decls, new_count);
         return;
     }
 
-    // Phase 1: Match and update
+    // Track which new declarations have been processed
+    bool *processed_new = calloc(new_count, sizeof(bool));
+    if (!processed_new) {
+        free(matched);
+        free_declarations(new_decls, new_count);
+        return;
+    }
+
+    // Debug logging
+    printf("Pre-sort: ");
+    for (size_t i = 0; i < orig_count; i++) {
+        printf("id=%zu name=%s ", g_plugins[i].id, g_plugins[i].name);
+    }
+    printf("\n");
+
+    // Phase 1: Match and update existing plugins
     for (size_t i = 0; i < new_count; i++) {
         PluginItem *new = &new_decls[i];
         new->id = i + 1;
         bool matched_existing = false;
 
+        // Skip if this new declaration has already been processed
+        if (processed_new[i]) {
+            continue;
+        }
+
         for (size_t j = 0; j < orig_count; j++) {
             PluginItem *old = &g_plugins[j];
 
-            if (strcmp(old->name, new->name) == 0) {
+            // Extract base commands
+            char *old_base_cmd = extract_base_command(old->command);
+            char *new_base_cmd = extract_base_command(new->command);
+
+            if (old_base_cmd == NULL || new_base_cmd == NULL) {
+                free(old_base_cmd);
+                free(new_base_cmd);
+                continue;
+            }
+
+            if (strcmp(old_base_cmd, new_base_cmd) == 0 && !matched[j]) {
                 matched[j] = true;
+                processed_new[i] = true;
                 matched_existing = true;
 
-                char *old_base_cmd = extract_base_command(old->command);
-                char *new_base_cmd = extract_base_command(new->command);
-
-                if (strcmp(old_base_cmd, new_base_cmd) != 0) {
-                    // Command changed — replace plugin
-                    removePlugin(old->name);
-                    memset(&g_plugins[j], 0, sizeof(PluginItem));
-                    addPlugin(new);
-                } else {
-                    // Command same — update if needed
-                    old->id = new->id;
-                    if (strcmp(old->command,     new->command)     != 0 ||
-                        strcmp(old->description, new->description) != 0 ||
-                        old->active             != new->active     ||
-                        old->interval           != new->interval) {
-                        updatePlugin(old, new);
-                    }
+                // Free old strings
+                if (old->name != NULL) {
+                    free(old->name);
+                }
+                if (old->description != NULL) {
+                    free(old->description);
+                }
+                if (old->command != NULL) {
+                    free(old->command);
                 }
 
+                // Copy new values
+                old->name = strdup(new->name);
+                old->description = strdup(new->description);
+                old->command = strdup(new->command);
+
+                if (old->name == NULL || old->description == NULL || 
+                    old->command == NULL) {
+                    // Handle allocation failure
+                    free(old_base_cmd);
+                    free(new_base_cmd);
+                    free_declarations(new_decls, new_count);
+                    free(matched);
+                    free(processed_new);
+                    return;
+                }
+
+                old->id = new->id;
                 free(old_base_cmd);
                 free(new_base_cmd);
                 break;
             }
         }
-
-        if (!matched_existing) {
-            // Brand-new plugin
-            addPlugin(new);
-        }
     }
+
+    // Debug logging
+    printf("After matching: ");
+    for (size_t i = 0; i < orig_count; i++) {
+        printf("id=%zu name=%s matched=%d ", g_plugins[i].id, 
+               g_plugins[i].name, matched[i]);
+    }
+    printf("\n");
 
     // Phase 2: Remove unmatched original plugins
     for (size_t i = 0; i < orig_count; i++) {
         if (!matched[i]) {
-            removePlugin(g_plugins[i].name);
-            memset(&g_plugins[i], 0, sizeof(PluginItem));
+            removePlugin(&g_plugins[i]);
         }
     }
 
-    // Phase 3: Rebuild g_plugins to contain only current plugins
+    // Debug logging
+    printf("After removal: ");
+    for (size_t i = 0; i < orig_count; i++) {
+        if (g_plugins[i].name != NULL) {
+            printf("id=%zu name=%s ", g_plugins[i].id, g_plugins[i].name);
+        }
+    }
+    printf("\n");
+
+    // Phase 3: Rebuild g_plugins array
+    PluginItem *temp_array = malloc(sizeof(PluginItem) * g_plugin_count);
+    if (temp_array == NULL) {
+        free(matched);
+        free(processed_new);
+        free_declarations(new_decls, new_count);
+        return;
+    }
+
     size_t new_total = 0;
     for (size_t i = 0; i < g_plugin_count; i++) {
         if (g_plugins[i].name && g_plugins[i].name[0] != '\0') {
-            if (new_total != i)
-                g_plugins[new_total] = g_plugins[i];
+            temp_array[new_total] = g_plugins[i];
             new_total++;
         }
     }
 
+    // Debug logging
+    printf("In temp array: ");
+    for (size_t i = 0; i < new_total; i++) {
+        printf("id=%zu name=%s ", temp_array[i].id, temp_array[i].name);
+    }
+    printf("\n");
+
+    // Copy back to original array
+    for (size_t i = 0; i < new_total; i++) {
+        g_plugins[i] = temp_array[i];
+    }
+
+    free(temp_array);
     g_plugin_count = new_total;
 
     free(matched);
+    free(processed_new);
     free_declarations(new_decls, new_count);
 }
 
-// Return pointer to the plugin at [index], or NULL if OOB
 PluginItem *getPluginItem(size_t index) {
     if (index < g_plugin_count)
         return &g_plugins[index];
