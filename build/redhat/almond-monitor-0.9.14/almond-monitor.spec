@@ -1,16 +1,16 @@
-%global _lto_cflags %{nil}
-%global optflags -O2 -g
-%undefine _hardened_build
-%undefine _package_note_flags
-%undefine _annotated_build
+%global _hardened_build 1
+%global _annotated_build 1
+%global _package_note_flags -Wl,--build-id
+%global _lto_cflags -flto -fno-fat-lto-objects
+%global optflags -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong -fPIE
 
 %define name almond-monitor
-%define version 0.9.11
+%define version 0.9.14
 %define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        2%{?dist}
+Release:        1%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -115,6 +115,13 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Wed Sep 17 2025 0.9.14
+<andreas.lindell@almondmonitor.com>
+- Rewritten data structure
+- Security enhancements
+* Tue Aug 19 2025 0.9.12
+<andreas.lindell@almondmonitor.com>
+- Making build secure
 * Mon Aug 04 2025 0.9.11
 <andreas.lindell@almondmonitor.com>
 - Remove all build warnings

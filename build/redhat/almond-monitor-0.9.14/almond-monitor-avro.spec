@@ -1,16 +1,16 @@
-%global _lto_cflags %{nil}
-%global optflags -O2 -g
-%undefine _hardened_build
-%undefine _package_note_flags
-%undefine _annotated_build
+%global _hardened_build 1
+%global _annotated_build 1
+%global _package_note_flags -Wl,--build-id
+%global _lto_cflags -flto -fno-fat-lto-objects
+%global optflags -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong -fPIE
 
 %define name almond-monitor
-%define version 0.9.11
+%define version 0.9.14
 %define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        2%{?dist}
+Release:        1.avro%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -20,6 +20,7 @@ Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
 BuildRequires:  make, json-c-devel, librdkafka-devel, openssl-devel, zlib-devel
+BuildRequires:  confluent-libserdes-devel
 Requires:       python3, python3-yaml, python3-simplejson, python3-flask, python3-gunicorn, python3-cryptography, ksh, sysstat, json-c, librdkafka
 Requires(pre):  shadow-utils
 
@@ -32,7 +33,7 @@ Almond scheduler and Howru API, compatible with Nagios plugins
 %setup -q
 
 %build
-%configure --prefix /opt/almond
+%configure --enable-avro --prefix /opt/almond
 make %{?_smp_mflags}
 
 %install
@@ -115,6 +116,13 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Wed Sep 17 2025 0.9.14
+<andreas.lindell@almondmonitor.com>
+- Rewritten data structure
+- Security enhancements
+* Tue Aug 19 2025 0.9.12
+<andreas.lindell@almondmonitor.com>
+- Making build secure
 * Mon Aug 04 2025 0.9.11
 <andreas.lindell@almondmonitor.com>
 - Remove all build warnings

@@ -10,7 +10,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        1.avro%{?dist}
+Release:        2.avro%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
