@@ -955,7 +955,7 @@ void run_plugin(PluginItem *item) {
                 if (o_info == NULL) {
                         writeLog("Could not allocate memory for variable 'o_info'.", 2, 0);
                 }
-                snprintf(o_info, (size_t)o_info_size, "%s : %s", item->name, pluginReturnString);
+                snprintf(o_info, (size_t)o_info_size, "%s : %s", item->name, item->output.retString);
                 writeLog(trim(o_info), 0, 0);
                 free(o_info);
                 o_info = NULL;
