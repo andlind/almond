@@ -6,6 +6,7 @@ cd /opt/almond
 cd $CUR_DIR
 /usr/local/bin/start_nagios
 echo "All started"
+/usr/bin/chown nagios:nagios /opt/nagios/var/rw/nagios.cmd
 while true
 do
         echo "Script is running"
