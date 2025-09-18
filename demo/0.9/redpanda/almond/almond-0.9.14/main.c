@@ -1,6 +1,9 @@
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE 700
 #define _DEFAULT_SOURCE
+#ifndef VERSION
+#define VERSION "0.9.14"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -29,9 +32,11 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/err.h>
+#include "uthash.h"
 #include "data.h"
 #include "config.h"
 #include "logger.h"
+#include "plugins.h"
 #include "mod_kafka.h"
 
 #define MAX_COLUMNS 2
@@ -104,7 +109,9 @@
 #define KAFKA_EXPORT_IDTAG 30
 #define MAX_PLUGINS 256
 #define TIME_BUF_LEN 80
-#define VERSION "0.9.11"
+/*#define CMD_BUF_SIZE      1024
+#define LINE_BUF_SIZE     1024
+#define TIMESTAMP_SIZE     64*/
 /*#if defined(_BSD_SOURCE) || defined(_SVID_SOURCE) || defined(_XOPEN_SOURCE)
 #define HAS_BIRTHTIME 1
 #else
@@ -157,10 +164,12 @@ char* almondCertificate = NULL;
 char* almondKey = NULL;
 char* schemaRegistryUrl = NULL;
 char schemaName[100] = "almond-monitor-topic-value"; 
-PluginItem *declarations = NULL;
-PluginOutput *outputs = NULL;
-PluginItem *update_declarations = NULL;
-PluginOutput *update_outputs = NULL;
+//PluginItem *g_plugins = NULL;
+PluginItem **g_plugins   = NULL;
+PluginItem *g_plugin_map   = NULL;
+//PluginOutput *outputs = NULL;
+PluginItem *update_g_plugins = NULL;
+//PluginOutput *update_outputs = NULL;
 Scheduler *scheduler = NULL;
 struct sockaddr_in address;
 SSL_CTX *ctx;
@@ -203,6 +212,7 @@ int config_memalloc_fails = 0;
 int trunc_time = 0;
 int external_scheduler = 0;
 int max_try = 60;
+int g_plugin_count = 0;
 size_t infostr_size = 400;
 size_t gardenermessage_size = 1035;
 size_t pluginmessage_size = 2300;
@@ -232,6 +242,7 @@ size_t storedir_size = 50;
 size_t backupdirectory_size = 100;
 size_t filename_size = 100;
 size_t logfile_size = 100;
+size_t max_timestamp_size = 64;
 int is_file_open = 0;
 size_t declaration_size = 0;
 size_t output_size = 0;
@@ -293,7 +304,7 @@ void apiShowVersion();
 void apiShowStatus();
 void apiShowPluginStatus();
 void runPluginCommand(int, char*);
-void runPlugin(int, int);
+//void runPlugin(int, int);
 void runPluginArgs(int, int, int);
 void executeGardener();
 int createSocket(int);
@@ -312,7 +323,6 @@ void process_almond_certificate( ConfVal);
 void process_clear_data_cache_interval(ConfVal);
 void process_conf_dir(ConfVal);
 void process_data_cache_time_frame(ConfVal);
-void process_conf_dir(ConfVal);
 void process_enable_clear_data_cache( ConfVal);
 void process_enable_gardener(ConfVal);
 void process_enable_kafka_export(ConfVal);
@@ -351,6 +361,9 @@ void process_almond_api_tls(ConfVal);
 void process_external_scheduler(ConfVal);
 void process_schema_registry_url(ConfVal);
 void process_schema_name(ConfVal);
+void writePluginResultToFile(int, int);
+void writeToKafkaTopic(int, int);
+void run_plugin(PluginItem *item);
 
 ConfigEntry config_entries[] = {
     {"almond.api", process_almond_api},
@@ -455,6 +468,12 @@ char *replaceWord(char *sentence, char *find, char *replace) {
     	strcpy(dest, buffer);
     	return dest;
 }
+
+/*static int cmp_plugin_by_id(const void *a, const void *b) {
+    const PluginItem *pa = *(const PluginItem * const *)a;
+    const PluginItem *pb = *(const PluginItem * const *)b;
+    return pa->id - pb->id;
+}*/
 
 void add_plugin_pid(pid_t pid) {
     	pthread_mutex_lock(&plugin_set_mtx);
@@ -650,10 +669,16 @@ int parse__conf_line(char *buf) {
         i = 0;
         char *p = strtok(buf, ";");
         char *array[4];
-        while (p != NULL) {
+	i = 0;
+        while (p != NULL && i < 4) {
                 array[i++] = p;
                 p = strtok(NULL, ";");
         }
+	if (i < 4) {
+		printf("Not enough tokens...\n");
+		writeLog("[parse__conf_line] Not enough tokens. Faulty config file.", 1, 0);
+		return 2;
+	}
         sscanf(array[2], "%d", &x);
         if (x == 0) {
                 if (strcmp(array[2], "0") != 0)
@@ -700,6 +725,12 @@ static int compress_log(const char* src_filename, const char* dest_filename) {
 		return -1;
 	}
 	while ((bytes_read = fread(buffer, 1, sizeof(buffer), source)) > 0) {
+		if (ferror(source)) {
+            		perror("fread");
+            		fclose(source);
+            		gzclose(dest);
+            		return -1;
+        	}
 		if (gzwrite(dest, buffer, bytes_read) != bytes_read) {
 			fprintf(stderr, "Compression failed: %s\n", strerror(errno));
 			writeLog("Compression of log file failed.", 1, 1);
@@ -711,6 +742,240 @@ static int compress_log(const char* src_filename, const char* dest_filename) {
 	fclose(source);
 	gzclose(dest);
 	return 0;
+}
+
+/*void run_plugin(PluginItem *item) {
+    if (!item) return;
+
+    int    prevRet = item->output.retCode;
+    clock_t start  = clock();
+    time_t  now    = time(NULL);
+
+    char cmd[plugincommand_size];
+    snprintf(cmd, plugincommand_size, "%s/%s", pluginDir, item->command);
+    printf("Running: %s\n", cmd);
+
+    TrackedPopen tp = tracked_popen(cmd);
+    if (!tp.fp) {
+        perror("tracked_popen");
+        item->output.retCode = -1;
+    }
+    else {
+        add_plugin_pid(tp.pid);
+
+        char *last_line = NULL;
+        char  buf[pluginoutput_size];
+
+        while (fgets(buf, sizeof buf, tp.fp)) {
+            char *t = trim(buf);
+            if (*t) {
+                free(last_line);
+                last_line = strdup(t);
+            }
+        }
+        int rc = tracked_pclose(&tp);
+        remove_plugin_pid(tp.pid);
+
+        if      (rc == 126)           item->output.retCode = 0;
+        else if (rc == 256)           item->output.retCode = 1;
+        else if (rc == 512)           item->output.retCode = 2;
+        else                          item->output.retCode = rc;
+
+        free(item->output.retString);
+        item->output.retString = NULL;
+
+        if (last_line) {
+            size_t len = strlen(last_line);
+            if (len >= (size_t)pluginoutput_size) {
+                len = pluginoutput_size - 1;
+            }
+            item->output.retString = malloc(len + 1);
+            if (item->output.retString) {
+                memcpy(item->output.retString, last_line, len);
+                item->output.retString[len] = '\0';
+            }
+            free(last_line);
+        }
+    }
+    char ts_now[TIMESTAMP_SIZE];
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+    strftime(ts_now, sizeof ts_now, "%Y-%m-%d %H:%M:%S", &tm_now);
+    if (prevRet != item->output.retCode) {
+        memcpy(item->statusChanged, "1", 2);
+        strncpy(item->lastChangeTimestamp,
+                ts_now,
+                sizeof item->lastChangeTimestamp - 1);
+        item->lastChangeTimestamp[sizeof item->lastChangeTimestamp - 1] = '\0';
+    }
+    else {
+        memcpy(item->statusChanged, "0", 2);
+    }
+
+    strncpy(item->lastRunTimestamp,
+            ts_now,
+            sizeof item->lastRunTimestamp - 1);
+    item->lastRunTimestamp[sizeof item->lastRunTimestamp - 1] = '\0';
+
+    time_t next = now + (item->interval * 60);
+    struct tm tm_next;
+    localtime_r(&next, &tm_next);
+    strftime(item->nextRunTimestamp,
+             sizeof item->nextRunTimestamp,
+             "%Y-%m-%d %H:%M:%S",
+             &tm_next);
+    item->nextRun = next;
+
+    item->output.prevRetCode = prevRet;
+
+    double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;
+    printf("%s executed in %.0f ms (ret=%d)\n\n",
+           item->name,
+           ms,
+           item->output.retCode);
+}*/
+
+void run_plugin(PluginItem *item) {
+	if (!item) return;
+
+    	/* 1) Save old return code and start timers */
+    	int    prevRet = item->output.retCode;
+    	clock_t start  = clock();
+    	time_t  now    = time(NULL);
+
+    	/* 2) Build full plugin command */
+    	char cmd[plugincommand_size];
+   	snprintf(cmd, plugincommand_size, "%s/%s", pluginDir, item->command);
+    	//printf("Running: %s\n", cmd);
+	snprintf(infostr, infostr_size, "Running command '%s'.", cmd);
+	writeLog(trim(infostr), 0, 0);
+
+    	/* 3) Spawn process and capture last non-empty line */
+    	TrackedPopen tp = tracked_popen(cmd);
+    	if (!tp.fp) {
+        	perror("tracked_popen");
+        	item->output.retCode = -1;
+    	}
+    	else {
+        	add_plugin_pid(tp.pid);
+
+        	char *last_line = NULL;
+        	char  buf[pluginoutput_size];
+
+        	while (fgets(buf, sizeof buf, tp.fp)) {
+            		char *t = trim(buf);
+            		if (*t) {
+                		free(last_line);
+                		last_line = strdup(t);
+            		}
+        	}
+        	int rc = tracked_pclose(&tp);
+        	remove_plugin_pid(tp.pid);
+
+        	/* 4) Map shell exit codes to our retCode */
+        	if (rc == 126)           
+			item->output.retCode = 0;
+        	else if (rc == 256)           
+			item->output.retCode = 1;
+        	else if (rc == 512)           
+			item->output.retCode = 2;
+        	else                          
+			item->output.retCode = rc;
+
+        	/* 5) Safely replace retString, capped at pluginoutput_size */
+        	free(item->output.retString);
+        	item->output.retString = NULL;
+
+        	if (last_line) {
+            		size_t len = strlen(last_line);
+            		if (len >= (size_t)pluginoutput_size) {
+                		len = pluginoutput_size - 1;
+            		}
+            		item->output.retString = malloc(len + 1);
+            		if (item->output.retString) {
+                		memcpy(item->output.retString, last_line, len);
+                		item->output.retString[len] = '\0';
+            		}
+            		free(last_line);
+        	}
+    	}
+    	/* 6) Format current timestamp */
+    	char ts_now[TIMESTAMP_SIZE];
+    	struct tm tm_now;
+    	localtime_r(&now, &tm_now);
+    	strftime(ts_now, sizeof ts_now, "%Y-%m-%d %H:%M:%S", &tm_now);
+
+    	/* 7) Update statusChanged and lastChangeTimestamp */
+    	if (prevRet != item->output.retCode) {
+        	/* statusChanged is a char[2] array */
+        	memcpy(item->statusChanged, "1", 2);
+        	strncpy(item->lastChangeTimestamp,
+                ts_now,
+                sizeof item->lastChangeTimestamp - 1);
+        	item->lastChangeTimestamp[sizeof item->lastChangeTimestamp - 1] = '\0';
+    	}
+	else {
+        	memcpy(item->statusChanged, "0", 2);
+    	}
+
+    	/* 8) Update lastRunTimestamp */
+    	strncpy(item->lastRunTimestamp,
+            ts_now,
+            sizeof item->lastRunTimestamp - 1);
+    	item->lastRunTimestamp[sizeof item->lastRunTimestamp - 1] = '\0';
+
+    	/* 9) Compute and store nextRunTimestamp */
+    	time_t next = now + (item->interval * 60);
+    	struct tm tm_next;
+    	localtime_r(&next, &tm_next);
+    	strftime(item->nextRunTimestamp,
+             sizeof item->nextRunTimestamp,
+             "%Y-%m-%d %H:%M:%S",
+             &tm_next);
+    	item->nextRun = next;
+
+    	/* 10) Save prevRetCode for next iteration */
+    	item->output.prevRetCode = prevRet;
+
+    	/* 11) Print elapsed time */
+    	double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;
+    	/*printf("%s executed in %.0f ms (ret=%d)\n\n",
+           item->name,
+           ms,
+           item->output.retCode);*/
+	snprintf(infostr, infostr_size, "%s executed in %.0f ms (ret=%d)", item->name, ms, item->output.retCode);
+	writeLog(trim(infostr), 0, 0);
+     	//ct = clock() -ct;
+        //snprintf(infostr, infostr_size, "%s executed. Execution took %.0f milliseconds.\n", g_plugins[storeIndex]->name, (double)ct);
+        //writeLog(trim(infostr), 0, 0);
+        if (logPluginOutput == 1) {
+                char* o_info;
+                int o_info_size = pluginmessage_size + 195;
+                o_info = malloc((size_t)o_info_size * sizeof(char));
+                if (o_info == NULL) {
+                        writeLog("Could not allocate memory for variable 'o_info'.", 2, 0);
+                }
+                snprintf(o_info, (size_t)o_info_size, "%s : %s", item->name, pluginReturnString);
+                writeLog(trim(o_info), 0, 0);
+                free(o_info);
+                o_info = NULL;
+        }
+        if (pluginResultToFile == 1) {
+                writePluginResultToFile(item->id, 0);
+        }
+        if (enableKafkaExport == 1) {
+                writeToKafkaTopic(item->id, 0);
+        }
+}
+
+
+void execute_all_plugins(void) {
+    for (int i = 0; i < g_plugin_count; ++i) {
+        PluginItem *item = g_plugins[i];
+        if (item && item->active) {
+            run_plugin(item);
+        }
+    }
 }
 
 int toggleHostName(char *name) {
@@ -972,7 +1237,7 @@ void updateFileName(char value[100], int mode) {
         }
 }
 
-int compare_timestamps(const void* a, const void* b) {
+/*int compare_timestamps(const void* a, const void* b) {
         struct Scheduler* sa = (struct Scheduler*)a;
         struct Scheduler* sb = (struct Scheduler*)b;
         if (sb->timestamp > sa->timestamp) return -1;
@@ -980,7 +1245,23 @@ int compare_timestamps(const void* a, const void* b) {
         if (sa->id > sb->id) return -1;
         if (sa->id < sb->id) return 1;
         return 0;
+}*/
+
+int compare_timestamps(const void* a, const void* b) {
+    const struct Scheduler* sa = (const struct Scheduler*)a;
+    const struct Scheduler* sb = (const struct Scheduler*)b;
+    //printf("DEBUG: Comparing: sa->timestamp=%ld, sb->timestamp=%ld\n", sa->timestamp, sb->timestamp);
+
+    if (sa->timestamp < sb->timestamp) return -1;
+    if (sa->timestamp > sb->timestamp) return 1;
+
+    // Tie-breaker: sort by ID ascending
+    if (sa->id < sb->id) return -1;
+    if (sa->id > sb->id) return 1;
+
+    return 0;
 }
+
 
 int get_thread_count() {
     int count = 0;
@@ -1013,16 +1294,16 @@ int get_fd_count() {
     return count - 2; // subtract '.' and '..'
 }
 
-int check_plugin_conf_file(char *pluginDeclarationFile) {
+int check_plugin_conf_file(char *declarationFile) {
         FILE * fPtr = NULL;
         int i;
         char buffer[1000];
         int retval = 0;
 
-        fPtr = fopen(pluginDeclarationFile, "r");
+        fPtr = fopen(declarationFile, "r");
         if (fPtr == NULL)
         {
-                writeLog("Error opening the plugin declarations file.", 2, 0);
+                writeLog("Error opening the plugin g_plugins file.", 2, 0);
 		perror("Error while opening the file [check_plugin_conf_file].\n");
                 exit(EXIT_FAILURE);
         }
@@ -1044,8 +1325,9 @@ int check_plugin_conf_file(char *pluginDeclarationFile) {
 }
 
 void rescheduleChecks() {
+	size_t n = (size_t)decCount;
         writeLog("Schedule new exectution times.", 0, 0);
-        qsort(scheduler, decCount, sizeof(struct Scheduler), compare_timestamps);
+        qsort(scheduler, n, sizeof(struct Scheduler), compare_timestamps);
         flushLog();
 }
 
@@ -1082,28 +1364,28 @@ int updateValuesFromUdfFile(char id[3]) {
 		}
 		if (pId != -1) {
 			if (strcmp(columns[0], "item_lastruntimestamp") == 0) {
-				//strncpy(declarations[pId].lastRunTimestamp, trim(columns[1]), 20);
-				snprintf(declarations[pId].lastRunTimestamp, 20, "%s", trim(columns[1])); 
+				//strncpy(g_plugins[pId].lastRunTimestamp, trim(columns[1]), 20);
+				snprintf(g_plugins[pId]->lastRunTimestamp, 20, "%s", trim(columns[1])); 
 			}
 			else if (strcmp(columns[0], "item_lastchangetimestamp") == 0) {
-				//strncpy(declarations[pId].lastChangeTimestamp, trim(columns[1]), 20);
-				snprintf(declarations[pId].lastChangeTimestamp, 20, "%s", trim(columns[1]));
+				//strncpy(g_plugins[pId].lastChangeTimestamp, trim(columns[1]), 20);
+				snprintf(g_plugins[pId]->lastChangeTimestamp, 20, "%s", trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "item_nextruntimestamp") == 0) {
-				//strncpy(declarations[pId].nextRunTimestamp, trim(columns[1]), 20);
-				snprintf(declarations[pId].nextRunTimestamp, 20, "%s", trim(columns[1]));
+				//strncpy(g_plugins[pId].nextRunTimestamp, trim(columns[1]), 20);
+				snprintf(g_plugins[pId]->nextRunTimestamp, 20, "%s", trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "item_statuschanged") == 0) {
-				//strncpy(declarations[pId].statusChanged, trim(columns[1]), 1);
-				snprintf(declarations[pId].statusChanged, 2, "%s", trim(columns[1]));
+				//strncpy(g_plugins[pId].statusChanged, trim(columns[1]), 1);
+				snprintf(g_plugins[pId]->statusChanged, 2, "%s", trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "output_retcode") == 0) {
 				//strcpy(outputs[pId].retCode, trim(columns[1]));
-				outputs[pId].retCode = atoi(trim(columns[1]));
+				g_plugins[pId]->output.retCode = atoi(trim(columns[1]));
 			}
 			else if (strcmp(columns[0], "output_retstring") == 0) {
 				//strcpy(outputs[pId].retString, trim(columns[1]));
-				snprintf(outputs[pId].retString, pluginoutput_size, "%s", trim(columns[1])); 
+				snprintf(g_plugins[pId]->output.retString, pluginoutput_size, "%s", trim(columns[1])); 
 			}
 		}
 		columnCount = 0;
@@ -1114,11 +1396,11 @@ int updateValuesFromUdfFile(char id[3]) {
 	if (pId >= 0) {
 		struct tm tm_struct;
 		time_t time_var;
-		char *timestamp = declarations[pId].nextRunTimestamp;
+		char *timestamp = g_plugins[pId]->nextRunTimestamp;
 		if (strptime(timestamp,"%Y-%m-%d %H:%M:%S", &tm_struct)) {
 			time_var = mktime(&tm_struct);
 			if (time_var != -1) {
-				declarations[pId].nextRun = time_var;
+				g_plugins[pId]->nextRun = time_var;
 				if (timeScheduler == 1) {
 					scheduler[pId].timestamp = time_var;
 					rescheduleChecks();
@@ -1246,7 +1528,14 @@ int runApiCmds(char * cmd) {
 	else if (strcmp(columns[0], "execute") == 0) {
 		int id = atoi(columns[1]);
 		writeLog("Execute plugin from command file.", 0, 0);
-		runPlugin(id, 0);
+		//runPlugin(id, 0);
+                PluginItem *item = g_plugins[id];
+        	if (item) {
+            		run_plugin(item);
+        	}
+		else {
+			printf("DEBUG: Failed to execute item id %d.\n", id);
+		}
 		if (timeScheduler == 1) {
 			rescheduleChecks();
 		}
@@ -1260,7 +1549,8 @@ int runApiCmds(char * cmd) {
 	}
 	else if (strcmp(columns[0], "metricsprefix") == 0) {
                 memset(metricsOutputPrefix, '\0', metricsoutputprefix_size);
-		for (int i = 0; i < strlen(columns[1]); i++) {
+		size_t len = strlen(columns[1]);
+		for (int i = 0; i < (int)len; i++) {
 			if (columns[1][i] == '\n')
 				break;
 			else
@@ -1340,7 +1630,6 @@ int checkApiCmds() {
     closedir(d);
     return 0;
 }
-
 
 void initConstants() {
 	logmessage = calloc(logmessage_size+1, sizeof(char));
@@ -1647,11 +1936,11 @@ int getIdFromName(char *plugin_name) {
 		}
 		else
 			memset(pluginName, '\0', (size_t)pluginitemname_size+1 * sizeof(char));
-                strncpy(pluginName, declarations[i].name, pluginitemname_size);
+                strncpy(pluginName, g_plugins[i]->name, pluginitemname_size);
 		removeChar(pluginName, '[');
 		removeChar(pluginName, ']');
 		if (strcmp(trim(plugin_name), pluginName) == 0) {
-			retVal = declarations[i].id;
+			retVal = g_plugins[i]->id;
 			break;
 		}
 		free(pluginName);
@@ -1685,12 +1974,13 @@ void startApiSocket() {
         int rc;
 
         rc = pthread_create(&thread_id, NULL, apiThread, "almondapi");
-        if(rc) {
+        if(rc != 0) {
 		printf("Error creating phtread\n");
                 snprintf(infostr, infostr_size, "Error: return code from phtread_create is %d\n", rc);
                 writeLog(trim(infostr), 2, 0);
 		return;
         }
+	pthread_detach(thread_id);
 	pthread_setspecific(thread_id, "API Connection Listener");
 	printf("New thread accepting socket created.\n");
         snprintf(infostr, infostr_size, "Created new thread (%lu) listening for connections on port %d \n", thread_id, local_port);
@@ -1735,9 +2025,9 @@ void setMaintenanceStatus(int id, char* value) {
 	if (strcmp(value, "true") == 0) {
 		maintenance_status_value = 0;
 	}
-	if (declarations[id].active != maintenance_status_value)
-		declarations[id].active = maintenance_status_value;
-        snprintf(infostr, infostr_size, "Updating maintenance status to %d for plugin '%s'.", maintenance_status_value, declarations[id].name);
+	if (g_plugins[id]->active != maintenance_status_value)
+		g_plugins[id]->active = maintenance_status_value;
+        snprintf(infostr, infostr_size, "Updating maintenance status to %d for plugin '%s'.", maintenance_status_value, g_plugins[id]->name);
 	writeLog(infostr, 1, 0);
 }
 
@@ -2062,22 +2352,24 @@ struct json_object* getJsonValue(struct json_object *jobj, const char* key) {
         return NULL;
 }
 
+
+
 void parseClientMessage(char str[], int arr[]) {
         struct json_object *jobj, *jaction, *jid, *jname,  *jflags, *jargs, *jvalue, *jmode;
 	struct json_object *jtoken;
         char *value = NULL;
-        char action[12];
-        char sid[5];
-	char flags[10];
-	char args[100];
-	char sval[100];
-	char name[50];
-	char mode[5];
+        char action[12] = {0};
+        char sid[10] = {0};
+	char flags[10] = {0};
+	char args[100] = {0};
+	char sval[100] = {0};
+	char name[50] = {0};
+	char mode[5] = {0};
 	char * fname = NULL;
         char * lname = NULL;
-        char username[40];
+        char username[40] = {0};
         char* token = NULL;
-        char line[100];
+        char line[100] = {0};
         int id = -1;
 	int aflags = 0;
 	int bExecute = 0;
@@ -2085,7 +2377,14 @@ void parseClientMessage(char str[], int arr[]) {
 
 	args_set = 0;
         json_tokener *tok = json_tokener_new();
-        jobj = json_tokener_parse_ex(tok, str, (size_t)(strlen(str)));
+	if (str != NULL)
+        	jobj = json_tokener_parse_ex(tok, str, (size_t)(strlen(str)));
+	else {
+		fprintf(stderr, "parseClientMessage: str is NULL.");
+		writeLog("[parseClientMessage] Recieved NULL instead of string.", 1, 0);
+           	json_tokener_free(tok);
+		return;
+	}
         jerr = json_tokener_get_error(tok);
         if (jerr != 0) {
                 printf("jerr = %s\n", json_tokener_error_desc(jerr));
@@ -2094,6 +2393,8 @@ void parseClientMessage(char str[], int arr[]) {
 		snprintf(infostr, infostr_size, "Json error: %s", json_tokener_error_desc(jerr));
 		writeLog(trim(infostr), 1, 0);
 		writeLog("Could not parse API call. Wrong syntax.", 1, 0);
+		json_object_put(jobj);
+           	json_tokener_free(tok);
                 return;
         }
         json_object_object_foreach(jobj, key, val) {
@@ -2179,6 +2480,8 @@ void parseClientMessage(char str[], int arr[]) {
 					/*fname = malloc((size_t)sizeof(line)+1);
 					if (fname == NULL) {
 						writeLog("Could not allocate message [parseClientMessage:fname]", 2, 0);
+						json_object_put(jobj);
+   						json_tokener_free(tok);
 						return;
 					}
 					else
@@ -2189,7 +2492,9 @@ void parseClientMessage(char str[], int arr[]) {
 					fname = malloc(len +1);
 					if (fname == NULL) {
 						writeLog("Could not allocate message [parseClientMessage:fname]", 2, 0);
-       						 return;
+						json_object_put(jobj);
+   						json_tokener_free(tok);
+       						return;
     					}
 					strcpy(fname, trimmed_line); 
                                 }
@@ -2197,6 +2502,8 @@ void parseClientMessage(char str[], int arr[]) {
                                         lname = malloc((size_t)sizeof(line)+1);
 					if (lname == NULL) {
 						writeLog("Could not allocate memory [parseClientMessage:lname]", 2, 0);
+						json_object_put(jobj);
+   						json_tokener_free(tok);
 						return;
 					}
 					else
@@ -2532,19 +2839,29 @@ void parseClientMessage(char str[], int arr[]) {
 						snprintf(infostr, infostr_size, "Try to run API command with name '%s', which does not exist.", name);
                                         	writeLog(trim(infostr), 1, 0);
 						api_action = 0;
+						json_object_put(jobj);
+   						json_tokener_free(tok);
 						return;
 					}
-					else return;
+					else {
+						json_object_put(jobj);
+   						json_tokener_free(tok);
+						return;
+					}
 				}
 			}	
 			else {
 				writeLog("Received a bad json-request. API call is aborted.", 1, 0);
 				api_action = 0;
+				json_object_put(jobj);
+   				json_tokener_free(tok);
                         	return;
 			}
 			if (id < 0) {
 				writeLog("Could not get id from name. This might cause strange things to happen. Aborting API call.", 1, 0);
 				api_action = 0;
+				json_object_put(jobj);
+   				json_tokener_free(tok);
 				return;
 			}
                 }
@@ -2555,6 +2872,8 @@ void parseClientMessage(char str[], int arr[]) {
 			if (api_args == NULL) {
 				fprintf(stderr, "Could not allocate memory.\n");
 				writeLog("Could not allocate memory [parseClientMessage:api_args]", 2, 0);
+				json_object_put(jobj);
+   				json_tokener_free(tok);
 				return;
 			}
 			else
@@ -2572,6 +2891,8 @@ void parseClientMessage(char str[], int arr[]) {
 			api_args = NULL;
 		}
         }
+	json_tokener_free(tok);
+	if (jobj) json_object_put(jobj);
 	arr[0] = id;
 	arr[1] = aflags;
 }
@@ -2666,6 +2987,7 @@ int createSocket(int server_fd) {
 	int params[2];
 	SSL *ssl = NULL;
 
+	memset(local_msg, 0, infostr_size);
 	server_message = malloc((size_t)socketservermessage_size+1);
 	if (server_message == NULL) {
 		fprintf(stderr, "Failed to allocate memory for servermessage.\n");
@@ -2771,8 +3093,22 @@ int createSocket(int server_fd) {
        	 		int index;
         		e = strchr(client_message, '{');
         		index = (int)(e - client_message);
-        		char message[150];
-			strncpy(message, client_message + index, strlen(client_message) - index);
+        		char message[150] = {0};
+			size_t client_len = strlen(client_message);
+			if (index < (int)client_len) {
+				size_t copy_len = client_len - index;
+				if (copy_len >= sizeof(message)) {
+					writeLog("Client message is longer than expected. [createSocket]", 1, 1);
+					copy_len = sizeof(message) - 1;
+				}
+				//strncpy(message, client_message + index, strlen(client_message) - index);
+				strncpy(message, client_message + index, copy_len);
+				message[copy_len] = '\0';
+			}
+			else {
+				writeLog("ndex exceeds client message length. [createSocket]", 1, 1);
+    				message[0] = '\0';  // Empty message
+			}
 			if ((strlen(client_message)-index) > sizeof(message)) {
 				writeLog("Client message is longer than expected. [createSocket]", 1, 1);
 				message[149] = '\0';
@@ -2829,6 +3165,7 @@ void closejsonfile() {
 
 
 	if (saveOnExit == 0) {
+		//printf("\nDEBUG: Save on exit. Remove %s\n", dataFileName);
 		remove(dataFileName);
 	}
 	else {
@@ -2914,26 +3251,45 @@ void free_constants() {
 	safe_free_str(&pluginCommand);
 	safe_free_str(&pluginReturnString);
 	safe_free_str(&storeName);
+	safe_free_str(&schemaRegistryUrl);
 	safe_free_str(&socket_message);
 	safe_free_str(&client_message);
 	//safe_free_str(&logmessage);
 	writeLog("All constants freed from memory.", 0, 0);
 }
 
+static void free_plugin_item(PluginItem *item) {
+    if (!item) return;
+
+    HASH_DEL(g_plugin_map, item);
+
+    free(item->name);
+    free(item->description);
+    free(item->command);
+
+    free(item->output.retString);
+
+    free(item);
+}
+
+void free_all_plugins(void) {
+    PluginItem *item, *tmp;
+
+    HASH_ITER(hh, g_plugin_map, item, tmp) {
+        free_plugin_item(item);
+    }
+    g_plugin_map = NULL;
+
+    free(g_plugins);
+    g_plugins       = NULL;
+    g_plugin_count  = 0;
+}
+
 void free_structures(int numOfS) {
-	for (int i = 0; i < numOfS; i++) {
-		free(declarations[i].name);
-		free(declarations[i].description);
-		free(declarations[i].command);
-		free(outputs[i].retString);
-		declarations[i].name = NULL;
-		declarations[i].description = NULL;
-		declarations[i].command = NULL;
-		outputs[i].retString = NULL;
-	}
-	if (scheduler != NULL) {
+	free_all_plugins();
+	/*if (scheduler != NULL) {
 		free(scheduler);
-	}
+	}*/
 }
 
 void freemem() {
@@ -2960,25 +3316,25 @@ void freemem() {
 	pluginCommand = NULL;
 	pluginReturnString = NULL;
 	storeName = NULL;
-        if (update_declarations != NULL) {
+        if (update_g_plugins != NULL) {
 		for (int i = 0; i < update_declaration_size; i++) {
-                	free(update_declarations[i].name);
-                        free(update_declarations[i].description);
-                        free(update_declarations[i].command);
-			update_declarations[i].name = NULL;
-			update_declarations[i].description = NULL;
-			update_declarations[i].command = NULL;
+                	free(update_g_plugins[i].name);
+                        free(update_g_plugins[i].description);
+                        free(update_g_plugins[i].command);
+			update_g_plugins[i].name = NULL;
+			update_g_plugins[i].description = NULL;
+			update_g_plugins[i].command = NULL;
                 }
-                free(update_declarations);
-		update_declarations = NULL;
+                free(update_g_plugins);
+		update_g_plugins = NULL;
 	}
-	if (update_outputs != NULL) {
-		for (int i=0; i < update_output_size-1; i++) {
+	/*if (update_outputs != NULL) {
+		for (int i=0; i < update_output_size; i++) {
 			free(update_outputs[i].retString);
 			update_outputs[i].retString = NULL;
 		}
 		free(update_outputs);
-	}
+	}*/
 	if (api_args != NULL) {
 		free(api_args);
 		api_args = NULL;
@@ -3020,8 +3376,12 @@ void sig_exit_app() {
         	pthread_join(threadIds[i], NULL);
     	}
         free_structures(decCount);
-        free(declarations);
-        free(outputs);
+	if (scheduler) {
+		free(scheduler);
+		scheduler = NULL;
+	}
+        free(g_plugins);
+        //free(outputs);
         free_kafka_vars();
         free_constants();
         free(threadIds);
@@ -3220,7 +3580,13 @@ void process_almond_format(ConfVal value) {
 }
 
 void process_conf_dir(ConfVal value) {
-	confDir = malloc((size_t)50 * sizeof(char));
+	if (confDir == NULL) {
+		confDir = malloc((size_t)50 * sizeof(char));
+		if (!confDir) {
+			writeLog("Failed to allocate memory.", 1, 1);
+			return;
+		}
+	}
 	if (confDir != NULL)
         	memset(confDir, '\0', 50 * sizeof(char));
 	if (directoryExists(value.strval, 255) == 0) {
@@ -3466,6 +3832,7 @@ void process_plugin_directory(ConfVal value) {
 			//pluginDir[strlen(value.strval)-1] = '\0';
 			snprintf(pluginDir, plugindir_size, "%s", value.strval);
 			pluginDirSet = 1;
+			writeLog("Created new plugin directory. It most likely is empty!", 1, 1);
                 }
         }
 }
@@ -3483,7 +3850,7 @@ void process_plugin_declaration(ConfVal v) {
 		config_memalloc_fails++;
 		return;
 	}
-	snprintf(infostr, infostr_size, "Plugin declarations file is set to '%s'.", pluginDeclarationFile);
+	snprintf(infostr, infostr_size, "Plugin g_plugins file is set to '%s'.", pluginDeclarationFile);
 	writeLog(trim(infostr), 0, 1);
 }
 
@@ -3941,6 +4308,7 @@ int getConfigurationValues() {
 		   	   memset(confDir, '\0', 50 * sizeof(char));
 		   if (directoryExists(confValue, 255) == 0) {
 			   strncpy(confDir,trim(confValue), strlen(confValue));
+			   snprintf(confDir, 
 			   confDirSet = 1;
 		   }
 		   else {
@@ -4508,7 +4876,7 @@ void apiDryRun(int plugin_id) {
         }
 	else
 		memset(pluginName, '\0', (size_t)(pluginitemname_size + 1) * sizeof(char));
-        strncpy(pluginName, declarations[plugin_id].name, pluginitemname_size);
+        strncpy(pluginName, g_plugins[plugin_id]->name, pluginitemname_size);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
         strcpy(message, "{\n     \"dryExecutePlugin\":\"");
@@ -4517,9 +4885,9 @@ void apiDryRun(int plugin_id) {
         strcat(message, ",\n");
         /*strcpy(pluginCommand, pluginDir);
         strncat(pluginCommand, &ch, 1);
-        strcat(pluginCommand, declarations[plugin_id].command);*/
-	snprintf(pluginCommand, plugincommand_size, "%s%c%s", pluginDir, ch, declarations[plugin_id].command);
-        snprintf(infostr, infostr_size, "Running: %s.", declarations[plugin_id].command);
+        strcat(pluginCommand, g_plugins[plugin_id]->command);*/
+	snprintf(pluginCommand, plugincommand_size, "%s%c%s", pluginDir, ch, g_plugins[plugin_id]->command);
+        snprintf(infostr, infostr_size, "Running: %s.", g_plugins[plugin_id]->command);
         writeLog(trim(infostr), 0, 0);
         TrackedPopen tp = tracked_popen(pluginCommand);
         if (tp.fp == NULL) {
@@ -4592,7 +4960,7 @@ void apiRunPlugin(int plugin_id, int flags) {
         }
 	else
 		memset(pluginName, '\0', (size_t)(pluginitemname_size+1) * sizeof(char));
-	pluginName = strdup(declarations[plugin_id].name);
+	pluginName = strdup(g_plugins[plugin_id]->name);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
 	// Check if same plugin is running in thread, in which case wait...
@@ -4615,7 +4983,7 @@ void apiRunPlugin(int plugin_id, int flags) {
 		strcat(message, ",\n");
 		sleep(10);
 		strcat(message, "     \"pluginOutput:\":\"");
-		strcat(message, trim(outputs[plugin_id].retString));
+		strcat(message, trim(g_plugins[plugin_id]->output.retString));
 		strcat(message, "\"");
         }
 	strcat(message, "\n}\n");
@@ -4709,16 +5077,10 @@ void runPluginArgs(int id, int aflags, int api_action) {
 	}
 	else
 		memset(output.retString, '\0', (size_t)(pluginoutput_size + 1) * sizeof(char));
-        strncpy(pluginName, declarations[id].name, pluginitemname_size);
+        strncpy(pluginName, g_plugins[id]->name, pluginitemname_size);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
-	strcpy(command, declarations[id].command);
-        /*strcpy(newcmd, pluginDir);
-        strncat(newcmd, &ch, 1);
-	char * token = strtok(command, " ");
-	strcat(newcmd, token);
-	strcat(newcmd, " ");
-	strcat(newcmd, api_args);*/
+	strcpy(command, g_plugins[id]->command);
 	char * token = strtok(command, " ");
 	if (pluginDir && token && api_args) {
 		snprintf(newcmd, 200, "%s%c%s %s", pluginDir, ch, token, api_args);
@@ -4790,30 +5152,30 @@ void runPluginArgs(int id, int aflags, int api_action) {
         if (api_action == API_DRY_RUN)
 		strcpy(message, "{\n     \"dryExecutePlugin\":\"");
 	else {
-                if (output.retCode != outputs[id].retCode){
-                	strcpy(declarations[id].statusChanged, "1");
-                	strcpy(declarations[id].lastChangeTimestamp, currTime);
+                if (output.retCode != g_plugins[id]->output.retCode){
+                	strcpy(g_plugins[id]->statusChanged, "1");
+                	strcpy(g_plugins[id]->lastChangeTimestamp, currTime);
 		}
                 else {
-                	strcpy(declarations[id].statusChanged, "0");
+                	strcpy(g_plugins[id]->statusChanged, "0");
                 }
 		strcpy(message, "{\n     \"executePlugin\":\"");
-		strcpy(declarations[id].lastRunTimestamp, currTime);
-                time_t nextTime = t + (declarations[id].interval * 60);
+		strcpy(g_plugins[id]->lastRunTimestamp, currTime);
+                time_t nextTime = t + (g_plugins[id]->interval * 60);
                 struct tm tNextTime;
                 memset(&tNextTime, '\0', sizeof(struct tm));
                 localtime_r(&nextTime, &tNextTime);
-                len = snprintf(declarations[id].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                len = snprintf(g_plugins[id]->nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 		if (len >= dest_size) {
 			writeLog("Possible truncation of timestamp in function 'runPluginArgs'.", 1, 0);
 		}
-                declarations[id].nextRun = nextTime;
+                g_plugins[id]->nextRun = nextTime;
 		if (timeScheduler == 1) {
-			scheduler[declarations[id].id].timestamp = nextTime;
+			scheduler[g_plugins[id]->id].timestamp = nextTime;
 			rescheduleChecks();
 		}
                 output.prevRetCode = output.retCode;
-                outputs[id] = output;
+                g_plugins[id]->output = output;
 	}
         strcat(message, pluginName);
         strcat(message, "\",\n");
@@ -4825,7 +5187,7 @@ void runPluginArgs(int id, int aflags, int api_action) {
 		pluginName = NULL;
                 strcat(message, "\",\n");
                 strcat(message, "          \"description\":\"");
-                strcat(message, declarations[id].description);
+                strcat(message, g_plugins[id]->description);
                 strcat(message, "\",\n");
                 switch (output.retCode) {
                         case 0:
@@ -4850,10 +5212,10 @@ void runPluginArgs(int id, int aflags, int api_action) {
                 strcat(message, "\",\n");
 		if (aflags == API_FLAGS_VERBOSE) {
                 	strcat(message, "          \"pluginStatusChanged\":\"");
-                	strcat(message, declarations[id].statusChanged);
+                	strcat(message, g_plugins[id]->statusChanged);
                 	strcat(message, "\",\n");
                 	strcat(message, "          \"lastChange\":\"");
-                	strcat(message, declarations[id].lastChangeTimestamp);
+                	strcat(message, g_plugins[id]->lastChangeTimestamp);
                 	strcat(message, "\",\n");
 		}
                 strcat(message, "          \"lastRun\":\"");
@@ -4861,7 +5223,7 @@ void runPluginArgs(int id, int aflags, int api_action) {
                 strcat(message, "\",\n");
 		if (aflags == API_FLAGS_VERBOSE) {
                 	strcat(message, "          \"nextScheduledRun\":\"");
-                	strcat(message, declarations[id].nextRunTimestamp);
+                	strcat(message, g_plugins[id]->nextRunTimestamp);
                 	strcat(message, "\"\n     }\n");
 		}
 		else {
@@ -4870,7 +5232,7 @@ void runPluginArgs(int id, int aflags, int api_action) {
         }
         else {
                 strcat(message, "          \"returnString\":\"");
-                strcat(message, trim(outputs[id].retString));
+                strcat(message, trim(g_plugins[id]->output.retString));
                 strcat(message, "\"\n     }\n");
         }
         strcat(message, "}\n");
@@ -4943,7 +5305,7 @@ void apiReadData(int plugin_id, int flags) {
                 message = pluginName = NULL;
 		return;
 	}
-	pluginName = strdup(declarations[plugin_id].name);
+	pluginName = strdup(g_plugins[plugin_id]->name);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
 	if (flags == API_FLAGS_VERBOSE) {
@@ -4951,9 +5313,9 @@ void apiReadData(int plugin_id, int flags) {
         	strcat(message, pluginName);
         	strcat(message, "\",\n");
 		strcat(message, "     \"description\":\"");
-	        strcat(message, declarations[plugin_id].description);
+	        strcat(message, g_plugins[plugin_id]->description);
 		strcat(message, "\",\n");
-		switch (outputs[plugin_id].retCode) {
+		switch (g_plugins[plugin_id]->output.retCode) {
 			case 0:
 				strcat(message, "     \"pluginStatus\":\"OK\",\n");
 				break;
@@ -4968,30 +5330,30 @@ void apiReadData(int plugin_id, int flags) {
 				break;
 		}
 		strcat(message, "     \"pluginStatusCode\":\"");
-		sprintf(rCode, "%d", outputs[plugin_id].retCode); 
+		sprintf(rCode, "%d", g_plugins[plugin_id]->output.retCode); 
 	   	strcat(message, trim(rCode));
 		strcat(message,  "\",\n");
 		strcat(message, "     \"pluginOutput\":\"");
-		strcat(message, trim(outputs[plugin_id].retString));
+		strcat(message, trim(g_plugins[plugin_id]->output.retString));
 		strcat(message, "\",\n");
 		strcat(message, "     \"pluginStatusChanged\":\"");
-		strcat(message, declarations[plugin_id].statusChanged);
+		strcat(message, g_plugins[plugin_id]->statusChanged);
 		strcat(message, "\",\n");
 		strcat(message, "     \"lastChange\":\"");
-		strcat(message, declarations[plugin_id].lastChangeTimestamp);
+		strcat(message, g_plugins[plugin_id]->lastChangeTimestamp);
 		strcat(message, "\",\n");
 		strcat(message, "     \"lastRun\":\"");
-		strcat(message, declarations[plugin_id].lastRunTimestamp);
+		strcat(message, g_plugins[plugin_id]->lastRunTimestamp);
 		strcat(message, "\",\n");
                 strcat(message, "     \"nextScheduledRun\":\"");
-		strcat(message, declarations[plugin_id].nextRunTimestamp);
+		strcat(message, g_plugins[plugin_id]->nextRunTimestamp);
 		strcat(message, "\"\n");
 	}
         else {
 		strcat(message,"{\n     \"");
                 strcat(message, pluginName);
                 strcat(message, "\":\"");
-                strcat(message, trim(outputs[plugin_id].retString));
+                strcat(message, trim(g_plugins[plugin_id]->output.retString));
                 strcat(message, "\"\n");
 	}
 	strcat(message, "}\n");
@@ -5010,7 +5372,7 @@ void apiReadData(int plugin_id, int flags) {
 	message = NULL;
 }
 
-void createUpdateFile(struct PluginItem *item, struct PluginOutput *output, char name[3]) {
+void __deprecated_createUpdateFile(struct PluginItem *item, struct PluginOutput *output, char name[3]) {
 	FILE *fp = NULL;
 	char filename[30];
        	
@@ -5030,6 +5392,36 @@ void createUpdateFile(struct PluginItem *item, struct PluginOutput *output, char
 	fprintf(fp, "output_retstring\t%s\n", output->retString);
 	fclose(fp);
 	fp = NULL;
+}
+
+void createUpdateFile(PluginItem *item, char name[3]) {
+    FILE *fp;
+    char filename[30];
+
+    if (snprintf(filename, sizeof(filename), "opt/almond/api_cmd/%s.udf", name)) {
+	printf("Could not create update file.\n");
+        return;
+    }
+
+    fp = fopen(filename, "w");
+    if (!fp) {
+        fprintf(stderr, "Failed to open %s: %s\n", filename, strerror(errno));
+        return;
+    }
+
+    /* write the fields */
+    fprintf(fp, "item_id\t%d\n", item->id);
+    fprintf(fp, "item_name\t%s\n", item->name);
+    fprintf(fp, "item_lastruntimestamp\t%s\n", item->lastRunTimestamp);
+    fprintf(fp, "item_nextruntimestamp\t%s\n", item->nextRunTimestamp);
+    fprintf(fp, "item_lastchangetimestamp\t%s\n", item->lastChangeTimestamp);
+    fprintf(fp, "item_statuschanged\t%s\n", item->statusChanged);
+    fprintf(fp, "item_nextrun\t%ld\n", (long)item->nextRun);
+    /* now use the embedded output */
+    fprintf(fp, "output_retcode\t%d\n",  item->output.retCode);
+    fprintf(fp, "output_retstring\t%s\n", item->output.retString);
+
+    fclose(fp);
 }
 
 void apiRunAndRead(int plugin_id, int flags) {
@@ -5079,13 +5471,17 @@ void apiRunAndRead(int plugin_id, int flags) {
 	}
 	else
 		memset(pluginName, '\0', (size_t)(pluginitemname_size+1) * sizeof(char));
-        strncpy(pluginName, declarations[plugin_id].name, (size_t)pluginitemname_size);
+        strncpy(pluginName, g_plugins[plugin_id]->name, (size_t)pluginitemname_size);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
-        runPlugin(plugin_id, 0);
+        //runPlugin(plugin_id, 0);
+        PluginItem *item = g_plugins[plugin_id];
+        if (item) {
+            run_plugin(item);
+        }
 	if (timeScheduler ==1)
 		rescheduleChecks();
-        createUpdateFile(&declarations[plugin_id], &outputs[plugin_id], strNum);
+        createUpdateFile(g_plugins[plugin_id], strNum);
 	strcpy(message, "{\n     \"executePlugin\":\"");
         strcat(message, pluginName);
         strcat(message, "\",\n");
@@ -5098,9 +5494,9 @@ void apiRunAndRead(int plugin_id, int flags) {
 		pluginName = NULL;
 		strcat(message, "\",\n");
 		strcat(message, "          \"description\":\"");
-                strcat(message, declarations[plugin_id].description);
+                strcat(message, g_plugins[plugin_id]->description);
                 strcat(message, "\",\n");
-                switch (outputs[plugin_id].retCode) {
+                switch (g_plugins[plugin_id]->output.retCode) {
                         case 0:
                                 strcat(message, "          \"pluginStatus\":\"OK\",\n");
                                 break;
@@ -5115,28 +5511,28 @@ void apiRunAndRead(int plugin_id, int flags) {
                                 break;
                 }
                 strcat(message, "          \"pluginStatusCode\":\"");
-                sprintf(rCode, "%d", outputs[plugin_id].retCode);
+                sprintf(rCode, "%d", g_plugins[plugin_id]->output.retCode);
                 strcat(message, trim(rCode));
                 strcat(message,  "\",\n");
                 strcat(message, "          \"pluginOutput\":\"");
-                strcat(message, trim(outputs[plugin_id].retString));
+                strcat(message, trim(g_plugins[plugin_id]->output.retString));
                 strcat(message, "\",\n");
                 strcat(message, "          \"pluginStatusChanged\":\"");
-                strcat(message, declarations[plugin_id].statusChanged);
+                strcat(message, g_plugins[plugin_id]->statusChanged);
                 strcat(message, "\",\n");
                 strcat(message, "          \"lastChange\":\"");
-                strcat(message, declarations[plugin_id].lastChangeTimestamp);
+                strcat(message, g_plugins[plugin_id]->lastChangeTimestamp);
                 strcat(message, "\",\n");
                 strcat(message, "          \"lastRun\":\"");
-                strcat(message, declarations[plugin_id].lastRunTimestamp);
+                strcat(message, g_plugins[plugin_id]->lastRunTimestamp);
                 strcat(message, "\",\n");
                 strcat(message, "          \"nextScheduledRun\":\"");
-                strcat(message, declarations[plugin_id].nextRunTimestamp);
+                strcat(message, g_plugins[plugin_id]->nextRunTimestamp);
                 strcat(message, "\"\n     }\n");
 	}
 	else {
 		strcat(message, "          \"returnString\":\"");
-		strcat(message, trim(outputs[plugin_id].retString));
+		strcat(message, trim(g_plugins[plugin_id]->output.retString));
 		strcat(message, "\"\n     }\n");
 	}
 	strcat(message, "}\n");
@@ -5183,7 +5579,10 @@ void apiReadFile(char *fileName, int type) {
 			return;
 		}
                 if (message) {
-                        fread(message, 1, length, f);
+			size_t bytes_read = fread(message, 1, length, f);
+			if (bytes_read != length) {
+				writeLog("[apiReadFile] fread: Partial read of EOF", 1, 0);
+			}
 			message[length] = '\0';
                 }
                 fclose(f);
@@ -5322,7 +5721,7 @@ void apiShowStatus() {
 void apiShowPluginStatus() {
 	int num_of_oks = 0, num_of_warnings = 0, num_of_criticals = 0, num_of_unknowns = 0;
 	for (int i = 0; i < decCount; i++) {
-		switch(outputs[i].retCode) {
+		switch(g_plugins[i]->output.retCode) {
 			case 0:
 				num_of_oks++;
 				break;
@@ -5485,7 +5884,7 @@ void collectJsonData(int decLen){
 	fputs("   \"monitoring\": [\n", fp);
 	for (int i = 0; i < decLen; i++) {
 		//pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
-		pluginName = strdup(declarations[i].name);
+		pluginName = strdup(g_plugins[i]->name);
 		if (pluginName == NULL) {
 			fprintf(stderr, "Memory allocation failed.\n");
 			writeLog("Failed to allocate memory [collectJsonData:pluginName]", 2, 0);
@@ -5497,8 +5896,8 @@ void collectJsonData(int decLen){
 		fprintf(fp, "         \"name\":\"%s\",\n", pluginName);
 		free(pluginName);
 		pluginName = NULL;
-		fprintf(fp, "         \"pluginName\":\"%s\",\n", declarations[i].description);
-		switch(outputs[i].retCode) {
+		fprintf(fp, "         \"pluginName\":\"%s\",\n", g_plugins[i]->description);
+		switch(g_plugins[i]->output.retCode) {
 			case 0:
 			   fputs("         \"pluginStatus\":\"OK\",\n", fp);
 			   break;
@@ -5512,16 +5911,16 @@ void collectJsonData(int decLen){
 			   fputs("         \"pluginStatus\":\"UNKNOWN\",\n", fp);
                            break;
 		}
-		fprintf(fp, "         \"pluginStatusCode\":\"%d\",\n", outputs[i].retCode);
-		fprintf(fp, "         \"pluginOutput\":\"%s\",\n", trim(outputs[i].retString));
-		fprintf(fp, "         \"pluginStatusChanged\":\"%s\",\n", declarations[i].statusChanged);
-		if (declarations[i].active > 0)
+		fprintf(fp, "         \"pluginStatusCode\":\"%d\",\n", g_plugins[i]->output.retCode);
+		fprintf(fp, "         \"pluginOutput\":\"%s\",\n", trim(g_plugins[i]->output.retString));
+		fprintf(fp, "         \"pluginStatusChanged\":\"%s\",\n", g_plugins[i]->statusChanged);
+		if (g_plugins[i]->active > 0)
                         fputs("         \"maintenance\":\"false\",\n", fp);
                 else
                         fputs("         \"maintenance\":\"true\",\n", fp);
-		fprintf(fp, "         \"lastChange\":\"%s\",\n", declarations[i].lastChangeTimestamp);
-		fprintf(fp, "         \"lastRun\":\"%s\", \n", declarations[i].lastRunTimestamp);
-		fprintf(fp, "         \"nextRun\":\"%s\"\n", declarations[i].nextRunTimestamp);
+		fprintf(fp, "         \"lastChange\":\"%s\",\n", g_plugins[i]->lastChangeTimestamp);
+		fprintf(fp, "         \"lastRun\":\"%s\", \n", g_plugins[i]->lastRunTimestamp);
+		fprintf(fp, "         \"nextRun\":\"%s\"\n", g_plugins[i]->nextRunTimestamp);
 		if (i == decLen-1) {
 			fputs("      }\n", fp);
 		}
@@ -5567,14 +5966,19 @@ void collectMetrics(int decLen, int style) {
         snprintf(infostr, infostr_size, "Collecting metrics to file: %s", storeName);
         writeLog(trim(infostr), 0, 0);
 	for (int i = 0; i < decLen; i++) {
-		pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
+		/*pluginName = (char *)malloc((size_t)pluginitemname_size * sizeof(char)+1);
 		memset(pluginName, '\0', pluginitemname_size+1 * sizeof(char));
 		if (pluginName == NULL) {
 			fprintf(stderr, "Memory allocation failed.\n");
 			writeLog("Memory allocation failed [collectMetrics:pluginName]", 2, 0);
 			return;
+		}*/
+		pluginName = strdup(g_plugins[i]->name);
+		if (!pluginName) {
+			fprintf(stderr, "Memory allocation failed.\n");
+                        writeLog("Memory allocation failed [collectMetrics:pluginName]", 2, 0);
+                        return;
 		}
-		pluginName = strdup(declarations[i].name);
         	removeChar(pluginName, '[');
         	removeChar(pluginName, ']');
 		for (p = pluginName; *p != '\0'; ++p) {
@@ -5583,43 +5987,51 @@ void collectMetrics(int decLen, int style) {
 		}
         	// Get metrics
         	char *e;
-		if (strchr(outputs[i].retString, '|') == NULL) {
-			snprintf(infostr, infostr_size, "Plugin %s does not provide metrics. Using plain output.", pluginName);
-			writeLog(trim(infostr), 1, 0);
+		char *raw = g_plugins[i]->output.retString;
+		char *trimmed_raw = raw ? trim(raw) : "";
+		if (raw == NULL || strchr(raw, '|') == NULL) {
+			snprintf(infostr, infostr_size, "Plugin %s does not provide metrics. Using plain output.",pluginName);
+        		writeLog(trim(infostr), 1, 0);
+		//if (strchr(outputs[i].retString, '|') == NULL) {
+		//	snprintf(infostr, infostr_size, "Plugin %s does not provide metrics. Using plain output.", pluginName);
+		//	writeLog(trim(infostr), 1, 0);
+			const char *prefix = trim(metricsOutputPrefix);
 			if (style == 0)
-                       		fprintf(mf, "%s_%s{hostname=\"%s\",%s_result=\"%s\"} %d\n", trim(metricsOutputPrefix), pluginName, hostName, pluginName, trim(outputs[i].retString), outputs[i].retCode);
+                       		fprintf(mf, "%s_%s{hostname=\"%s\",%s_result=\"%s\"} %d\n", prefix, pluginName, hostName, pluginName, trimmed_raw, g_plugins[i]->output.retCode);
 			else { 
 				// Get service name	
-				serviceName = (char *)malloc((size_t)pluginitemdesc_size * sizeof(char));
+				/*serviceName = (char *)malloc((size_t)pluginitemdesc_size * sizeof(char));
 				if (serviceName == NULL) {
 					fprintf(stderr, "Failed to allocate memory.\n");
 					writeLog("Failed to allocate memory [collectMetrics:serviceName]", 2, 0);
 					return;
 				}
 				memset(serviceName, '\0', pluginitemdesc_size * sizeof(char));
-				strcpy(serviceName, declarations[i].description);
-				fprintf(mf, "%s_%s{hostname=\"%s\", service=\"%s\", value=\"%s\"} %d\n", trim(metricsOutputPrefix), pluginName, hostName, serviceName, trim(outputs[i].retString), outputs[i].retCode);
+				strcpy(serviceName, g_plugins[i].description);*/
+				const char *service = trim(g_plugins[i]->description);
+				fprintf(mf, "%s_%s{hostname=\"%s\", service=\"%s\", value=\"%s\"} %d\n", prefix, pluginName, hostName, service, trimmed_raw, g_plugins[i]->output.retCode);
 				free(serviceName);
 				serviceName = NULL;
 			}
 		}
                 else {
-        	 	e = strchr(outputs[i].retString, '|');
-        	    	int position = (int)(e - outputs[i].retString);
+        	 	e = strchr(g_plugins[i]->output.retString, '|');
+        	    	int position = (int)(e - g_plugins[i]->output.retString);
 			int len = pluginoutput_size;
-			size_t srcSize = strlen(outputs[i].retString) - position;
+			size_t srcSize = strlen(g_plugins[i]->output.retString) - position;
 			int sublen = (srcSize < len) ? srcSize : len;
 			char * metrics = malloc((size_t)sizeof(char) * sublen);
 			memset(metrics, 0, sizeof(char) * sublen);
 			if (sublen <= srcSize) {
-        			memcpy(metrics,&outputs[i].retString[position+1],sublen);
+        			//memcpy(metrics,&outputs[i].retString[position+1],sublen);
+				memcpy(metrics, &g_plugins[i]->output.retString[position+1],sublen);
 			}
 			else {
 				writeLog("Invalid memcpy operation: size exceeds buffer limit.", 1, 0);
 				fprintf(stderr, "Size exceeds buffer [memcpy].\n");
 			}
 			if (style == 0)
-				fprintf(mf, "%s_%s{hostname=\"%s\", %s_result=\"%s\"} %d\n", trim(metricsOutputPrefix), pluginName, hostName, pluginName, trim(outputs[i].retString), outputs[i].retCode);
+				fprintf(mf, "%s_%s{hostname=\"%s\", %s_result=\"%s\"} %d\n", trim(metricsOutputPrefix), pluginName, hostName, pluginName, trim(g_plugins[i]->output.retString), g_plugins[i]->output.retCode);
 			else {
 				serviceName = (char *)malloc((size_t)pluginitemdesc_size * sizeof(char));
 				if (serviceName == NULL) {
@@ -5628,7 +6040,7 @@ void collectMetrics(int decLen, int style) {
 					return;
 				}
 				memset(serviceName, '\0', pluginitemdesc_size * sizeof(char));
-				strcpy(serviceName, declarations[i].description);
+				strcpy(serviceName, g_plugins[i]->description);
 				// We need to loop through metrics
 				char * token = strtok(metrics, " ");
 				while (token != NULL) {
@@ -5749,17 +6161,17 @@ void timeTune(int seconds) {
 	// Loop through and change nextTimeValue
 	for (i = 0; i < decCount; i++) {
 		if (i != timeTunerMaster) {
-			time_t nextTime = declarations[i].nextRun + seconds;
+			time_t nextTime = g_plugins[i]->nextRun + seconds;
                 	struct tm tNextTime;
                 	memset(&tNextTime, '\0', sizeof(struct tm));
                	 	localtime_r(&nextTime, &tNextTime);
-                	int len = snprintf(declarations[i].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                	int len = snprintf(g_plugins[i]->nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 			if (len >= dest_size) {
 				writeLog("Truncation of timestamp possible in funtion 'timeTune'", 1, 0);
 			}
-                	declarations[i].nextRun = nextTime;
+                	g_plugins[i]->nextRun = nextTime;
 			if (timeScheduler == 1)
-				scheduler[declarations[i].id].timestamp = nextTime;
+				scheduler[g_plugins[i]->id].timestamp = nextTime;
 		}
 	}
 	if (timeScheduler > 0) {
@@ -5773,9 +6185,9 @@ void writePluginResultToFile(int storeIndex, int update) {
 	char timestr[35];
 	char ch = '/';
 	if (update == 0)
-		checkName = strdup(declarations[storeIndex].name);
+		checkName = strdup(g_plugins[storeIndex]->name);
 	else
-		checkName = strdup(update_declarations[storeIndex].name);
+		checkName = strdup(update_g_plugins[storeIndex].name);
 	memmove(checkName, checkName+1,strlen(checkName));
 	checkName[strlen(checkName)-1] = '\0';
 	/*strcpy(fileName, storeDir);
@@ -5797,9 +6209,9 @@ void writePluginResultToFile(int storeIndex, int update) {
 		fp = fopen(fileName, "w+");
 	}
 	if (update == 0) {
-		if (declarations[storeIndex].name && pluginReturnString) {
+		if (g_plugins[storeIndex]->name && pluginReturnString) {
 			if (fp != NULL)
-				fprintf(fp, "%s, %s, %s\n", timestr, declarations[storeIndex].name, pluginReturnString);
+				fprintf(fp, "%s, %s, %s\n", timestr, g_plugins[storeIndex]->name, pluginReturnString);
 			else {
 				printf("DEBUG: Could not find file stream. Error.\n");
 				writeLog("Could not find file stream [writePluginResultToFile]", 1, 0);
@@ -5809,7 +6221,7 @@ void writePluginResultToFile(int storeIndex, int update) {
 		fflush(fp);
 	}
 	else
-		fprintf(fp, "%s, %s, %s\n", timestr, update_declarations[storeIndex].name, pluginReturnString);
+		fprintf(fp, "%s, %s, %s\n", timestr, update_g_plugins[storeIndex].name, pluginReturnString);
 	fclose(fp);
 	fp = NULL;
 }
@@ -5818,13 +6230,12 @@ void writeToKafkaTopic(int storeIndex, int update) {
 	char *payload;
 	char *pluginName;
 	char *pluginStatus;
-	//char currTime[22];
 	char currTime[TIME_BUF_LEN];
 	size_t dest_size = 20;
         time_t tTime = time(NULL);
         struct tm tm = *localtime(&tTime);
 
-        int len = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        int len = snprintf(currTime, max_timestamp_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	if (len >= dest_size) {
 		writeLog("Possible truncation of timestamp in function 'writeToKafkaTopic'.", 1, 0);
 	}
@@ -5835,12 +6246,12 @@ void writeToKafkaTopic(int storeIndex, int update) {
         	return;
 	}
        	if (update == 0)
-       		pluginName = strdup(declarations[storeIndex].name);
+       		pluginName = strdup(g_plugins[storeIndex]->name);
 	else
-       		pluginName = strdup(update_declarations[storeIndex].name);
+       		pluginName = strdup(update_g_plugins[storeIndex].name);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
-        switch(outputs[storeIndex].retCode) {
+        switch(g_plugins[storeIndex]->output.retCode) {
         	case 0:
         		pluginStatus = malloc(3);
         		strcpy(pluginStatus, "OK");
@@ -5858,9 +6269,9 @@ void writeToKafkaTopic(int storeIndex, int update) {
         		strcpy(pluginStatus, "UNKNOWN");
         		break;
 	}
-        int count_bytes = strlen(hostName) + strlen(declarations[storeIndex].lastChangeTimestamp) + strlen(declarations[storeIndex].lastRunTimestamp) + strlen(declarations[storeIndex].name) + strlen(declarations[storeIndex].nextRunTimestamp);
+        int count_bytes = strlen(hostName) + strlen(g_plugins[storeIndex]->lastChangeTimestamp) + strlen(g_plugins[storeIndex]->lastRunTimestamp) + strlen(g_plugins[storeIndex]->name) + strlen(g_plugins[storeIndex]->nextRunTimestamp);
         count_bytes += pluginitemdesc_size + pluginoutput_size;
-        count_bytes += strlen(pluginStatus) + strlen(declarations[storeIndex].statusChanged);
+        count_bytes += strlen(pluginStatus) + strlen(g_plugins[storeIndex]->statusChanged);
         count_bytes += 185;
         int kafka_export_addons = 0;
         if (enableKafkaTag > 0) {
@@ -5881,12 +6292,12 @@ void writeToKafkaTopic(int storeIndex, int update) {
         	return;
         }
         if (kafka_export_addons < 1) {
-        	sprintf(payload, "{\"name\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+        	sprintf(payload, "{\"name\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, g_plugins[storeIndex]->lastChangeTimestamp, currTime, pluginName, g_plugins[storeIndex]->nextRunTimestamp, g_plugins[storeIndex]->description, g_plugins[storeIndex]->output.retString, pluginStatus, g_plugins[storeIndex]->statusChanged, g_plugins[storeIndex]->output.retCode);
         	printf("Payload = %s\n", payload);
         }
         else {
        		if (kafka_export_addons == KAFKA_EXPORT_TAG) {
-        		sprintf(payload, "{\"name\":\"%s\", \"tag\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+        		sprintf(payload, "{\"name\":\"%s\", \"tag\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_tag, g_plugins[storeIndex]->lastChangeTimestamp, currTime, pluginName, g_plugins[storeIndex]->nextRunTimestamp, g_plugins[storeIndex]->description, g_plugins[storeIndex]->output.retString, pluginStatus, g_plugins[storeIndex]->statusChanged, g_plugins[storeIndex]->output.retCode);
         	}
         	else {
         		int nKafkaId = kafka_start_id + storeIndex;
@@ -5894,10 +6305,10 @@ void writeToKafkaTopic(int storeIndex, int update) {
         		char* kafka_id = malloc((size_t)length + 1);
         		snprintf(kafka_id, (size_t)length+1, "%d", nKafkaId);
         		if (kafka_export_addons == KAFKA_EXPORT_ID) {
-        			sprintf(payload, "{\"name\":\"%s\", \"id\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_id, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+        			sprintf(payload, "{\"name\":\"%s\", \"id\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_id, g_plugins[storeIndex]->lastChangeTimestamp, currTime, pluginName, g_plugins[storeIndex]->nextRunTimestamp, g_plugins[storeIndex]->description, g_plugins[storeIndex]->output.retString, pluginStatus, g_plugins[storeIndex]->statusChanged, g_plugins[storeIndex]->output.retCode);
         		}
         		else if (kafka_export_addons == KAFKA_EXPORT_IDTAG) {
-        			sprintf(payload, "{\"name\":\"%s\", \"id\":\"%s\",\"tag\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_id, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+        			sprintf(payload, "{\"name\":\"%s\", \"id\":\"%s\",\"tag\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_id, kafka_tag, g_plugins[storeIndex]->lastChangeTimestamp, currTime, pluginName, g_plugins[storeIndex]->nextRunTimestamp, g_plugins[storeIndex]->description, g_plugins[storeIndex]->output.retString, pluginStatus, g_plugins[storeIndex]->statusChanged, g_plugins[storeIndex]->output.retCode);
                         }
                 }
 	}
@@ -5909,7 +6320,7 @@ void writeToKafkaTopic(int storeIndex, int update) {
                 	int length = snprintf(NULL, 0, "%d", nKafkaId);
                 	char* kafka_id = malloc((size_t)length + 1);
                 	snprintf(kafka_id, (size_t)length+1, "%d", nKafkaId);
-			send_avro_message_to_kafka(kafka_brokers, kafka_topic, hostName, kafka_id, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+			send_avro_message_to_kafka(kafka_brokers, kafka_topic, hostName, kafka_id, kafka_tag, g_plugins[storeIndex]->lastChangeTimestamp, currTime, pluginName, g_plugins[storeIndex]->nextRunTimestamp, g_plugins[storeIndex]->description, g_plugins[storeIndex]->output.retString, pluginStatus, g_plugins[storeIndex]->statusChanged, g_plugins[storeIndex]->output.retCode);
 		}
 	}
         else {
@@ -5921,7 +6332,7 @@ void writeToKafkaTopic(int storeIndex, int update) {
                 	int length = snprintf(NULL, 0, "%d", nKafkaId);
                 	char* kafka_id = malloc((size_t)length + 1);
                 	snprintf(kafka_id, (size_t)length+1, "%d", nKafkaId);
-        		send_ssl_avro_message_to_kafka(kafka_brokers, kafkaCACertificate, kafkaProducerCertificate, kafkaSSLKey, kafka_topic, hostName, kafka_id, kafka_tag, declarations[storeIndex].lastChangeTimestamp, currTime, pluginName, declarations[storeIndex].nextRunTimestamp, declarations[storeIndex].description, outputs[storeIndex].retString, pluginStatus, declarations[storeIndex].statusChanged, outputs[storeIndex].retCode);
+        		send_ssl_avro_message_to_kafka(kafka_brokers, kafkaCACertificate, kafkaProducerCertificate, kafkaSSLKey, kafka_topic, hostName, kafka_id, kafka_tag, g_plugins[storeIndex]->lastChangeTimestamp, currTime, pluginName, g_plugins[storeIndex]->nextRunTimestamp, g_plugins[storeIndex]->description, g_plugins[storeIndex]->output.retString, pluginStatus, g_plugins[storeIndex]->statusChanged, g_plugins[storeIndex]->output.retCode);
 		}
 	}
 	free(pluginName);
@@ -5944,7 +6355,7 @@ void runPluginCommand(int index, char* command) {
 		writeLog("Command longer than expected. Aborting run.", 1, 0);
 		return;
 	}
-	prevRetCode = outputs[index].retCode;
+	prevRetCode = g_plugins[index]->output.retCode;
 	ct = clock();
 	time(&t);
 	snprintf(infostr, infostr_size, "Running %s.", trim(command));
@@ -5954,8 +6365,8 @@ void runPluginCommand(int index, char* command) {
 		printf("Failed to run command\n");
 		writeLog("Failed to run command.", 1, 0);
 		// Update with failed run
-		outputs[index].retCode = 3;
-		strncpy(outputs[index].retString, "UNKNOWN: Failed to run command", pluginoutput_size);
+		g_plugins[index]->output.retCode = 3;
+		strncpy(g_plugins[index]->output.retString, "UNKNOWN: Failed to run command", pluginoutput_size);
 		return;
 	}
 	add_plugin_pid(tp.pid);
@@ -5972,59 +6383,61 @@ void runPluginCommand(int index, char* command) {
 
 	if (rc > 0) {
         	if (rc == 256)
-        		outputs[index].retCode = 1;
+        		g_plugins[index]->output.retCode = 1;
         	else if (rc == 512)
-        		outputs[index].retCode = 2;
+        		g_plugins[index]->output.retCode = 2;
         	else
-        		outputs[index].retCode = rc;
+        		g_plugins[index]->output.retCode = rc;
         }
         else
-        	outputs[index].retCode = rc;
+        	g_plugins[index]->output.retCode = rc;
 	remove_plugin_pid(tp.pid);
-	if (pluginReturnString != NULL && outputs[index].retString != NULL) {
+	if (pluginReturnString != NULL && g_plugins[index]->output.retString != NULL) {
 		if (strlen(trim(pluginReturnString)) < pluginoutput_size)
-                	strncpy(outputs[index].retString, trim(pluginReturnString), pluginoutput_size);
+                	//strncpy(outputs[index].retString, trim(pluginReturnString), pluginoutput_size);
+			strncpy(g_plugins[index]->output.retString, trim(pluginReturnString), pluginoutput_size);
                 else {
                 	pluginReturnString[pluginoutput_size] = '\0';
-                	strncpy(outputs[index].retString, trim(pluginReturnString), pluginoutput_size);
+                	//strncpy(outputs[index].retString, trim(pluginReturnString), pluginoutput_size);
+			strncpy(g_plugins[index]->output.retString, trim(pluginReturnString), pluginoutput_size);
              	}
 	}
 	size_t dest_size = 20;
         time_t tTime = time(NULL);
         struct tm tm = *localtime(&tTime);
-	int tlen = snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	int tlen = snprintf(currTime, max_timestamp_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	if (tlen >= dest_size) {
 		writeLog("Possible truncation of timestamp in function 'runPluginCommand'.", 1, 0);
 	}
-	if (outputs[index].prevRetCode != -1){
+	if (g_plugins[index]->output.prevRetCode != -1){
         	//snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-                if (prevRetCode != outputs[index].retCode){
-                	strcpy(declarations[index].statusChanged, "1");
-                	strcpy(declarations[index].lastChangeTimestamp, currTime);
+                if (prevRetCode != g_plugins[index]->output.retCode){
+                	strcpy(g_plugins[index]->statusChanged, "1");
+                	strcpy(g_plugins[index]->lastChangeTimestamp, currTime);
                 }
                 else {
-                	strcpy(declarations[index].statusChanged, "0");
+                	strcpy(g_plugins[index]->statusChanged, "0");
                 }
-		strcpy(declarations[index].lastRunTimestamp, currTime);
-                time_t nextTime = t + (declarations[index].interval * 60);
+		strcpy(g_plugins[index]->lastRunTimestamp, currTime);
+                time_t nextTime = t + (g_plugins[index]->interval * 60);
                 struct tm tNextTime;
                 memset(&tNextTime, '\0', sizeof(struct tm));
                 localtime_r(&nextTime, &tNextTime);
-                int len = snprintf(declarations[index].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                int len = snprintf(g_plugins[index]->nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 		if (len >= dest_size) {
 			writeLog("Possible truncation of timestamp in 'runPluginCommand'.", 1, 0);
 		}
-                declarations[index].nextRun = nextTime;
-                outputs[index].prevRetCode = outputs[index].retCode;
+                g_plugins[index]->nextRun = nextTime;
+                g_plugins[index]->output.prevRetCode = g_plugins[index]->output.retCode;
                 if (timeScheduler == 1) {
                 	scheduler[0].timestamp = nextTime;
                 }
        	}
        	else {
-       		outputs[index].prevRetCode = 0;
+       		g_plugins[index]->output.prevRetCode = 0;
       	}
       	ct = clock() -ct;
-        snprintf(infostr, infostr_size, "%s executed. Execution took %.0f milliseconds.\n", declarations[index].name, (double)ct);
+        snprintf(infostr, infostr_size, "%s executed. Execution took %.0f milliseconds.\n", g_plugins[index]->name, (double)ct);
         writeLog(trim(infostr), 0, 0);
         if (logPluginOutput == 1) {
                 char* o_info;
@@ -6034,7 +6447,7 @@ void runPluginCommand(int index, char* command) {
                         writeLog("Could not allocate memory for variable 'o_info'.", 2, 0);
 			return;
                 }
-                snprintf(o_info, (size_t)o_info_size, "%s : %s", declarations[index].name, pluginReturnString);
+                snprintf(o_info, (size_t)o_info_size, "%s : %s", g_plugins[index]->name, pluginReturnString);
                 writeLog(trim(o_info), 0, 0);
                 free(o_info);
                 o_info = NULL;
@@ -6047,7 +6460,7 @@ void runPluginCommand(int index, char* command) {
 	}
 }
 
-void runPlugin(int storeIndex, int update) {
+void runPluginOld(int storeIndex, int update) {
 	char ch = '/';
 	int prevRetCode = 0;
 	clock_t ct;
@@ -6058,7 +6471,7 @@ void runPlugin(int storeIndex, int update) {
 	char sPluginCommand[plugincommand_size];
 
 	if (update > 0)
-		prevRetCode = outputs[storeIndex].retCode;
+		prevRetCode = g_plugins[storeIndex]->output.retCode;
 	ct = clock();
 	time(&t);
 	// Test local var
@@ -6067,12 +6480,12 @@ void runPlugin(int storeIndex, int update) {
 	//sPluginCommand[plugincommand_size -1] = '\0';
 	snprintf(sPluginCommand, plugincommand_size, "%s%c", pluginDir, ch);
 	if (update > 0) {
-                strcat(sPluginCommand, update_declarations[storeIndex].command);
-                snprintf(infostr, infostr_size, "Running: %s.", update_declarations[storeIndex].command);
+                strcat(sPluginCommand, update_g_plugins[storeIndex].command);
+                snprintf(infostr, infostr_size, "Running: %s.", update_g_plugins[storeIndex].command);
         }
         else {
-                strcat(sPluginCommand, declarations[storeIndex].command);
-                snprintf(infostr, infostr_size, "Running: %s.", declarations[storeIndex].command);
+                strcat(sPluginCommand, g_plugins[storeIndex]->command);
+                snprintf(infostr, infostr_size, "Running: %s.", g_plugins[storeIndex]->command);
         }
 	writeLog(trim(infostr), 0, 0);
 	TrackedPopen tp = tracked_popen(sPluginCommand);
@@ -6099,53 +6512,53 @@ void runPlugin(int storeIndex, int update) {
 			if (rc > 0)
 			{
 				if (rc == 256)
-					outputs[storeIndex].retCode = 1;
+					g_plugins[storeIndex]->output.retCode = 1;
 				else if (rc == 512)
-					outputs[storeIndex].retCode = 2;
+					g_plugins[storeIndex]->output.retCode = 2;
 				else
-					outputs[storeIndex].retCode = rc;
+					g_plugins[storeIndex]->output.retCode = rc;
 			}
 			else
-				outputs[storeIndex].retCode = rc;
+				g_plugins[storeIndex]->output.retCode = rc;
 			break;
 		case 1:
 			if (rc > 0) {
 				if (rc == 256)
-					update_outputs[storeIndex].retCode = 1;
+					printf("Depricated.\n");
 				else if (rc == 512)
-					update_outputs[storeIndex].retCode = 2;
+					printf("Depricated.\n");
 				else
-					update_outputs[storeIndex].retCode = rc;
+					printf("Depricated.\n");
 			}
 			else
-				update_outputs[storeIndex].retCode = rc;
+				printf("Depricated.\n");			
 			break;
 		default:
 			switch (rc) {
 				case 256:
-					outputs[storeIndex].retCode = 1;
-					update_outputs[storeIndex].retCode = 1;
+					g_plugins[storeIndex]->output.retCode = 1;
+					//update_outputs[storeIndex].retCode = 1;
 					break;
 				case 512:
-					outputs[storeIndex].retCode = 1;
-                                        update_outputs[storeIndex].retCode = 1;
+					g_plugins[storeIndex]->output.retCode = 1;
+                                        //update_outputs[storeIndex].retCode = 1;
 					break;
 				default:
-					outputs[storeIndex].retCode = rc;
-                                        update_outputs[storeIndex].retCode = rc;
+					g_plugins[storeIndex]->output.retCode = rc;
+                                        //update_outputs[storeIndex].retCode = rc;
 			}
 	}
 	//outout.retString size?
 	if (update > 0){ 
-		update_outputs[storeIndex].retString = strdup(trim(pluginReturnString));
+		//update_outputs[storeIndex].retString = strdup(trim(pluginReturnString));
 	}
 	else {
-		if (pluginReturnString != NULL && outputs[storeIndex].retString != NULL){
+		if (pluginReturnString != NULL && g_plugins[storeIndex]->output.retString != NULL){
 			if (strlen(trim(pluginReturnString)) < pluginoutput_size) 
-				strncpy(outputs[storeIndex].retString, trim(pluginReturnString), pluginoutput_size);
+				strncpy(g_plugins[storeIndex]->output.retString, trim(pluginReturnString), pluginoutput_size);
 			else {
 				pluginReturnString[pluginoutput_size] = '\0';
-				strncpy(outputs[storeIndex].retString, trim(pluginReturnString), pluginoutput_size);
+				strncpy(g_plugins[storeIndex]->output.retString, trim(pluginReturnString), pluginoutput_size);
 			}
 		}
 		else
@@ -6159,18 +6572,14 @@ void runPlugin(int storeIndex, int update) {
 		writeLog("Possible truncation of timestamp while running plugin.", 1, 0);
 	}
 	if (update == 0) {
-		if (outputs[storeIndex].prevRetCode != -1){
-			/*size_t dest_size = 20;
-                	time_t t = time(NULL);
-                	struct tm tm = *localtime(&t);
-                	snprintf(currTime, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);*/
-                	if (prevRetCode != outputs[storeIndex].retCode){
-				strcpy(declarations[storeIndex].statusChanged, "1");
-				strcpy(declarations[storeIndex].lastChangeTimestamp, currTime);
+		if (g_plugins[storeIndex]->output.prevRetCode != -1){
+                	if (prevRetCode != g_plugins[storeIndex]->output.retCode){
+				strcpy(g_plugins[storeIndex]->statusChanged, "1");
+				strcpy(g_plugins[storeIndex]->lastChangeTimestamp, currTime);
 				// Here something is wrong, it updates even if change is 0?
 			}
 			else {
-				strcpy(declarations[storeIndex].statusChanged, "0");
+				strcpy(g_plugins[storeIndex]->statusChanged, "0");
 			}
 			if (enableTimeTuner == 1) {
 				if (storeIndex == timeTunerMaster) {
@@ -6180,7 +6589,7 @@ void runPlugin(int storeIndex, int update) {
 						// Get time diff
 						char oldTime[20];
 						struct tm time;
-						strcpy(oldTime, declarations[timeTunerMaster].lastRunTimestamp);
+						strcpy(oldTime, g_plugins[timeTunerMaster]->lastRunTimestamp);
 						strptime(oldTime, "%04d-%02d-%02d %02d:%02d:%02d", &time);
 						time_t ttOldTime = 0, ttCurTime = 0;
 						int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
@@ -6210,47 +6619,47 @@ void runPlugin(int storeIndex, int update) {
                                                                 fprintf(stderr, "Could not convert time input to time_t\n");
                                                         }
                                                 }
-						int difference = ttCurTime - ttOldTime - (declarations[timeTunerMaster].interval * 60);
+						int difference = ttCurTime - ttOldTime - (g_plugins[timeTunerMaster]->interval * 60);
 						// Apply time diff to all nextRuns :)
 						timeTune(difference);
 					}
 				}
                         }
-                	strcpy(declarations[storeIndex].lastRunTimestamp, currTime);
-                	time_t nextTime = t + (declarations[storeIndex].interval * 60);
+                	strcpy(g_plugins[storeIndex]->lastRunTimestamp, currTime);
+                	time_t nextTime = t + (g_plugins[storeIndex]->interval * 60);
                 	struct tm tNextTime;
                 	memset(&tNextTime, '\0', sizeof(struct tm));
                 	localtime_r(&nextTime, &tNextTime);
-                	len = snprintf(declarations[storeIndex].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                	len = snprintf(g_plugins[storeIndex]->nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 			if (len >= dest_size) {
 				writeLog("Possible truncation of timestamp in 'runPlugin'.", 1, 0);
 			}
-			declarations[storeIndex].nextRun = nextTime;
-                	outputs[storeIndex].prevRetCode = outputs[storeIndex].retCode;
+			g_plugins[storeIndex]->nextRun = nextTime;
+                	g_plugins[storeIndex]->output.prevRetCode = g_plugins[storeIndex]->output.retCode;
 			if (timeScheduler == 1) {
 				scheduler[0].timestamp = nextTime;
 			}
 		}
 		else {
-	        	outputs[storeIndex].prevRetCode = 0; 
+	        	g_plugins[storeIndex]->output.prevRetCode = 0; 
 		}
 	}
 	else {
 		// If update = 1 use update_outputs
 		// Will this be correct?
-		if (prevRetCode != update_outputs[storeIndex].retCode){
-                	strcpy(update_declarations[storeIndex].statusChanged, "1");
-                        strcpy(update_declarations[storeIndex].lastChangeTimestamp, currTime);
+		/*if (prevRetCode != update_outputs[storeIndex].retCode){
+                	strcpy(update_g_plugins[storeIndex].statusChanged, "1");
+                        strcpy(update_g_plugins[storeIndex].lastChangeTimestamp, currTime);
                 }
                 else {
-                	strcpy(update_declarations[storeIndex].statusChanged, "0");
-                }
+                	strcpy(update_g_plugins[storeIndex].statusChanged, "0");
+                }*/
 	}
 	ct = clock() -ct;
 	if (update == 0)
-		snprintf(infostr, infostr_size, "%s executed. Execution took %.0f milliseconds.\n", declarations[storeIndex].name, (double)ct);
+		snprintf(infostr, infostr_size, "%s executed. Execution took %.0f milliseconds.\n", g_plugins[storeIndex]->name, (double)ct);
 	else
-		snprintf(infostr, infostr_size, "%s executed. Execution took %.0f milliseconds.\n", update_declarations[storeIndex].name, (double)ct);
+		snprintf(infostr, infostr_size, "%s executed. Execution took %.0f milliseconds.\n", update_g_plugins[storeIndex].name, (double)ct);
         writeLog(trim(infostr), 0, 0);
 	if (logPluginOutput == 1) {
 		char* o_info;
@@ -6260,9 +6669,9 @@ void runPlugin(int storeIndex, int update) {
 			writeLog("Could not allocate memory for variable 'o_info'.", 2, 0);
 		}
 		if (update == 0)
-			snprintf(o_info, (size_t)o_info_size, "%s : %s", declarations[storeIndex].name, pluginReturnString);
+			snprintf(o_info, (size_t)o_info_size, "%s : %s", g_plugins[storeIndex]->name, pluginReturnString);
 		else
-			snprintf(o_info, (size_t)o_info_size, "%s : %s", update_declarations[storeIndex].name, pluginReturnString);
+			snprintf(o_info, (size_t)o_info_size, "%s : %s", update_g_plugins[storeIndex].name, pluginReturnString);
 		writeLog(trim(o_info), 0, 0);
 		free(o_info);
 		o_info = NULL;
@@ -6340,10 +6749,20 @@ void* pluginExeThread(void* data) {
     	pthread_sigmask(SIG_BLOCK, &sigset, NULL);*/
 	intptr_t storeIndex = (intptr_t)data;
 	pthread_detach(pthread_self());
-	// VERBOSE printf("Executing %s in pthread %lu\n", declarations[storeIndex].description, pthread_self());
+	// VERBOSE printf("Executing %s in pthread %lu\n", g_plugins[storeIndex].description, pthread_self());
 	pthread_mutex_lock(&mtx);
 	threadIds[(short)storeIndex] = 1;
-	runPlugin(storeIndex, 0);
+        PluginItem *pi = getPluginItem(storeIndex);
+	run_plugin(pi);
+        for (size_t i = 0; i < decCount; i++) {
+                if (scheduler[i].id == storeIndex) {
+                        scheduler[i].timestamp = g_plugins[storeIndex]->nextRun;
+                        //printf("Updated scheduler[%zu] for plugin_id %ld\n", i, storeIndex);
+                        break;
+                }
+        }
+
+	//runPlugin(storeIndex, 0);
 	if (timeScheduler == 1){
 		rescheduleChecks();
 	}
@@ -6392,7 +6811,7 @@ int countDeclarations(char *file_name) {
 	if (fp == NULL)
         {
                 perror("Error while opening the file[countDeclarations].\n");
-		writeLog("Error opening and counting declarations file.", 2, 0);
+		writeLog("Error opening and counting g_plugins file.", 2, 0);
                 exit(EXIT_FAILURE);
         }
         while ((ch = fgetc(fp)) != EOF) {
@@ -6404,7 +6823,44 @@ int countDeclarations(char *file_name) {
 	return i-1;
 }
 
-int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
+/*int loadPluginDeclarations(const char *configFile, int reload) {
+	FILE *fp = fopen(configFile, "r");
+    	if (!fp) {
+        	writeLog("Cannot open plugin g_plugins file", 2, 0);
+        	return -1;
+    	}
+
+    	char *line = NULL;
+    	size_t len = 0;
+    	ssize_t read;
+    	int count = 0;
+    	int lineno = 0;
+
+    	while ((read = getline(&line, &len, fp)) != -1) {
+        	lineno++;
+        	char *trimmed = trim_line(line);
+        	if (*trimmed == '\0' || *trimmed == '#')
+            		continue;  
+
+        	if (count >= MAX_DECLS) {
+            		writeLog("Too many g_plugins, skipping rest", LOG_LEVEL_WARN, 0);
+            		break;
+        	}
+
+        	if (parseLine(trimmed, &g_plugins[count], count, lineno)) {
+            		snprintf(infostr, sizeof(infostr),"Loaded declaration [%s] (id=%d)",g_plugins[count].name, count);
+            		writeLog(infostr, 0, 0);
+            		count++;
+        	}
+    	}
+
+    	free(line);
+    	fclose(fp);
+
+	return count;
+}*/
+
+/*int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
     	int counter      = 0;
     	int i, index     = 0;
     	int ret          = 0;     // return code, 0 on success, <0 on error
@@ -6416,7 +6872,7 @@ int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
 
     	fp = fopen(pluginDeclarationsFile, "r");
     	if (!fp) {
-        	writeLog("Error opening plugin declarations file.", 2, 0);
+        	writeLog("Error opening plugin g_plugins file.", 2, 0);
         	ret = -1;
         	goto cleanup;
     	}
@@ -6456,18 +6912,18 @@ int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
                     				{
                         				char *desc = strtok(NULL, "?");
                         				if (!reload) {
-                            					free(declarations[counter].name);
-                            					declarations[counter].name = strdup(name);
-                            					free(declarations[counter].description);
-                            					declarations[counter].description = desc 
+                            					free(g_plugins[counter].name);
+                            					g_plugins[counter].name = strdup(name);
+                            					free(g_plugins[counter].description);
+                            					g_plugins[counter].description = desc 
                                 					? strdup(desc) 
                                 					: NULL;
                         				} else {
-                            					free(update_declarations[counter].name);
-                            					update_declarations[counter].name = strdup(name);
+                            					free(update_g_plugins[counter].name);
+                            					update_g_plugins[counter].name = strdup(name);
                             					if (desc) {
-                                					free(update_declarations[counter].description);
-                                					update_declarations[counter].description = strdup(desc);
+                                					free(update_g_plugins[counter].description);
+                                					update_g_plugins[counter].description = strdup(desc);
                             					} else {
                                 					parsingErr = 1;
                             					}
@@ -6480,26 +6936,26 @@ int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
                         				break;
                     				}
                     				if (!reload) {
-                        				free(declarations[counter].command);
-                        				declarations[counter].command = strdup(token);
+                        				free(g_plugins[counter].command);
+                        				g_plugins[counter].command = strdup(token);
                     				} else {
-                        				free(update_declarations[counter].command);
-                        				update_declarations[counter].command = strdup(token);
+                        				free(update_g_plugins[counter].command);
+                        				update_g_plugins[counter].command = strdup(token);
                     				}
                     				break;
                   			case 3:
                     				if (!reload)
-                        				declarations[counter].active = atoi(token);
+                        				g_plugins[counter].active = atoi(token);
                     				else
-                        				update_declarations[counter].active = atoi(token);
+                        				update_g_plugins[counter].active = atoi(token);
                     				break;
                   			case 4:
                     				if (!reload) {
-                        				declarations[counter].interval = atoi(token);
-                        				declarations[counter].id = index - 1;
+                        				g_plugins[counter].interval = atoi(token);
+                        				g_plugins[counter].id = index - 1;
                     				} else {
-                        				update_declarations[counter].interval = atoi(token);
-                        				update_declarations[counter].id = index - 1;
+                        				update_g_plugins[counter].interval = atoi(token);
+                        				update_g_plugins[counter].id = index - 1;
                     				}
                     				break;
                   			default:
@@ -6516,15 +6972,15 @@ int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
             		}
         	}
         	if (!reload) {
-            		declarations[counter].lastRunTimestamp[0]     = '\0';
-            		declarations[counter].nextRunTimestamp[0]    = '\0';
-            		declarations[counter].lastChangeTimestamp[0] = '\0';
-            		declarations[counter].statusChanged[0]       = '\0';
+            		g_plugins[counter].lastRunTimestamp[0]     = '\0';
+            		g_plugins[counter].nextRunTimestamp[0]    = '\0';
+            		g_plugins[counter].lastChangeTimestamp[0] = '\0';
+            		g_plugins[counter].statusChanged[0]       = '\0';
         	} else {
-            		update_declarations[counter].lastRunTimestamp[0]     = '\0';
-            		update_declarations[counter].nextRunTimestamp[0]    = '\0';
-            		update_declarations[counter].lastChangeTimestamp[0] = '\0';
-            		update_declarations[counter].statusChanged[0]       = '\0';
+            		update_g_plugins[counter].lastRunTimestamp[0]     = '\0';
+            		update_g_plugins[counter].nextRunTimestamp[0]    = '\0';
+            		update_g_plugins[counter].lastChangeTimestamp[0] = '\0';
+            		update_g_plugins[counter].statusChanged[0]       = '\0';
         	}
         	snprintf(infostr, infostr_size,"Declaration with index %d is created.\n", counter);
         	writeLog(trim(infostr), 0, 0);
@@ -6540,9 +6996,43 @@ int loadPluginDeclarations(const char *pluginDeclarationsFile, int reload) {
     		}
 
    	return (ret == 0 ? counter : ret);
-}
+}*/
 
 void copyPluginItem(PluginItem *dest, const PluginItem *src, int mode) {
+    if (!dest || !src) return;  // Defensive check
+
+    if (mode == 0) {
+        if (src->name != NULL) {
+            snprintf(dest->lastRunTimestamp, max_timestamp_size, "%s", src->lastRunTimestamp);
+            snprintf(dest->nextRunTimestamp, max_timestamp_size, "%s", src->nextRunTimestamp);
+            snprintf(dest->lastChangeTimestamp, max_timestamp_size, "%s", src->lastChangeTimestamp);
+            snprintf(dest->statusChanged, 2, "%s", src->statusChanged);
+            dest->active = src->active;
+            dest->interval = src->interval;
+            dest->nextRun = src->nextRun;
+        } else {
+            writeLog("copyPluginItem[src->name] is empty. Do not copy.", 0, 0);
+        }
+    } else if (mode == 2) {
+        snprintf(dest->lastRunTimestamp, max_timestamp_size, "%s", src->lastRunTimestamp);
+        snprintf(dest->nextRunTimestamp, max_timestamp_size, "%s", src->nextRunTimestamp);
+        snprintf(dest->statusChanged, 2, "%s", src->statusChanged);
+        dest->nextRun = src->nextRun;
+    } else {
+        snprintf(dest->name, pluginitemname_size, "%s", src->name);
+        snprintf(dest->description, pluginitemdesc_size, "%s", src->description);
+        snprintf(dest->command, pluginitemcmd_size, "%s", src->command);
+        snprintf(dest->lastRunTimestamp, max_timestamp_size, "%s", src->lastRunTimestamp);
+        snprintf(dest->nextRunTimestamp, max_timestamp_size, "%s", src->nextRunTimestamp);
+        snprintf(dest->lastChangeTimestamp, max_timestamp_size, "%s", src->lastChangeTimestamp);
+        snprintf(dest->statusChanged, 2, "%s", src->statusChanged);
+        dest->active = src->active;
+        dest->interval = src->interval;
+        dest->nextRun = src->nextRun;
+    }
+}
+
+/*void copyPluginItem(PluginItem *dest, const PluginItem *src, int mode) {
 	if (mode == 0) {
 		if (src->name != NULL) {
 			strncpy(dest->lastRunTimestamp, src->lastRunTimestamp, 20);
@@ -6576,25 +7066,136 @@ void copyPluginItem(PluginItem *dest, const PluginItem *src, int mode) {
                 dest->interval = src->interval;
                 dest->nextRun = src->nextRun;
 	}
-}
+}*/
 
-void copyOutputItem(PluginOutput *dest, const PluginOutput *src) {
+/*void copyOutputItem(PluginOutput *dest, const PluginOutput *src) {
 	dest->retCode = src->retCode;
 	dest->prevRetCode = src->prevRetCode;
 	if (src->retString != NULL) {
-		strncpy(dest->retString, src->retString, pluginoutput_size);
+		if (dest->retString == NULL) {
+			dest->retString = malloc(pluginoutput_size);
+			if (dest->retString == NULL) {
+				writeLog("[copyOutputItem] Failed to allocate memory for dest->retString.", 1, 0);
+				return;
+			}
+		}
+		if (dest->retString && src->retString) {
+			strncpy(dest->retString, src->retString, pluginoutput_size-1);
+			dest->retString[pluginoutput_size -1] = '\0';
+		}
+		else {
+			writeLog("[copyOutputItem] Source or destination is non existing.", 1, 0);
+		}
 	}
 	else {
 		writeLog("copyOutputItem source->retString is NULL", 1, 0);
+		if (dest->retString != NULL) {
+			dest->retString[0] = '\0';
+		}
 	}
+}*/
+
+/*int copyOutputItem(PluginOutput *dest, const PluginOutput *src) {
+    	size_t maxSize;
+    	size_t srcLen;
+
+    	if (dest == NULL || src == NULL) {
+        	writeLog("[copyOutputItem] NULL parameter", 1, 0);
+        	return EINVAL;
+    	}
+
+    	dest->retCode     = src->retCode;
+    	dest->prevRetCode = src->prevRetCode;
+
+    	free(dest->retString);
+    	dest->retString = NULL;
+
+    	if (src->retString == NULL) {
+        	return 0;
+    	}
+
+    	maxSize = pluginoutput_size;
+    	if (maxSize == 0) {
+        	writeLog("[copyOutputItem] pluginoutput_size is zero", 1, 0);
+        	return EINVAL;
+    	}
+
+    	srcLen = strnlen(src->retString, maxSize - 1);
+
+    	dest->retString = malloc(srcLen + 1);
+    	if (dest->retString == NULL) {
+        	writeLog("[copyOutputItem] malloc failed", 1, 0);
+        	return ENOMEM;
+    	}
+
+    	memcpy(dest->retString, src->retString, srcLen);
+    	dest->retString[srcLen] = '\0';
+
+    	return 0;
+}*/
+
+void plugin_output_init(PluginOutput *o) {
+	if (!o) return;
+    	o->retCode     = 0;
+    	o->prevRetCode = 0;
+    	o->retString   = NULL;
+}
+
+void plugin_output_destroy(PluginOutput *o) {
+    	if (!o) return;
+    	free(o->retString);
+    	o->retString = NULL;
+}
+
+int plugin_output_set(PluginOutput *dest, const PluginOutput *src) {
+	size_t len;
+	char *dup;
+
+    	if (!dest || !src) return EINVAL;
+
+    	dest->retCode     = src->retCode;
+    	dest->prevRetCode = src->prevRetCode;
+
+    	plugin_output_destroy(dest);
+
+    	if (!src->retString) {
+        	return 0;
+    	}
+
+    	//dest->retString = strdup(src->retString);
+    	/*if (!dest->retString) {
+        	writeLog("[plugin_output_set] strdup failed", 1, 0);
+        	return ENOMEM;
+    	}*/
+	len = strlen(src->retString);
+	dup = malloc(len +1);
+	if (!dup) {
+		writeLog("[plugin_output_set] malloc failed", 1, 0);
+        	return ENOMEM;
+	}
+	memcpy(dup, src->retString, len + 1);
+	dest->retString = dup;
+
+    	return 0;
+}
+
+void destroy_g_plugins(PluginItem *decls, size_t count) {
+	if (!decls) return;
+	for (size_t i = 0; i < count; i++) {
+		free(decls[i].name);
+		free(decls[i].description);
+		free(decls[i].command);
+	}
+	free(decls);
+	decls = NULL;
 }
 
 int redeclarePluginDeclarations(int mode, int count) {
-	int c;
-	int rows = 0;
+	//int c;
+	//int rows = 0;
 	int check = 0;
 
-	writeLog("Needs to redeclare declarations.", 0, 0);
+	writeLog("Needs to redeclare g_plugins.", 0, 0);
 	check = check_plugin_conf_file(pluginDeclarationFile);
 	if (check > 0) {
 		writeLog("Errors detected in plugin file. Can not reload.", 1, 0);
@@ -6602,415 +7203,7 @@ int redeclarePluginDeclarations(int mode, int count) {
 	}
 	else
 		writeLog("Plugin conf file seems in good state. Will try to reload it now.", 0, 0);
-	update_declarations = (PluginItem *)calloc(count, sizeof(PluginItem));
-	update_declaration_size = (size_t)count;
-	if (!update_declarations) {
-		perror ("Error allocating memory");
-		writeLog("Error allocating memory [redeclarePluginDeclarations:update_declarations]", 2, 0);
-		abort();
-		return 2;
-	}
-	for (int i = 0; i < count; i++) {
-		update_declarations[i].name = (char *) malloc((size_t)pluginitemname_size * sizeof(char));
-		update_declarations[i].description = (char *) malloc((size_t)pluginitemdesc_size * sizeof(char));
-		update_declarations[i].command = (char *) malloc((size_t)pluginitemcmd_size * sizeof(char));
-		if (update_declarations[i].name == NULL || update_declarations[i].description == NULL || update_declarations[i].command == NULL) {
-			fprintf(stderr, "Error allocating memory while redeclaring plugins.\n");
-			writeLog("Error allocating memory [redeclarePluginDeclarations:update_declarations::items].", 2, 0);
-			abort();
-			return 2;
-		}
-	}
-	writeLog("Needs to reallocate memory for outputs.", 0, 0);
-	update_outputs = (PluginOutput *)calloc((size_t)count, sizeof(PluginOutput));
-	update_output_size = (size_t)count;
-	if (!update_outputs){
-		perror("Error allocating memory");
-		writeLog("Error allocating memory [redeclarePluginDeclarations:update_outputs].", 2, 0);
-		abort();
-		return 2;
-	}
-	for (int j = 0; j < count; j++) {
-		update_outputs[j].retString = (char *) malloc((size_t)pluginoutput_size * sizeof(char));
-		if (!update_outputs[j].retString) {
-			fprintf(stderr, "Error allocating memory while redeclaring outputs.\n");
-			writeLog("Error allocating memory [redeclarePluginDeclarations:update_outputs:returnString].", 2, 0);
-			abort();
-			return 2;
-		}
-	}
-	int pluginDeclarationResult = loadPluginDeclarations(pluginDeclarationFile, 1);
-	if (pluginDeclarationResult != 0){
-		printf("ERROR: Problem reading plugin declaration file.\n");
-		writeLog("Problem reading from plugin declaration file.", 1, 0);
-	}
-	else {
-		printf("Declarations read.\n");
-		writeLog("Plugin declarations file reloaded.", 0, 0);
-	}
-	int update[count];
-	switch(mode) {
-		case 0:
-			if (count > 0 && threadIds != NULL) {
-				threadIds = realloc(threadIds, (size_t)(count * sizeof(int)));
-				if (threadIds == NULL) {
-					free(threadIds);
-					printf("Could not reallocate memory for threadIds.\n");
-					exit(EXIT_FAILURE);
-				}
-			}
-			for (int i = 0; i < decCount; i++) {
-                                int missing = 0;
-                                for (int j = 0; j < decCount; j++) {
-                                        if (strcmp(update_declarations[i].name, declarations[j].name) == 0) {
-                                                if (i == j) {
-                                                        snprintf(infostr, infostr_size, "Redeclare %s with id %d\n", update_declarations[i].name, i+1);
-                                                        writeLog(trim(infostr), 0, 0);
-                                                        update[i] = 0;
-                                                }
-                                                else {
-                                                        snprintf(infostr, infostr_size, "Redeclare %s with new id. Id is now %d\n", update_declarations[i].name, i);
-                                                        writeLog(trim(infostr), 1, 0);
-                                                        update[i] = j;
-                                                }
-                                                missing++;
-                                                break;
-                                        }
-                                }
-                                if (missing == 0) {
-                                        printf("Plugin is missing. Needs declaration.\n");
-                                        writeLog("Needs to declare new plugin.", 0, 0);
-                                        initNewPlugin(i);
-                                        update[i] = 1000;
-                                }
-                        }
-                        for (int i = decCount; i < count; ++i) {
-                                printf("Check for new plugins.\n");
-                                initNewPlugin(i);
-                                update[i] = 1000;
-                        }
-                        for (int i = 0; i < count; i++) {
-                                if (update[i] == 0){
-                                        copyPluginItem(&update_declarations[i], &declarations[i],0);
-                                        copyOutputItem(&update_outputs[i], &outputs[i]);
-                                }
-                                else {
-                                        copyPluginItem(&update_declarations[i], &declarations[update[i]], 0);
-                                        copyOutputItem(&update_outputs[i], &outputs[update[i]]);
-                                }
-                        }
-			free_structures(decCount);
-                        free(declarations);
-                        free(outputs);
-                        declarations = NULL;
-                        declarations = (PluginItem *)malloc((size_t)sizeof(PluginItem) * count);
-                        outputs = (PluginOutput *)malloc((size_t)sizeof(PluginOutput) * count);
-			declaration_size = (size_t)count;
-			output_size = (size_t)count;
-                        if (!declarations) {
-                                perror ("Error allocating memory");
-                                writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_declaraions]", 2, 0);
-                                abort();
-                                return 2;
-                        }
-                        if (!outputs) {
-                                perror ("Error allocating memory");
-                                writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_outputs]", 2, 0);
-                                abort();
-                                return 2;
-                        }
-                        for (int i = 0; i < count; i++) {
-                                declarations[i].name = (char *) malloc((size_t)pluginitemname_size * sizeof(char));
-                                declarations[i].description = (char *) malloc((size_t)pluginitemdesc_size * sizeof(char));
-                                declarations[i].command = (char *) malloc((size_t)pluginitemcmd_size * sizeof(char));
-                                outputs[i].retString = (char *) malloc((size_t)pluginoutput_size * sizeof(char));
-                                if (declarations[i].name == NULL || declarations[i].description == NULL || declarations[i].command == NULL || outputs[i].retString == NULL) {
-                                        fprintf(stderr, "Error allocating memory while redeclaring plugins.\n");
-                                        writeLog("Error allocating memory [redeclarePluginDeclarations:update_declarations::items].", 2, 0);
-                                        abort();
-                                        return 2;
-                                }
-                        }
-                        for (int e = 0; e < count; e++) {
-                                copyPluginItem(&declarations[e], &update_declarations[e], 5);
-                                copyOutputItem(&outputs[e], &update_outputs[e]);
-                        }
-                        for (int i = 0; i < count; i++) {
-                                free(update_declarations[i].name);
-                                free(update_declarations[i].description);
-                                free(update_declarations[i].command);
-                                if (i < decCount) {
-                                        // Why is not update_outputs[count_max] exisiting...?
-                                        free(update_outputs[i].retString);
-                                }
-                        }
-                        free(update_declarations);
-                        free(update_outputs);
-                        update_declarations = NULL;
-                        update_outputs = NULL;
-                        decCount = count;
-			break;
-		case 1:
-			if (count > 0 && threadIds != NULL) {
-                                threadIds = realloc(threadIds, (size_t)(count * sizeof(int)));
-                                if (threadIds == NULL) {
-                                        free(threadIds);
-                                        printf("Could not reallocate memory for threadIds.\n");
-                                        exit(EXIT_FAILURE);
-                                }
-                        }
-			for (int i = 0; i < count; i++) {
-                                int found = 0;
-                                for (int j = 0; j < decCount; j++) {
-                                        if (strcmp(update_declarations[i].name, declarations[j].name) == 0) {
-                                                if (i == j) {
-                                                        snprintf(infostr, infostr_size, "Redeclare %s with id %d\n", update_declarations[i].name, i+1);
-                                                        writeLog(trim(infostr), 0, 0);
-                                                        update[i] = 0;
-                                                }
-                                                else {
-                                                        snprintf(infostr, infostr_size, "Redeclare %s with new id. Id is now %d\n", update_declarations[i].name, i);
-                                                        writeLog(trim(infostr), 1, 0);
-                                                        update[i] = j;
-                                                }
-                                                found++;
-                                                break;
-                                        }
-                                        else {
-                                                if (j == decCount-1) {
-                                                        // Write this if not found in new declaration only
-                                                        snprintf(infostr, infostr_size, "Old plugin declaration '%s' with id %d marked for deletion.", declarations[j].name, declarations[j].id);
-                                                        writeLog(trim(infostr), 1, 0);
-                                                }
-                                        }
-                                }
-                                if (found == 0) {
-                                        initNewPlugin(i);
-                                }
-                        }
-                        for (int a = 0; a < count; a++) {
-                                 if (update[a] == 0){
-                                        copyPluginItem(&update_declarations[a], &declarations[a],0);
-                                        copyOutputItem(&update_outputs[a], &outputs[a]);
-                                }
-                                else {
-                                        copyPluginItem(&update_declarations[a], &declarations[update[a]], 0);
-                                        copyOutputItem(&update_outputs[a], &outputs[update[a]]);
-                                }
-                        }
-                        free_structures(decCount);
-                        free(outputs);
-                        outputs = NULL;
-                        free(declarations);
-                        declarations = NULL;
-                        declarations = (PluginItem *)malloc((size_t)sizeof(PluginItem) * count);
-			declaration_size = (size_t)count;
-                        outputs = (PluginOutput *)malloc((size_t)sizeof(PluginOutput) * count);
-			output_size = (size_t)count;
-                        if (!declarations) {
-                                perror ("Error allocating memory");
-                                writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_declaraions]", 2, 0);
-                                abort();
-                                return 2;
-                        }
-                        if (!outputs) {
-                                perror ("Error allocating memory");
-                                writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_outputs]", 2, 0);
-                                abort();
-                                return 2;
-                        }
-                        for (int i = 0; i < count; i++) {
-                                declarations[i].name = (char *) malloc((size_t)pluginitemname_size * sizeof(char));
-                                declarations[i].description = (char *) malloc((size_t)pluginitemdesc_size * sizeof(char));
-                                declarations[i].command = (char *) malloc((size_t)pluginitemcmd_size * sizeof(char));
-                                outputs[i].retString = (char *) malloc((size_t)pluginoutput_size * sizeof(char));
-                                if (declarations[i].name == NULL || declarations[i].description == NULL || declarations[i].command == NULL || outputs[i].retString == NULL) {
-                                        fprintf(stderr, "Error allocating memory while redeclaring plugins.\n");
-                                        writeLog("Error allocating memory [redeclarePluginDeclarations:update_declarations::items].", 2, 0);
-                                        abort();
-                                        return 2;
-                                }
-                        }
-                        for (int z = 0; z < count; z++) {
-                                copyPluginItem(&declarations[z], &update_declarations[z], 3);
-                                copyOutputItem(&outputs[z], &update_outputs[z]);
-                        }
-			for (int i = 0; i < count; i++) {
-                                free(update_declarations[i].name);
-                                free(update_declarations[i].description);
-                                free(update_declarations[i].command);
-                                if (i < decCount) {
-                                        free(update_outputs[i].retString);
-                                }
-                        }
-                        free(update_declarations);
-                        free(update_outputs);
-                        update_declarations = NULL;
-                        update_outputs = NULL;
-                        decCount = count;
-			break;
-		case 2:
-			c = 0;
-                        for (int i = 0; i < decCount; i++) {
-				if (strcmp(update_declarations[i].name, declarations[i].name) != 0) {
-					c++;
-					rows++;
-					if (strcmp(update_declarations[i].description, declarations[i].description) == 0)
-						c--;
-					else
-						c++;
-					if (strcmp(update_declarations[i].command, declarations[i].command) == 0) 
-						c--;
-					else 
-						c++;
-				}
-				if (c < 0) c = 0;
-			}
-			for (int i = 0; i < decCount; i++) {
-                                free(update_declarations[i].name);
-                                free(update_declarations[i].description);
-                                free(update_declarations[i].command);
-                                free(update_outputs[i].retString);
-                        }
-                        free(update_declarations);
-                        free(update_outputs);
-		       	update_declarations = NULL;
-			update_outputs = NULL;
-			return c + rows;
-			break;
-		case 3:
-			for (int i = 0; i < decCount; i++) {
-				int found = 0;
-				int id = -1;
-				for (int j = 0; j < decCount; j++) {
-					if (strcmp(update_declarations[i].name, declarations[j].name) == 0) {
-						found++;
-						id = j;
-					}
-					if (strcmp(update_declarations[i].description, declarations[j].description) == 0) {
-						found++;
-						id = j;
-					}
-					if (strcmp(update_declarations[i].command, declarations[j].command) == 0) {
-						found++;
-						id = j;
-					}
-				}
-				if (found > 0) {
-					printf("Found update_declaration id %d on declaration id %d\n", i, id);
-					copyOutputItem(&update_outputs[i], &outputs[id]);
-					copyPluginItem(&update_declarations[i], &declarations[id], 2);
-				}
-				else {
-					printf("Did not find declaration.name = %s", update_declarations[i].name);
-					initNewPlugin(i);
-				}
-			}
-			free_structures(decCount);
-                        free(outputs);
-                        outputs = NULL;
-                        free(declarations);
-                        declarations = NULL;
-                        declarations = (PluginItem *)malloc((size_t)sizeof(PluginItem) * count);
-			declaration_size = (size_t)count;
-                        outputs = (PluginOutput *)malloc((size_t)sizeof(PluginOutput) * count);
-			output_size = (size_t)count;
-                        if (!declarations) {
-                                perror ("Error allocating memory");
-                                writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_declaraions]", 2, 0);
-                                abort();
-                                return 2;
-                        }
-                        if (!outputs) {
-                                perror ("Error allocating memory");
-                                writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_outputs]", 2, 0);
-                                abort();
-                                return 2;
-                        }
-                        for (int i = 0; i < count; i++) {
-                                declarations[i].name = (char *) malloc((size_t)pluginitemname_size * sizeof(char));
-                                declarations[i].description = (char *) malloc((size_t)pluginitemdesc_size * sizeof(char));
-                                declarations[i].command = (char *) malloc((size_t)pluginitemcmd_size * sizeof(char));
-                                outputs[i].retString = (char *) malloc((size_t)pluginoutput_size * sizeof(char));
-                                if (declarations[i].name == NULL || declarations[i].description == NULL || declarations[i].command == NULL || outputs[i].retString == NULL) {
-                                        fprintf(stderr, "Error allocating memory while redeclaring plugins.\n");
-                                        writeLog("Error allocating memory [redeclarePluginDeclarations:update_declarations::items].", 2, 0);
-                                        abort();
-                                        return 2;
-                                }
-                                copyPluginItem(&declarations[i], &update_declarations[i], 0);
-                                copyOutputItem(&outputs[i], &update_outputs[i]);
-                        }
-                        for (int i = 0; i < count; i++) {
-                                free(update_declarations[i].name);
-                                free(update_declarations[i].description);
-                                free(update_declarations[i].command);
-                                if (i < decCount) {
-                                        free(update_outputs[i].retString);
-                                }
-                        }
-                        free(update_declarations);
-                        free(update_outputs);
-                        update_declarations = NULL;
-                        update_outputs = NULL;
-			break;
-
-			// This case in not working. Make corrupt data. Force restart?
-                        /*for (int i = 0; i < decCount; i++) {
-                                printf("i = %d\n", i);
-                                int write_this = 0;
-                                int id = 0;
-                                for (int j = 0; j < count; j++) {
-                                        printf ("j = %d\n", j);
-                                        printf ("update_i = %s\n", update_declarations[i].name);
-                                        printf ("dec_j = %s | outputs[%d] = %s\n", declarations[j].name, j, outputs[j].retString);
-                                        if (strcmp(update_declarations[i].name, declarations[j].name) == 0) {
-                                                printf("NAME\n");
-                                                printf("Update_declarations = %s | declarations = %s\n", update_declarations[i].name, declarations[j].name);
-                                                id = j;
-                                                printf("ID = %d\n", id);
-                                                write_this++;
-                                                break;
-                                        }
-                                        else if (strcmp(update_declarations[i].description, declarations[j].description) == 0) {
-                                                id = j;
-                                                printf("DESCRIPTION\n");
-                                                printf("Update_declarations = %s | declarations = %s\n", update_declarations[i].description, declarations[j].description);
-                                                printf("ID = %d\n", id);
-                                                write_this++;
-                                                break;
-                                        }
-                                        else if (strcmp(update_declarations[i].command,declarations[j].command) == 0) {
-                                                id = j;
-                                                printf ("COMMAND\n");
-                                                printf("Update_declarations = %s | declarations = %s\n", update_declarations[i].command, declarations[j].command);
-                                                printf("ID = %d\n", id);
-                                                write_this++;
-                                                break;
-                                        }
-                                }
-                                if (write_this == 0) {
-                                        writeLog("Needs to redeclare plugin. You should not mess around with conf files so much.", 1);
-                                        initNewPlugin(i);
-                                        flushLog();
-                                }
-                                else {
-                                        snprintf(loginfo, 400, "Found old outputs for plugin declaration '%s'.", update_declarations[i].name);
-                                        writeLog(trim(loginfo), 0);
-                                        flushLog();
-                                        printf ("ID = %d\n", id);
-                                        printf ("Update_declarations = %s | declarations = %s\n", update_declarations[i].name, declarations[id].name);
-                                        printf ("Outputs[%d] = ", id);
-                                        printf ("%s\n", outputs[id].retString);
-                                        update_outputs[i] = outputs[id];
-                                        strcpy(update_declarations[i].lastRunTimestamp,declarations[id].lastRunTimestamp);
-                                        strcpy(update_declarations[i].nextRunTimestamp,declarations[id].nextRunTimestamp);
-                                        strcpy(update_declarations[i].statusChanged,declarations[id].statusChanged);
-                                        update_declarations[i].nextRun = declarations[id].nextRun;
-                                }
-
-                        }*/
-	}
+	update_plugins();
 	flushLog();
 
 	return 0;
@@ -7027,19 +7220,22 @@ void checkRetVal(int val) {
 }
 
 int hardReloadPlugins(int cnt) {
-	int qsv = quick_start;
+	/*int qsv = quick_start;
 
 	if (quick_start != 1) quick_start = 1;
 	free_structures(decCount);
-        free(outputs);
-        outputs = NULL;
-        free(declarations);
-        declarations = NULL;
-        declarations = (PluginItem *)malloc((size_t)sizeof(PluginItem) * cnt);
+	for (size_t i = 0; i < decCount; ++i) {
+    		//plugin_output_destroy(&outputs[i]);
+	}
+        //free(outputs);
+        //outputs = NULL;
+        free(g_plugins);
+        g_plugins = NULL;
+        g_plugins = (PluginItem *)malloc((size_t)sizeof(PluginItem) * cnt);
 	declaration_size = (size_t)cnt;
         outputs = (PluginOutput *)malloc((size_t)sizeof(PluginOutput) * cnt);
 	output_size = (size_t)cnt;
-        if (!declarations) {
+        if (!g_plugins) {
         	perror ("Error allocating memory");
        		writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_declaraions]", 2, 0);
         	abort();
@@ -7050,31 +7246,36 @@ int hardReloadPlugins(int cnt) {
                 writeLog("Error allocating memory [redeclarePluginDeclarations:redeclare_outputs]", 2, 0);
                 abort();
                 return 2;
-       }
-       for (int i = 0; i < cnt; i++) {
-       		declarations[i].name = (char *) malloc((size_t)pluginitemname_size * sizeof(char));
-                declarations[i].description = (char *) malloc((size_t)pluginitemdesc_size * sizeof(char));
-                declarations[i].command = (char *) malloc((size_t)pluginitemcmd_size * sizeof(char));
-                outputs[i].retString = (char *) malloc((size_t)pluginoutput_size * sizeof(char));
-                if (declarations[i].name == NULL || declarations[i].description == NULL || declarations[i].command == NULL || outputs[i].retString == NULL) {
+       	}
+	for (size_t i = 0; i < cnt; ++i) {
+    		//plugin_output_init(&outputs[i]);
+	}
+       	for (int i = 0; i < cnt; i++) {
+                g_plugins[i].name = calloc(pluginitemname_size + 1, 1);
+                g_plugins[i].description = calloc(pluginitemdesc_size + 1, 1);
+                g_plugins[i].command = calloc(pluginitemcmd_size + 1, 1);
+                outputs[i].retString = calloc(pluginoutput_size + 1, 1);
+                if (g_plugins[i].name == NULL || g_plugins[i].description == NULL || g_plugins[i].command == NULL || outputs[i].retString == NULL) {
                 	fprintf(stderr, "Error allocating memory while redeclaring plugins.\n");
-                        writeLog("Error allocating memory [redeclarePluginDeclarations:update_declarations::items].", 2, 0);
+                        writeLog("Error allocating memory [redeclarePluginDeclarations:update_g_plugins::items].", 2, 0);
                         abort();
                         return 2;
        		}
-       }
-
-       if (loadPluginDeclarations(pluginDeclarationFile, 0) == 0) {
-	       writeLog("Plugin file reloaded.", 0, 0);
-       }
-       else {
+       	}
+       	if (loadPluginDeclarations(pluginDeclarationFile, 0) == 0) {
+		writeLog("Plugin file reloaded.", 0, 0);
+       	}
+       	else {
 	       writeLog("Error reloading plugins file.", 2, 0);
 	       sig_handler(SIGSTOP);
-       }
-       decCount = cnt;
-       initScheduler(cnt, 1000);
-       quick_start = qsv;
-       return 0;
+       	}
+       	decCount = cnt;
+       	initScheduler(cnt, 1000);
+       	quick_start = qsv;
+       	return 0;*/
+	// TODO Rewrite to new structure
+	printf("hardReloadPlugins() not established.\n");
+	return 0;
 }	
 
 void apiReloadConfigHard() {
@@ -7102,7 +7303,7 @@ int checkNewConfig(const char *file_name) {
         if (file == NULL)
         {
                 perror("Error while opening the file.[checkNewConfig]\n");
-                writeLog("Error opening and counting declarations file.", 2, 0);
+                writeLog("Error opening and counting g_plugins file.", 2, 0);
 		return -1;
         }
 
@@ -7138,194 +7339,23 @@ int checkNewConfig(const char *file_name) {
         return count-1;
 }
 
-int updatePluginDeclarations() {
-	FILE *fp = NULL;
-	char* line = NULL;
-	char* name = NULL;
-        char *token = NULL;
-	char *saveptr = NULL;
-	int i;
-	int index = 0;
-	int counter = 0;
-	int reload_required = 0;
-	size_t len = 0;
-	ssize_t read;
-	PluginItem item;
-
-	item.name = (char *)malloc((size_t)pluginitemname_size * sizeof(char));
-	item.description = (char *)malloc((size_t)pluginitemdesc_size * sizeof(char));
-	item.command = (char *)malloc((size_t)pluginitemcmd_size * sizeof(char));
-	item.active = -1;
-	item.interval = 1;
-
-	int newCount = checkNewConfig(pluginDeclarationFile);
-	if (newCount < 0) {
-		// Abort if duplicates
-		return newCount;
-	}
-
-	if (newCount > decCount) {
-		int retVal = redeclarePluginDeclarations(0, newCount);
-		checkRetVal(retVal);
-		free(item.name);
-                free(item.description);
-                free(item.command);
-		return 1;
-	}
-	else if (newCount < decCount) {
-		int retVal = redeclarePluginDeclarations(1, newCount);
-		checkRetVal(retVal);
-		free(item.name);
-                free(item.description);
-                free(item.command);
-		return 1;
-	}
-	else {
-		// Read plugin declarations file and update declarations	
-		// This causes errors if changing orders
-		// Adapt to new redeclare function
-		// This only works if you edit line in current positions
-		if (redeclarePluginDeclarations(2, newCount) > 4) {
-                	printf ("Needs total reload...\n");
-                        /*int retVal = redeclarePluginDeclarations(3, newCount);
-                        checkRetVal(retVal);*/
-			hardReloadPlugins(newCount);
-			free(item.name);
-                	free(item.description);
-                	free(item.command);
-                        return 1;
-                }
-		fp = fopen(pluginDeclarationFile, "r");
-       	 	if (fp == NULL)
-        	{
-                	perror("Error while opening the plugin declarations file.\n");
-                	writeLog("Error opening the plugin declarations file.", 2, 0);
-			free(item.name);
-                	free(item.description);
-                	free(item.command);
-               		exit(EXIT_FAILURE);
-        	}
-        	while ((read = getline(&line, &len, fp)) != -1) {
-                	index++;
-                	if (strchr(line, '#') == NULL){
-                        	//for (i = 1, line;; i++, line=NULL) {
-				for (i = 1; ; i++, line=NULL) {
-                               		token = strtok_r(line, ";", &saveptr);
-                               		if (token == NULL)
-                                       		break;
-                               		switch(i) {
-                                       		case 1:
-                                               		name = strtok(token, " ");
-                                               		strcpy(item.name, name);
-                                               		token = strtok(NULL, "?");
-                                               		strcpy(item.description, token);
-                                               		break;
-                                       		case 2: strcpy(item.command, token);
-                                               		break;
-                                       		case 3: item.active = atoi(token);
-                                               		break;
-                                       		case 4: item.interval = atoi(token);
-                                               		item.id = index-1;
-                               		}
-                       		}
-                       		strcpy(item.lastRunTimestamp, "");
-                       		strcpy(item.nextRunTimestamp, "");
-                       		strcpy(item.lastChangeTimestamp, "");
-                       		strcpy(item.statusChanged, "");
-				if (strcmp(declarations[counter].name, item.name) != 0) {
-					snprintf(infostr, infostr_size, "Declaration name for item %i changed from %s to %s.", counter, declarations[counter].name, item.name);
-					//strncpy(declarations[counter].name, item.name, strlen(item.name) + 1);
-					snprintf(declarations[counter].name, pluginitemname_size, "%s", item.name);
-					reload_required = 1;
-                                        writeLog(trim(infostr), 0, 0);
-				}
-				if (strcmp(declarations[counter].description, item.description) != 0) {
-					snprintf(infostr, infostr_size, "Declaration description for %s changed from %s to %s.", declarations[counter].name, declarations[counter].description, item.description);
-					//strncpy(declarations[counter].description, item.description, strlen(item.description) + 1);
-					snprintf(declarations[counter].description, pluginitemdesc_size, "%s", item.description);
-                                        writeLog(trim(infostr), 0, 0);
-				}
-				if (strcmp(declarations[counter].command, item.command) != 0) {
-					snprintf(infostr, infostr_size, "Declaration command for %s changed to %s.", declarations[counter].name, item.command);
-					strncpy(declarations[counter].command, item.command, sizeof(declarations[counter].command -1));
-					declarations[counter].command[sizeof(declarations[counter].command -1)] = '\0';
-					writeLog(trim(infostr), 0, 0);
-				}
-				if (declarations[counter].active != item.active) {
-					if (item.active == 0) {
-						snprintf(infostr, infostr_size, "Declaration %s is now inactive.", declarations[counter].name);
-						declarations[counter].active = 0;
-					}
-					else {
-						snprintf(infostr, infostr_size, "Declaration %s is now active", declarations[counter].name);
-						declarations[counter].active = 1;
-					}
-					writeLog(trim(infostr), 0, 0);
-				}
-				if (declarations[counter].interval != item.interval) {
-					snprintf(infostr, infostr_size, "Declaration %s interval changed from %i to %i.", declarations[counter].name, declarations[counter].interval, item.interval);
-					declarations[counter].interval = item.interval;
-					writeLog(trim(infostr), 0, 0);
-				}
-				/* int x = ((declarations[counter].command == item.command) && (declarations[counter].active == item.active) &&
-						(declarations[counter].interval == item.interval)) ? 1 : 0;
-				if (x != 0) {
-					strncpy(declarations[counter].command, item.command, strlen(item.command) + 1);
-					declarations[counter].active = item.active;
-					declarations[counter].interval = item.interval;
-					snprintf(loginfo, 100, "Declaration parameters for item %s is updated.\n",item.name);
-                                	writeLog(trim(loginfo), 0);
-				}*/
-                       		counter++;
-                	}
-        	}
-       	 	fclose(fp);
-		fp = NULL;
-       		if (line) {
-       		         free(line);
-			 line = NULL;
-		}
-		if (reload_required) {
-			printf("Reload required.\n");
-			writeLog("Changed declaration name might cause inconsistencies. Will reload all plugins.", 1, 0);
-			flushLog();
-			int retVal = redeclarePluginDeclarations(2, newCount);
-                	checkRetVal(retVal);
-			free(item.name);
-                	free(item.description);
-                	free(item.command);
-                	return 1;
-		}
-		free(item.name);
-                free(item.description);
-                free(item.command);
-		if (timeScheduler == 1) {
-			free(scheduler);
-			scheduler = NULL;
-			initTimeScheduler(); 
-			for (int i = 0; i < decCount; i++) {
-                                scheduler[i].id = i;
-                                scheduler[i].timestamp = declarations[i].nextRun;
-                        }
-			rescheduleChecks();
-		}
-		return 0;
-	}
-}
-
 void initNewPlugin(int index) {
 	//char currTime[80];
-	char currTime[TIME_BUF_LEN];
-	snprintf(infostr, infostr_size, "Initiating new plugin: %s\n", update_declarations[index].name);
+	/*char currTime[TIME_BUF_LEN];
+	snprintf(infostr, infostr_size, "Initiating new plugin: %s\n", update_g_plugins[index].name);
 	writeLog(trim(infostr), 0, 0);
 	printf("Initiating new plugin with id %d\n", index);
-	if (update_declarations[index].active == 1) {
-		snprintf(infostr, infostr_size, "%s is now active. Id %d\n", update_declarations[index].name, update_declarations[index].id-1);
+	if (update_g_plugins[index].active == 1) {
+		snprintf(infostr, infostr_size, "%s is now active. Id %d\n", update_g_plugins[index].name, update_g_plugins[index].id-1);
 		writeLog(trim(infostr), 0, 0);
 		update_outputs[index].prevRetCode = -1;
-		//strcpy(update_declarations[index].statusChanged, "0");
-		snprintf(update_declarations[index].statusChanged, 2, "%s", "0");
-		runPlugin(index, 1);
+		//strcpy(update_g_plugins[index].statusChanged, "0");
+		snprintf(update_g_plugins[index].statusChanged, 2, "%s", "0");
+		//runPlugin(index, 1);
+		PluginItem *item = g_plugins[index];
+        	if (item && item->active) {
+            		run_plugin(item);
+        	}
 		if (timeScheduler == 1)
 			rescheduleChecks();
 		size_t dest_size = 20;
@@ -7335,28 +7365,33 @@ void initNewPlugin(int index) {
 		if (plen >= dest_size) {
 			writeLog("Possible truncation of timestamp while init new plugin.", 1, 0);
 		}
-                strcpy(update_declarations[index].lastRunTimestamp, currTime);
-                strcpy(update_declarations[index].lastChangeTimestamp, currTime);
-                time_t nextTime = t + (update_declarations[index].interval *60);
+                strcpy(update_g_plugins[index].lastRunTimestamp, currTime);
+                strcpy(update_g_plugins[index].lastChangeTimestamp, currTime);
+                time_t nextTime = t + (update_g_plugins[index].interval *60);
                 struct tm tNextTime;
                 memset(&tNextTime, '\0', sizeof(struct tm));
                 localtime_r(&nextTime, &tNextTime);
-                int len = snprintf(update_declarations[index].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+                int len = snprintf(update_g_plugins[index].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 		if (len >= dest_size) {
 			writeLog("[initNewPlugin] possible truncation of timestamp.", 1, 0);
 		}
-                update_declarations[index].nextRun = nextTime;
+                update_g_plugins[index].nextRun = nextTime;
 		usleep(500);
 	}
 	else
         {
-        	snprintf(infostr, infostr_size, "%s is not active. Id: %d\n", update_declarations[index].name, update_declarations[index].id);
+        	snprintf(infostr, infostr_size, "%s is not active. Id: %d\n", update_g_plugins[index].name, update_g_plugins[index].id);
         	writeLog(trim(infostr), 0, 0);
-        }
+        }*/
         flushLog();
 }
 
 int initTimeScheduler() {
+	if (decCount == 0) {
+		scheduler = NULL;
+		printf("Could not initiate a time scheduler of count %d.\n", decCount);
+		return 1;
+	}
 	scheduler = malloc((size_t)sizeof(Scheduler)*decCount);
 	if (!scheduler) {
         	printf("Error allocating memory");
@@ -7368,11 +7403,9 @@ int initTimeScheduler() {
 }
 
 void initScheduler(int numOfP, int msSleep) {
-	//char currTime[22];
 	char currTime[TIME_BUF_LEN];
 	time_t nextTime;
 	float sleepTime = msSleep/1000;
-	//printf("Initiating scheduler\n");
 	logInfo("Initiating scheduler to run checks att given intervals.", 0, 0);
 	if (timeScheduler != 0) {
 		logInfo("Initiating a time scheduler.", 0, 0);
@@ -7381,14 +7414,18 @@ void initScheduler(int numOfP, int msSleep) {
 	flushLog();
 	for (int i = 0; i < numOfP; i++)
 	{
-		if (declarations[i].active == 1)
+		if (g_plugins[i]->active == 1)
 		{
-			snprintf(infostr, infostr_size, "%s is active. Id %d\n", declarations[i].name, declarations[i].id);
+			snprintf(infostr, infostr_size, "%s is active. Id %d\n", g_plugins[i]->name, g_plugins[i]->id);
 			writeLog(trim(infostr), 0, 0);
-			outputs[i].prevRetCode = -1;
-			//strncpy(declarations[i].statusChanged, "0", 2);
-			snprintf(declarations[i].statusChanged, 2, "%s", "0");
-			runPlugin(i, 0);
+			//outputs[i].prevRetCode = -1;
+			g_plugins[i]->output.prevRetCode = -1;
+			snprintf(g_plugins[i]->statusChanged, 2, "%s", "0");
+                        PluginItem *item = g_plugins[i];
+        		if (item) {
+            			run_plugin(item);
+        		}
+			//runPlugin(i, 0);
 			size_t dest_size = 20;
 			time_t t = time(NULL);
   			struct tm tm = *localtime(&t);
@@ -7396,24 +7433,24 @@ void initScheduler(int numOfP, int msSleep) {
 			if (len >= dest_size) {
 				writeLog("[InitScheduler] possible truncation of timestamp.", 1, 0);
 			}
-			strcpy(declarations[i].lastRunTimestamp, currTime);
-			strcpy(declarations[i].lastChangeTimestamp, currTime);
+			strcpy(g_plugins[i]->lastRunTimestamp, currTime);
+			strcpy(g_plugins[i]->lastChangeTimestamp, currTime);
 			if (quick_start == 1) {
 				int add_time = (int)sleepTime;
 				int time_to_add = add_time * i+1;
-				nextTime = t + (declarations[i].interval * 60) + time_to_add;
+				nextTime = t + (g_plugins[i]->interval * 60) + time_to_add;
 			}
 			else {
-				nextTime = t + (declarations[i].interval *60);
+				nextTime = t + (g_plugins[i]->interval *60);
 			}
 			struct tm tNextTime;
 			memset(&tNextTime, '\0', sizeof(struct tm));
 			localtime_r(&nextTime, &tNextTime);
-			len = snprintf(declarations[i].nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
+			len = snprintf(g_plugins[i]->nextRunTimestamp, dest_size, "%04d-%02d-%02d %02d:%02d:%02d", tNextTime.tm_year + 1900, tNextTime.tm_mon +1, tNextTime.tm_mday, tNextTime.tm_hour, tNextTime.tm_min, tNextTime.tm_sec);
 			if (len >= dest_size) {
 				writeLog("[Init scheduler] Possible truncation at nextTimeRuntimestamp", 1, 0);
 			}
-			declarations[i].nextRun = nextTime;
+			g_plugins[i]->nextRun = nextTime;
 			if (timeScheduler == 1) {
 				scheduler[i].id = i;
 				scheduler[i].timestamp = nextTime;
@@ -7423,7 +7460,7 @@ void initScheduler(int numOfP, int msSleep) {
 		}
 		else
 		{
-			snprintf(infostr, infostr_size, "%s is not active. Id: %d\n", declarations[i].name, declarations[i].id);
+			snprintf(infostr, infostr_size, "%s is not active. Id: %d\n", g_plugins[i]->name, g_plugins[i]->id);
 			writeLog(trim(infostr), 0, 0);
 			if (timeScheduler > 0) {
 				scheduler[i].id = i;
@@ -7493,9 +7530,9 @@ void startPluginThread(int plugin_id) {
 	if(rc) {
 		snprintf(infostr, infostr_size, "Error: return code from phtread_create is %d\n", rc);
 		writeLog(trim(infostr), 2, 0);
-		}
+	}
 	else {
-		snprintf(infostr, infostr_size, "Created new thread (%lu) for plugin %s\n", thread_id, declarations[plugin_id].name);
+		snprintf(infostr, infostr_size, "Created new thread (%lu) for plugin %s\n", thread_id, g_plugins[plugin_id]->name);
 		writeLog(trim(infostr), 0, 0);
 		pthread_mutex_lock(&mtx);
 		thread_counter++;
@@ -7505,22 +7542,20 @@ void startPluginThread(int plugin_id) {
 }
 
 void runPluginThreads(int loopVal){
-	//char currTime[22];
 	char currTime[TIME_BUF_LEN];
 	pthread_t thread_id;
         int rc;
         int i;
 	time_t t = time(NULL);
         struct tm tm = *localtime(&t);
-	//size_t dest_size = 20;
 
 	snprintf(currTime, sizeof(currTime), "%04d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon +1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-	if (timeScheduler == 1) {
+	/*if (timeScheduler == 1) {
 		i = 1;
 		struct Scheduler do_run = scheduler[0];
 		while(i > 0) {
-			if ((t >= do_run.timestamp) && (declarations[do_run.id].active == 1)) {
+			if ((t >= do_run.timestamp) && (g_plugins[do_run.id]->active == 1)) {
 				//printf("DEBUG: startPluginThread id %d\n", do_run.id);
 				startPluginThread(do_run.id);
 				tspr++;
@@ -7532,12 +7567,41 @@ void runPluginThreads(int loopVal){
 			do_run = scheduler[0];
 		}
 		return;
-	}
+	}*/
+	if (timeScheduler == 1) {
+                time_t t = time(NULL);
+                int currentId = -1;
+                time_t currentTimestamp = 0;
+
+                while (scheduler[0].timestamp <= t) {
+                        struct Scheduler do_run = scheduler[0];
+
+                        // Prevent infinite loop on same plugin and timestamp
+                        if ((currentId == do_run.id) && (currentTimestamp == do_run.timestamp)) {
+                                //printf("Loop protection triggered for id %d. Sleeping...\n", do_run.id);
+				snprintf(infostr, infostr_size, "Loop protextion triggered for id %d. Sleeping...\n", do_run.id);
+				writeLog(trim(infostr), 0, 0);
+                                sleep(1);
+                                break;
+                        }
+
+                        if (g_plugins[do_run.id]->active == 1) {
+                                //printf("DEBUG: startPluginThread id %d\n", do_run.id);
+                                startPluginThread(do_run.id);
+                                tspr++;
+                                currentId = do_run.id;
+                                currentTimestamp = do_run.timestamp;
+                                //printf("After reschedule: scheduler[0].id = %d, timestamp = %ld\n", scheduler[0].id, scheduler[0].timestamp);
+                        }
+                        // Loop continues as long as scheduler[0].timestamp <= t
+                }
+                return;
+        }
 
         for (i = 0; i < loopVal; i++) {
            long j = i;
-	   if (declarations[i].active == 1) {
-		if (t > declarations[i].nextRun)
+	   if (g_plugins[i]->active == 1) {
+		if (t > g_plugins[i]->nextRun)
 		{
 			rc = pthread_create(&thread_id, NULL, pluginExeThread, (void *)j);
            		if(rc) {
@@ -7545,7 +7609,7 @@ void runPluginThreads(int loopVal){
 				writeLog(trim(infostr), 2, 0);
            		}
            		else {
-                   		snprintf(infostr, infostr_size, "Created new thread (%lu) for plugin %s\n", thread_id, declarations[i].name);
+                   		snprintf(infostr, infostr_size, "Created new thread (%lu) for plugin %s\n", thread_id, g_plugins[i]->name);
 				writeLog(trim(infostr), 0, 0);
 				pthread_mutex_lock(&mtx);
 				thread_counter++;
@@ -7603,7 +7667,8 @@ void apiReloadConfigSoft() {
                 constructSocketMessage("softreloadplugins", "failed");
         }
         else {
-                updatePluginDeclarations();
+                //updatePluginDeclarations();
+		update_plugins();
                 constructSocketMessage("softreloadplugins", "success");
         }
 }
@@ -7677,7 +7742,9 @@ void scheduleChecks(){
 		if (checkPluginFileStat(pluginDeclarationFile, tPluginFile, 0)) {
 			writeLog("Detected change of plugins file.", 0, 0);
 			flushLog();
-			updatePluginDeclarations();
+			//updatePluginDeclarations();
+                        update_plugins();
+                        printf("Plugins updated. Total live plugins: %u\n", g_plugin_count);
 		}
 		// Time to execute gardener?
 		if (enableGardener != 0) {
@@ -7730,10 +7797,12 @@ int isConstantsEnabled () {
 	while (fgets(line, sizeof(line), file)) {
 		if (strstr(line, searchString)) {
 			writeLog("Constants file is enabled.", 0, 1);
+			fclose(file);
 			return 1;
 			break;
 		}
 	}
+	fclose(file);
 	return 0;
 }
 
@@ -7751,7 +7820,7 @@ void initialLogging() {
         printf("Starting almond version %s.\n", VERSION);
         initConstants();
         writeLog("Almond constants initialized.", 0, 1);
-        writeLog("Starting almond (0.9.11)...", 0, 1);
+        writeLog("Starting almond (0.9.14)...", 0, 1);
 }
 
 int closeFileHandler() {
@@ -7805,49 +7874,54 @@ void initLoggerThread() {
 
 int loadPlugins() {
 	decCount = countDeclarations(pluginDeclarationFile);
-        threadIds = (unsigned short*)malloc((size_t)decCount * sizeof(unsigned short));
+        //threadIds = (unsigned short*)malloc((size_t)decCount * sizeof(unsigned short));
         for (int i = 0; i < decCount; i++) {
                 threadIds[i] = 0;
         }
-        declarations = (PluginItem *)malloc((size_t)sizeof(PluginItem) * decCount);
+        /*g_plugins = (PluginItem *)malloc((size_t)sizeof(PluginItem) * decCount);
         declaration_size = (size_t)decCount;
-        if (!declarations) {
+        if (!g_plugins) {
                 perror ("Error allocating memory");
                 writeLog("Error allocating memory - PluginItem.", 2, 0);
                 abort();
         }
         printf("Declarations initiated.\n");
         for (int i = 0; i < decCount; i++) {
-                declarations[i].name = malloc((size_t)pluginitemname_size);
-                if (declarations[i].name == NULL) {
-                        logError("Failed to allocate declarations.", 2, 0);
+                g_plugins[i].name = malloc((size_t)pluginitemname_size);
+                if (g_plugins[i].name == NULL) {
+                        logError("Failed to allocate g_plugins.", 2, 0);
                         exit(2);
                 }
                 else
-                        declarations[i].name[0] = '\0';
-                declarations[i].description = malloc((size_t)pluginitemdesc_size);
-                if (declarations[i].description == NULL){
-                        logError("Failed to allocate declarations.", 2, 0);
+                        g_plugins[i].name[0] = '\0';
+                g_plugins[i].description = malloc((size_t)pluginitemdesc_size);
+                if (g_plugins[i].description == NULL){
+                        logError("Failed to allocate g_plugins.", 2, 0);
                         exit(2);
                 }
                 else
-                        declarations[i].description[0] = '\0';
-                declarations[i].command = malloc((size_t)pluginitemcmd_size);
-                if (declarations[i].command == NULL) {
-                        logError("Failed to allocate declarations.", 2, 0);
+                        g_plugins[i].description[0] = '\0';
+                g_plugins[i].command = malloc((size_t)pluginitemcmd_size);
+                if (g_plugins[i].command == NULL) {
+                        logError("Failed to allocate g_plugins.", 2, 0);
                         exit(2);
                 }
                 else
-                        declarations[i].command[0] = '\0';
-        }
+                        g_plugins[i].command[0] = '\0';
+        }*/
+	//init_plugins(pluginDeclarationFile, &declaration_size);
+	init_plugins();
         logInfo("Declarations read.", 0, 0);
-        outputs = malloc((size_t)sizeof(PluginOutput)*decCount);
+        /*outputs = malloc((size_t)sizeof(PluginOutput)*decCount);
         if (!outputs){
                 perror("Error allocating memory");
                 writeLog("Error allocating memory - PluginOutput.", 2, 0);
                 abort();
-        }
-        for (int i = 0; i < decCount; i++) {
+        }*/
+        for (size_t i = 0; i < decCount; ++i) {
+    		//plugin_output_init(&outputs[i]);
+	}
+        /*for (int i = 0; i < decCount; i++) {
                 outputs[i].retString = malloc((size_t)pluginoutput_size);
                 if (outputs[i].retString == NULL) {
                         logError("Failed to allocate outputs.", 2, 0);
@@ -7855,17 +7929,20 @@ int loadPlugins() {
                 }
                 else
                         outputs[i].retString[0] = '\0';
-        }
+        }*/
         output_size = (size_t)decCount;
-        int pluginDeclarationResult = loadPluginDeclarations(pluginDeclarationFile, 0);
+        //int pluginDeclarationResult = loadPluginDeclarations(pluginDeclarationFile, 0);
+	// This should be deprecated
+	int pluginDeclarationResult = 9;
         time_t dummy = time(NULL);
         checkPluginFileStat(pluginDeclarationFile, dummy, 1);
-        if (pluginDeclarationResult != 0){
+        if (pluginDeclarationResult <= 0){
                 logInfo("Problem reading from plugin declaration file.", 1, 0);
         }
         else {
-                logInfo("Plugin declarations file loaded.", 0, 0);
+                logInfo("Plugin g_plugins file loaded.", 0, 0);
         }
+	//printf("DEBUG: pluginDeclarationResult = %d\n", pluginDeclarationResult);
 	return 0;
 }
 
@@ -7909,16 +7986,6 @@ int main(int argc, char* argv[]) {
 	#else
 		#define HAS_BIRTHTIME 0
 	#endif
-        /*sigset_t set;
-    	sigemptyset(&set);
-    	sigaddset(&set, SIGCHLD);
-    	pthread_sigmask(SIG_BLOCK, &set, NULL);*/
-	//atexit(sig_exit_app);
-	/*signal(SIGINT, sig_handler);
-	signal(SIGKILL, sig_handler);
-	signal(SIGTERM, sig_handler);
-	signal(SIGSTOP, sig_handler);*/
-	//signal(SIGCHLD, reap_zombie_children);
 	install_signals();
 	initialLogging();
 	int configResult = loadConfiguration();
@@ -7930,28 +7997,33 @@ int main(int argc, char* argv[]) {
 		printf("Configuration read.\n");
 
 	if (strcmp(hostName, "None") == 0) { 
-		strncpy(hostName, getHostName(), 255);
+		char *tempHost = getHostName();
+		snprintf(hostName, 255, "%s", tempHost);
+		free(tempHost);
 	}
-	/*writeLog("Starting reaper thread...", 0, 1);
-        pthread_t reaperThread;
-	if (pthread_create(&reaperThread, NULL, zombieReaper, NULL) != 0) {
-		perror("Failed to start zombie reaper.");
-		exit(1);
-	}*/
 	writeLog("Initiate logger thread.", 0, 1);
 	initLoggerThread();
 	if (check_plugin_conf_file(pluginDeclarationFile) != 0) {
                 logError("plugins.conf file seems to be corrupt. Program will shut down.", 2, 0);
                 return 2;
         }
+        threadIds = (unsigned short*)malloc((size_t)MAX_PLUGINS * sizeof(unsigned short));
+    	memset(threadIds, 0, MAX_PLUGINS * sizeof(unsigned short));
+    	for (int i = 0; i < decCount; i++) {
+        	threadIds[i] = 0;
+    	}
+    	//thread_counter++;
+    	//size_t plugin_count = (size_t)decCount;
 	checkPluginFileStat(pluginDeclarationFile, tPluginFile, 0);
 	logInfo("No errors found in plugins.conf", 0, 0);
-	if (loadPlugins() != 0) {
-		logError("Failed to load plugin declarations", 2, 0);
+	decCount = countDeclarations(pluginDeclarationFile);
+	if (init_plugins() != 0) {
+		logError("Failed to initiate plugins", 2, 0);
 		flushLog();
 		return 2;
 	}
 	flushLog();
+        //plugin_count = (size_t)decCount;
         initScheduler(decCount, initSleep);
 	while (!is_stopping) {
         	scheduleChecks();
