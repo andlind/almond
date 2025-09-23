@@ -62,7 +62,7 @@ install -m 0600 -D apicmd.inf %{buildroot}/opt/almond/api_cmd/apicmd.inf
 cp -r www/* %{buildroot}/opt/almond/www/
 cp rs.sh %{buildroot}/opt/almond/www/api/
 cp -r system/* %{buildroot}/lib/systemd/system/
-install -m 0705 plugins/* %{buildroot}/opt/almond/plugins/
+cp -a plugins/* %{buildroot}/opt/almond/plugins/
 cp -r utilities/* %{buildroot}/opt/almond/utilities/
 
 #Enable mods
@@ -96,7 +96,86 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0750,almond,almond) /opt/almond/utilities/token-to-user.py
 %attr(0644,almond,almond) /opt/almond/templates/metrics.template
 %attr(0755,almond,almond) /var/log/almond/
-%attr(0755,almond,almond) /opt/almond/plugins/
+%attr(0755,almond,almond) /opt/almond/plugins/check_overcr
+%attr(0755,almond,almond) /opt/almond/plugins/check_flexlm
+%attr(0755,almond,almond) /opt/almond/plugins/check_uptime.sh
+%attr(0755,almond,almond) /opt/almond/plugins/check_mem.py
+%attr(0755,almond,almond) /opt/almond/plugins/urlize
+%attr(0755,almond,almond) /opt/almond/plugins/check_sensors
+%attr(0755,almond,almond) /opt/almond/plugins/check_ifstatus
+%attr(0755,almond,almond) /opt/almond/plugins/check_users
+%attr(0755,almond,almond) /opt/almond/plugins/check_by_ssh
+%attr(0755,almond,almond) /opt/almond/plugins/check_log
+%attr(0755,almond,almond) /opt/almond/plugins/check_ircd
+%attr(0755,almond,almond) /opt/almond/plugins/check_breeze
+%attr(0755,almond,almond) /opt/almond/plugins/check_nagios
+%attr(0755,almond,almond) /opt/almond/plugins/check_real
+%attr(0755,almond,almond) /opt/almond/plugins/check_ifoperstatus
+%attr(0755,almond,almond) /opt/almond/plugins/negate
+%attr(0755,almond,almond) /opt/almond/plugins/check_open_files.pl
+%attr(0755,almond,almond) /opt/almond/plugins/check_process
+%attr(0755,almond,almond) /opt/almond/plugins/check_supervisorctl.sh
+%attr(0755,almond,almond) /opt/almond/plugins/check_http
+%attr(0755,almond,almond) /opt/almond/plugins/check_fping
+%attr(0755,almond,almond) /opt/almond/plugins/check_ntp
+%attr(0755,almond,almond) /opt/almond/plugins/check_ssl_validity
+%attr(0755,almond,almond) /opt/almond/plugins/check_disk_smb
+%attr(0755,almond,almond) /opt/almond/plugins/check_cluster
+%attr(0755,almond,almond) /opt/almond/plugins/check_snmp
+%attr(0755,almond,almond) /opt/almond/plugins/check_mysql
+%attr(0755,almond,almond) /opt/almond/plugins/check_ldap
+%attr(0755,almond,almond) /opt/almond/plugins/check_dhcp
+%attr(0755,almond,almond) /opt/almond/plugins/check_smtp
+%attr(0755,almond,almond) /opt/almond/plugins/check_dig
+%attr(0755,almond,almond) /opt/almond/plugins/check_ntp_time
+%attr(0755,almond,almond) /opt/almond/plugins/check_pgsql
+%attr(0755,almond,almond) /opt/almond/plugins/check_load
+%attr(0755,almond,almond) /opt/almond/plugins/utils.sh
+%attr(0755,almond,almond) /opt/almond/plugins/check_dummy
+%attr(0755,almond,almond) /opt/almond/plugins/check_procs
+%attr(0755,almond,almond) /opt/almond/plugins/check_mailq
+%attr(0755,almond,almond) /opt/almond/plugins/check_wave
+%attr(0755,almond,almond) /opt/almond/plugins/check_hpjd
+%attr(0755,almond,almond) /opt/almond/plugins/check_tcp
+%attr(0755,almond,almond) /opt/almond/plugins/check_disk
+%attr(0755,almond,almond) /opt/almond/plugins/check_nt
+%attr(0755,almond,almond) /opt/almond/plugins/check_time
+%attr(0755,almond,almond) /opt/almond/plugins/check_swap
+%attr(0755,almond,almond) /opt/almond/plugins/check_apt
+%attr(0755,almond,almond) /opt/almond/plugins/check_mysql_query
+%attr(0755,almond,almond) /opt/almond/plugins/check_file_age
+%attr(0755,almond,almond) /opt/almond/plugins/check_ntp_peer
+%attr(0755,almond,almond) /opt/almond/plugins/check_mrtgtraf
+%attr(0755,almond,almond) /opt/almond/plugins/check_game
+%attr(0755,almond,almond) /opt/almond/plugins/check_memory2.py
+%attr(0755,almond,almond) /opt/almond/plugins/check_mrtg
+%attr(0755,almond,almond) /opt/almond/plugins/check_icmp
+%attr(0755,almond,almond) /opt/almond/plugins/check_dns
+%attr(0755,almond,almond) /opt/almond/plugins/check_cpu_stats.sh
+%attr(0755,almond,almond) /opt/almond/plugins/check_nwstat
+%attr(0755,almond,almond) /opt/almond/plugins/check_uptime
+%attr(0755,almond,almond) /opt/almond/plugins/check_oracle
+%attr(0755,almond,almond) /opt/almond/plugins/check_redpanda_metrics.py
+%attr(0755,almond,almond) /opt/almond/plugins/check_ide_smart
+%attr(0755,almond,almond) /opt/almond/plugins/utils.pm
+%attr(0755,almond,almond) /opt/almond/plugins/check_memory.py
+%attr(0755,almond,almond) /opt/almond/plugins/check_ups
+%attr(0755,almond,almond) /opt/almond/plugins/check_ping
+%attr(0755,almond,almond) /opt/almond/plugins/check_rpc
+%attr(0755,almond,almond) /opt/almond/plugins/check_memory1.py
+%attr(0755,almond,almond) /opt/almond/plugins/check_ssh
+/opt/almond/plugins/check_nntp
+/opt/almond/plugins/check_nntps
+/opt/almond/plugins/check_ldaps
+/opt/almond/plugins/check_udp
+/opt/almond/plugins/check_ssmtp
+/opt/almond/plugins/check_spop
+/opt/almond/plugins/check_ftp
+/opt/almond/plugins/check_imap
+/opt/almond/plugins/check_jabber
+/opt/almond/plugins/check_pop
+/opt/almond/plugins/check_simap
+/opt/almond/plugins/check_clamd
 %attr(0750,almond,almond) /opt/almond/www/api/mods/enabled/modxml.py
 %attr(0750,almond,almond) /opt/almond/www/api/mods/enabled/modyaml.py
 %attr(0644,root,root) /lib/systemd/system/almond.service
@@ -115,7 +194,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Mon Sep 22 2035 0.9.15
+* Tue Sep 23 2025 0.9.15
 <andreas.lindell@almond.monitor.com>
 - Buggfix Almond API calls
 - Improved build
