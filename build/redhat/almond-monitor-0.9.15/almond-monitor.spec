@@ -73,10 +73,6 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 
 %files
 %global default_attr 0640 almond almond
-%exclude /opt/almond/www/api/mods/enabled/modxml.py
-%exclude /opt/almond/www/api/mods/enabled/modyaml.py
-%exclude /opt/almond/www/api/rs.sh
-%exclude /opt/almond/gardener.py
 %defattr(755,almond,almond,755)
 /opt/almond/www/*
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/almond.conf
