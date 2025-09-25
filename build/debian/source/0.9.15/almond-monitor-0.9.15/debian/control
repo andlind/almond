@@ -1,0 +1,43 @@
+Source: almond-monitor
+Section: net
+Priority: optional
+Maintainer: Andreas Lindell <andreas.lindell@ealmondmonitor.com>
+Build-Depends: 
+  debhelper (>= 11),
+  gcc,
+  make,
+  libjson-c-dev,
+  librdkafka-dev,
+  libssl-dev,
+  libavro-dev,
+  zlib1g-dev
+Standards-Version: 4.5.1
+Homepage: https://www.almondmonitor.com
+
+Package: almond-monitor
+Architecture: any
+Depends:   ${shlibs:Depends}, ${misc:Depends}, gunicorn, python3, python3-flask, python3-yaml, python3-simplejson, python3-flask-httpauth, python3-matplotlib, python3-cryptography, python3-qrcode, libavro23, python3-pil, zlib1g-dev, nagios-plugins, ksh, sysstat, libsys-statistics-linux-perl, librdkafka
+Description: Local monitoring system running Nagios plugins and exposing the results through various means (http, api, metrics, kafka data stream)
+ Full-featured local monitor that:
+  - Runs Nagios plugins on a schedule
+  - Exposes results via http, API and metrics endpoints
+  - Streams data to Kafka for downstream consumers
+
+Package: almond-monitor-avro
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, gunicorn, python3, python3-flask, python3-yaml, python3-simplejson, python3-flask-httpauth, python3-matplotlib, python3-cryptography, python3-qrcode, libavro23, python3-pil, zlib1g-dev, nagios-plugins, ksh, sysstat, libsys-statistics-linux-perl, librdkafka, libavro
+Description: Local monitoring system running Nagios plugins and exposing the results through various means (http, api, metrics, kafka data stream)
+  This package requires libserdes.so.1, which must be built and installed manually.
+  Full-featured local monitor that:
+  - Runs Nagios plugins on a schedule
+  - Exposes results via http, API and metrics endpoints
+  - Streams data to Kafka for downstream consumers
+  - Usage of schema registry with Avro when producing Kafka topics
+
+Package: almond-monitor-minimal
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, gunicorn, python3, python3-flask, python3-yaml, python3-simplejson, python3-flask-httpauth, python3-matplotlib, python3-cryptography, python3-qrcode, libavro23, python3-pil, zlib1g-dev, nagios-plugins, ksh, sysstat, libsys-statistics-linux-perl
+Description: Description: Local monitoring system running Nagios plugins and exposing the results through various means (http, api, metrics)
+ Full-featured local monitor that:
+  - Runs Nagios plugins on a schedule
+  - Exposes results via http, API and metrics endpoints

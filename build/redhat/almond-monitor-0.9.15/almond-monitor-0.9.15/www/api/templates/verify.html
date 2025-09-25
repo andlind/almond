@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {font-family: Arial, Helvetica, sans-serif;}
+a:link {
+  color: #cbe824;
+  background-color: transparent;
+  text-decoration: none;
+}
+a:visited {
+  color: #cbe824;
+  background-color: transparent;
+  text-decoration: none;
+}
+a:hover {
+  color: #e4cac2;
+  background-color: transparent;
+  text-decoration: underline;
+}
+a:active {
+  color: #cbe824;
+  background-color: transparent;
+  text-decoration: underline;
+}
+</style>
+</head>
+<body style="background-color: #491c0f;">
+<p align="center"><img src=" {{ logon_image }} " alt=" Logon image"></p>
+<table border="0" width="50%" align="center">
+        <tr><td align="center"><p style="font-family:Arial, Helvetica, sans-serif; font-size: 30px; font-weight:bold; color: #e4cac2">Welcome to Almond Admin</p></td></tr>
+        <tr><td align="center"><h1 style="color:#cbe824">Two-Factor Authentication</h1>
+        <form method="post" action="/verify_2fa">
+            <label for="token" style="color:#ffffff">Enter your 2FA token:</label> <input name="token" type="text"><br>
+            <input type="submit" value="Verify">
+        </form>
+        </td>
+        </tr>
+</table>
+<p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
+<table style="border: 1px solid; border-color: #e4cac2" width="50%" align="center">
+        <tr><td align="center"><p style="font-family:Arial, Helvetica, sans-serif; font-size: 12px; font-style: italic; color: #e4cac2"><b>NOTE!</b> If you don´t have enabled 2fa for your account visit:</p>
+        <p align="center"><a href="/almond/admin/enable_2fa/{{ username }}">enable_2fa</a></p></td>
+        </tr>
+</table>
+</body>
+</html>

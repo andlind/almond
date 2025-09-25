@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+# Default target: invoke debhelper sequencer
+%:
+	dh $@
+
+# Override the build step to call gcc with your flags
+override_dh_auto_build:
+	$(MAKE)
+
+override_dh_auto_clean:
+	rm -f almond
+
+# Override the install step to stage files in debian/<pkgname>/
+override_dh_auto_install:
+	# Create target directory under /opt
+	install -d debian/almond-monitor/opt/almond
+	# Copy the compiled binary there
+	install -m 755 almond debian/almond-monitor/opt/almond/almond
+	# Create utilities directory under /usr/share for non-ELF files    
+	install -d debian/almond-monitor/usr/share/almond-monitor/utilities    
+	install -m 755 opt/almond/utilities/almond-token-generator debian/almond-monitor/usr/share/almond-monitor/utilities/    
+	install -m 755 opt/almond/utilities/check_almond debian/almond-monitor/usr/share/almond-monitor/utilities/
+	install -m 755 opt/almond/utilities/almond-collector debian/almond-monitor/usr/share/almond-monitor/utilities/
+
+override_dh_installsystemd:
+	dh_installsystemd --name=almond.service
+	dh_installsystemd --name=howru.service
+
+override_dh_strip:
+	dh_strip -Xusers.conf -Xalmond.conf -Xmemalloc.conf -Xtokens -Xaliases.conf -Xplugins.conf -Xauth2fa.enc -Xalmond-monitor -Xalmond-token-generator -Xcheck_almond -Xalmond-collector -Xcopyright -Xchangelog.Debian.gz -Xhowru.service -Xalmond.service -Xhowru -Xgardener.py -Xalmond -Xplugins_status.avsc -Xmemalloc.alm -Xwsgi.py -Xhowru.py -Xadmin_page.py -Xpyopt.py -Xrs.sh -Xauth2fa.py -Xlogin_a.html -Xstatus_mm.html -Xapi.html -Xmetrics.html -Xdetails.html -Xshow_metrics_a.html -Xlogin_fa.html -Xplugin_query.html -Xconf.html -Xindex.html -Xexecute.html -Xhowruconf.html -Xrestart.html -Xindex_m.html -Xadd_conf.html -Xinstallplugin.html -Xhead_r.html -Xindex_e.html -Xplugin_query_mm.html -Xtestplugin.html -Xpluginadded.html -Xhead.html -Xgraph.html -Xconf_a.html -Xmetrics_a.html -Xapi.old -X403_fa.html -Xstatus_admin.html -Xdocumentation.html -Xadmin.html -Xactionapi.html -Xshow_metrics.html -Xdocumentation_a.html -Xupload.html -Xshow_log_a.html -Xfoot.html -Xdeleteplugin.html -X403.html -Xeditplugin.html -Xhowruconf_a.html -Xplugins.html -Xaction.html -Xlogs.html -Xindex_w.html -Xaddplugin.html -Xstatus.html -Xauth2fa.cpython-39.pyc -Xhowrug.cpython-39.pyc -Xhowru.cpython-39.pyc -Xtest.cpython-39.pyc -Xadmin_page.cpython-39.pyc -Xwsgi.cpython-39.pyc -Xmodexport.py -Xmodxml.py -XREADME -Xmodyaml.py -Xmodxml.py -Xmodyaml.py -Xgreen.png -Xalmond_small.png -Xalmond.png -Xred.png -Xyellow.png -Xstyle.css -Xhowru.png -Xgraph.png -Xinfo.txt -Xapicmd.inf -Xvars.template -Xmetrics.template -Xalmond-token-generator -Xcheck_almond -Xalmond-collector -Xtoken_to_user.py -Xhowru-user-admin.py -Xcheck_uptime.sh -Xcheck_linux_stats.pl -Xcheck_open_files.pl -Xcheck_supervisorctl.sh -Xcheck_cpu_stats2.sh -Xcheck_almond -Xcustom_check_procs -Xcheck_memory2.py -Xcheck_cpu_stats.sh -Xcheck_memory.py -Xwsgi.py -Xhowru.py -Xadmin_page.py -Xrs.sh -Xauth2fa.py -Xlogin_a.html -Xstatus_mm.html -Xapi.html -Xmetrics.html -Xdetails.html -Xshow_metrics_a.html -Xlogin_fa.html -Xplugin_query.html -Xconf.html -Xindex.html -Xexecute.html -Xhowruconf.html -Xrestart.html -Xindex_m.html -Xadd_conf.html -Xinstallplugin.html -Xhead_r.html -Xindex_e.html -Xplugin_query_mm.html -Xverify.html -Xtestplugin.html -Xpluginadded.html -Xhead.html -Xgraph.html -Xconf_a.html -Xmetrics_a.html -Xenable2fa.html -Xapiold.html -X403_fa.html -Xstatus_admin.html -Xdocumentation.html -Xadmin.html -Xactionapi.html -Xshow_metrics.html -Xdocumentation_a.html -Xupload.html -Xshow_log_a.html -Xfoot.html -Xdeleteplugin.html -X403.html -Xeditplugin.html -Xhowruconf_a.html -Xenablefa.html -Xplugins.html -Xaction.html -Xlogs.html -Xindex_w.html -Xaddplugin.html -Xstatus.html -Xmodexport.py -Xmodxml.py -XREADME -Xmodyaml.py -XREADME -Xgreen.png -Xalmond_small.png -Xalmond.png -Xred.png -Xyellow.png -Xstyle.css -Xhowru.png -Xinfo.txt
+
+override_dh_shlibdeps:
+	dh_shlibdeps -Xcheck_almond -Xalmond-token-generator -Xalmond-collector -Xcheck_process
+
