@@ -192,6 +192,9 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Thu Oct 02 2025 0.9.16
+<andreas.lindell@almondmonitor.com>
+- Enhanced options for Kafka producer
 * Tue Sep 23 2025 0.9.15
 <andreas.lindell@almondmonitor.com>
 - Buggfix Almond API calls
