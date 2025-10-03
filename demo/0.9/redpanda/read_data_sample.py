@@ -1,8 +1,21 @@
 #############################################
 ## Sample script consume Almond Kafka data ##
 #############################################
-from kafka import KafkaConsumer
-import json
+try:
+    from kafka import KafkaConsumer
+except ImportError:
+    print("Missing module 'kafka'. Please install it before running the script.")
+    exit(1)
+try:
+    import json
+except ImportError:
+    print("Missing module 'json'. Please install it before running this script.")
+    exit(1)
+try:
+    import lz4
+except ImportError:
+    print("Missing module 'lz4'. Please install it before running this script.")
+    exit(1)
 
 red = "\033[31m"
 green = "\033[32m"
