@@ -2,10 +2,11 @@
 #define _XOPEN_SOURCE 700
 #define _DEFAULT_SOURCE
 #ifndef VERSION
-#define VERSION "0.9.14"
+#define VERSION "0.9.16"
 #endif
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
@@ -163,13 +164,11 @@ char* client_message = NULL;
 char* almondCertificate = NULL;
 char* almondKey = NULL;
 char* schemaRegistryUrl = NULL;
+char* kafkaConfigFile = NULL;
 char schemaName[100] = "almond-monitor-topic-value"; 
-//PluginItem *g_plugins = NULL;
 PluginItem **g_plugins   = NULL;
 PluginItem *g_plugin_map   = NULL;
-//PluginOutput *outputs = NULL;
 PluginItem *update_g_plugins = NULL;
-//PluginOutput *update_outputs = NULL;
 Scheduler *scheduler = NULL;
 struct sockaddr_in address;
 SSL_CTX *ctx;
@@ -177,11 +176,11 @@ SSL *ssl;
 int initSleep;
 int updateInterval;
 int schedulerSleep = 5000;
-int confDirSet = 0;
-int dataDirSet = 0;
-int storeDirSet = 0;
-int logDirSet = 0;
-int pluginDirSet = 0;
+int confDirSet = false;
+int dataDirSet = false;
+int storeDirSet = false;
+int logDirSet = false;
+int pluginDirSet = false;
 int logPluginOutput = 0;
 int pluginResultToFile = 0;
 int decCount = 0;
@@ -211,6 +210,7 @@ int tspr = 0;
 int config_memalloc_fails = 0;
 int trunc_time = 0;
 int external_scheduler = 0;
+int useKafkaConfigFile = 0;
 int max_try = 60;
 int g_plugin_count = 0;
 size_t infostr_size = 400;
@@ -336,6 +336,7 @@ void process_host_name(ConfVal);
 void process_init_sleep(ConfVal);
 void process_kafka_brokers(ConfVal);
 void process_kafka_ca_certificate(ConfVal);
+void process_kafka_config_file(ConfVal);
 void process_kafka_producer_certificate(ConfVal);
 void process_kafka_start_id(ConfVal);
 void process_kafka_tag(ConfVal);
@@ -361,6 +362,7 @@ void process_almond_api_tls(ConfVal);
 void process_external_scheduler(ConfVal);
 void process_schema_registry_url(ConfVal);
 void process_schema_name(ConfVal);
+void process_use_kafka_config(ConfVal);
 void writePluginResultToFile(int, int);
 void writeToKafkaTopic(int, int);
 void run_plugin(PluginItem *item);
@@ -397,6 +399,7 @@ ConfigEntry config_entries[] = {
     {"scheduler.kafkaAvro", process_kafka_avro},
     {"scheduler.kafkaBrokers", process_kafka_brokers},
     {"scheduler.kafkaCACertificate", process_kafka_ca_certificate},
+    {"scheduler.kafkaConfigFile", process_kafka_config_file},
     {"scheduler.kafkaProducerCertificate", process_kafka_producer_certificate},
     {"scheduler.kafkaStartId", process_kafka_start_id},
     {"scheduler.kafkaTag", process_kafka_tag},
@@ -419,6 +422,7 @@ ConfigEntry config_entries[] = {
     {"scheduler.tuneTimer", process_tune_timer},
     {"scheduler.type", process_almond_scheduler_type},
     {"scheduler.useExternal", process_external_scheduler},
+    {"scheduler.useKafkaConfigFile", process_use_kafka_config},
     {"scheduler.useTLS", process_almond_api_tls}
 };
 
@@ -744,97 +748,6 @@ static int compress_log(const char* src_filename, const char* dest_filename) {
 	return 0;
 }
 
-/*void run_plugin(PluginItem *item) {
-    if (!item) return;
-
-    int    prevRet = item->output.retCode;
-    clock_t start  = clock();
-    time_t  now    = time(NULL);
-
-    char cmd[plugincommand_size];
-    snprintf(cmd, plugincommand_size, "%s/%s", pluginDir, item->command);
-    printf("Running: %s\n", cmd);
-
-    TrackedPopen tp = tracked_popen(cmd);
-    if (!tp.fp) {
-        perror("tracked_popen");
-        item->output.retCode = -1;
-    }
-    else {
-        add_plugin_pid(tp.pid);
-
-        char *last_line = NULL;
-        char  buf[pluginoutput_size];
-
-        while (fgets(buf, sizeof buf, tp.fp)) {
-            char *t = trim(buf);
-            if (*t) {
-                free(last_line);
-                last_line = strdup(t);
-            }
-        }
-        int rc = tracked_pclose(&tp);
-        remove_plugin_pid(tp.pid);
-
-        if      (rc == 126)           item->output.retCode = 0;
-        else if (rc == 256)           item->output.retCode = 1;
-        else if (rc == 512)           item->output.retCode = 2;
-        else                          item->output.retCode = rc;
-
-        free(item->output.retString);
-        item->output.retString = NULL;
-
-        if (last_line) {
-            size_t len = strlen(last_line);
-            if (len >= (size_t)pluginoutput_size) {
-                len = pluginoutput_size - 1;
-            }
-            item->output.retString = malloc(len + 1);
-            if (item->output.retString) {
-                memcpy(item->output.retString, last_line, len);
-                item->output.retString[len] = '\0';
-            }
-            free(last_line);
-        }
-    }
-    char ts_now[TIMESTAMP_SIZE];
-    struct tm tm_now;
-    localtime_r(&now, &tm_now);
-    strftime(ts_now, sizeof ts_now, "%Y-%m-%d %H:%M:%S", &tm_now);
-    if (prevRet != item->output.retCode) {
-        memcpy(item->statusChanged, "1", 2);
-        strncpy(item->lastChangeTimestamp,
-                ts_now,
-                sizeof item->lastChangeTimestamp - 1);
-        item->lastChangeTimestamp[sizeof item->lastChangeTimestamp - 1] = '\0';
-    }
-    else {
-        memcpy(item->statusChanged, "0", 2);
-    }
-
-    strncpy(item->lastRunTimestamp,
-            ts_now,
-            sizeof item->lastRunTimestamp - 1);
-    item->lastRunTimestamp[sizeof item->lastRunTimestamp - 1] = '\0';
-
-    time_t next = now + (item->interval * 60);
-    struct tm tm_next;
-    localtime_r(&next, &tm_next);
-    strftime(item->nextRunTimestamp,
-             sizeof item->nextRunTimestamp,
-             "%Y-%m-%d %H:%M:%S",
-             &tm_next);
-    item->nextRun = next;
-
-    item->output.prevRetCode = prevRet;
-
-    double ms = (double)(clock() - start) * 1000.0 / CLOCKS_PER_SEC;
-    printf("%s executed in %.0f ms (ret=%d)\n\n",
-           item->name,
-           ms,
-           item->output.retCode);
-}*/
-
 void run_plugin(PluginItem *item) {
 	if (!item) return;
 
@@ -955,10 +868,12 @@ void run_plugin(PluginItem *item) {
                 if (o_info == NULL) {
                         writeLog("Could not allocate memory for variable 'o_info'.", 2, 0);
                 }
-                snprintf(o_info, (size_t)o_info_size, "%s : %s", item->name, item->output.retString);
-   writeLog(trim(o_info), 0, 0);
-                free(o_info);
-                o_info = NULL;
+		else {
+                	snprintf(o_info, (size_t)o_info_size, "%s : %s", item->name, item->output.retString);
+                	writeLog(trim(o_info), 0, 0);
+                	free(o_info);
+               	 	o_info = NULL;
+		}
         }
         if (pluginResultToFile == 1) {
                 writePluginResultToFile(item->id, 0);
@@ -1237,20 +1152,9 @@ void updateFileName(char value[100], int mode) {
         }
 }
 
-/*int compare_timestamps(const void* a, const void* b) {
-        struct Scheduler* sa = (struct Scheduler*)a;
-        struct Scheduler* sb = (struct Scheduler*)b;
-        if (sb->timestamp > sa->timestamp) return -1;
-        if (sb->timestamp < sa->timestamp) return 1;
-        if (sa->id > sb->id) return -1;
-        if (sa->id < sb->id) return 1;
-        return 0;
-}*/
-
 int compare_timestamps(const void* a, const void* b) {
     const struct Scheduler* sa = (const struct Scheduler*)a;
     const struct Scheduler* sb = (const struct Scheduler*)b;
-    //printf("DEBUG: Comparing: sa->timestamp=%ld, sb->timestamp=%ld\n", sa->timestamp, sb->timestamp);
 
     if (sa->timestamp < sb->timestamp) return -1;
     if (sa->timestamp > sb->timestamp) return 1;
@@ -2352,8 +2256,6 @@ struct json_object* getJsonValue(struct json_object *jobj, const char* key) {
         return NULL;
 }
 
-
-
 void parseClientMessage(char str[], int arr[]) {
         struct json_object *jobj, *jaction, *jid, *jname,  *jflags, *jargs, *jvalue, *jmode;
 	struct json_object *jtoken;
@@ -3254,6 +3156,7 @@ void free_constants() {
 	safe_free_str(&schemaRegistryUrl);
 	safe_free_str(&socket_message);
 	safe_free_str(&client_message);
+	safe_free_str(&kafkaConfigFile);
 	//safe_free_str(&logmessage);
 	writeLog("All constants freed from memory.", 0, 0);
 }
@@ -3381,7 +3284,9 @@ void sig_exit_app() {
 		scheduler = NULL;
 	}
         free(g_plugins);
-        //free(outputs);
+	if (useKafkaConfigFile > 0) {
+  		free_kafka_memalloc();
+	}	
         free_kafka_vars();
         free_constants();
         free(threadIds);
@@ -3593,7 +3498,7 @@ void process_conf_dir(ConfVal value) {
         	//strncpy(confDir, value.strval, strlen(value.strval));
 		//confDir[strlen(value.strval)] = '\0';
 		snprintf(confDir, 50, "%s", value.strval);
-        	confDirSet = 1;
+        	confDirSet = true;
 	}
         else {
         	int status = mkdir(value.strval, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -3605,7 +3510,7 @@ void process_conf_dir(ConfVal value) {
         		//strncpy(confDir, value.strval, strlen(value.strval));
 			//confDir[strlen(value.strval)] = '\0';
 			snprintf(confDir, 50, "%s", value.strval);
-        		confDirSet = 1;
+        		confDirSet = true;
         	}
         }
         writeLog("Configuration directory is set.", 0, 1);
@@ -3650,7 +3555,7 @@ void process_data_dir(ConfVal value) {
 		//strncpy(dataDir, value.strval, strlen(value.strval));
 		//dataDir[strlen(value.strval)] = '\0';
 		snprintf(dataDir, datadir_size, "%s", value.strval);
-		dataDirSet = 1;
+		dataDirSet = true;
 	}
 	else {
 		int status = mkdir(value.strval, 0755);
@@ -3663,7 +3568,7 @@ void process_data_dir(ConfVal value) {
 			//strncpy(dataDir, value.strval, strlen(value.strval));
 			//dataDir[strlen(value.strval)] = '\0';
 			snprintf(dataDir, datadir_size, "%s", value.strval);
-			dataDirSet = 1;
+			dataDirSet = true;
 		}
 	}
 	snprintf(infostr, infostr_size, "Almond data dir is set to %s.", dataDir);
@@ -3673,7 +3578,7 @@ void process_data_dir(ConfVal value) {
 void process_store_dir(ConfVal value) {
 	if (directoryExists(value.strval, 255) == 0) {
 		strncpy(storeDir, value.strval, storedir_size);
-                storeDirSet = 1;
+                storeDirSet = true;
         }
         else {
         	int status = mkdir(value.strval, 0755);
@@ -3686,7 +3591,7 @@ void process_store_dir(ConfVal value) {
                 	//strncpy(storeDir, value.strval, strlen(value.strval));
 			//storeDir[strlen(value.strval)] = '\0';
 			snprintf(storeDir, storedir_size, "%s", value.strval);
-                        storeDirSet = 1;
+                        storeDirSet = true;
                 }
 	}
 	snprintf(infostr, infostr_size, "Almond store dir is set to %s.", storeDir);
@@ -3706,6 +3611,13 @@ void process_external_scheduler(ConfVal value) {
 		writeLog("Almond will after initialization only respond to api calls to execute commands.", 1, 1);
 		external_scheduler = 1;
 		writeLog("Almond scheduler is inactivated for running command checks.", 0, 1);
+	}
+}
+
+void process_use_kafka_config(ConfVal value) {
+	if (value.intval >= 1) {
+		writeLog("Almond will use '/etc/almond/kafka.conf' for Kafka configurations.", 0, 1);
+		useKafkaConfigFile = 1;
 	}
 }
 
@@ -3735,7 +3647,7 @@ void process_log_dir(ConfVal val) {
 		//strncpy(logDir, val.strval, strlen(val.strval));
 		//logDir[strlen(val.strval)] = '\0';
 		snprintf(logDir, logdir_size, "%s", val.strval);
-                logDirSet = 1;
+                logDirSet = true;
         }
         else {
         	int status = mkdir(val.strval, 0755);
@@ -3747,7 +3659,7 @@ void process_log_dir(ConfVal val) {
                 	//strncpy(logDir, val.strval, strlen(val.strval));
 			//logDir[strlen(val.strval)] = '\0';
 			snprintf(logDir, logdir_size, "%s", val.strval);
-                        logDirSet = 1;
+                        logDirSet = true;
                 }
 	}
 	if (strcmp(val.strval, "/var/log/almond") != 0) {
@@ -3819,7 +3731,7 @@ void process_plugin_directory(ConfVal value) {
        		//strncpy(pluginDir, value.strval, strlen(value.strval));
 		//pluginDir[strlen(value.strval)-1] = '\0';
 		snprintf(pluginDir, plugindir_size, "%s", value.strval);
-                pluginDirSet = 1;
+                pluginDirSet = true;
         }
         else {
         	int status = mkdir(value.strval, 0755);
@@ -3831,7 +3743,7 @@ void process_plugin_directory(ConfVal value) {
 			//strncpy(pluginDir, value.strval, strlen(value.strval));
 			//pluginDir[strlen(value.strval)-1] = '\0';
 			snprintf(pluginDir, plugindir_size, "%s", value.strval);
-			pluginDirSet = 1;
+			pluginDirSet = true;
 			writeLog("Created new plugin directory. It most likely is empty!", 1, 1);
                 }
         }
@@ -3921,6 +3833,20 @@ void process_kafka_brokers(ConfVal value) {
 	//strncpy(kafka_brokers, value.strval, strlen(value.strval));
 	snprintf(kafka_brokers, kf_len, "%s", value.strval);
 	snprintf(infostr, infostr_size, "Kafka export brokers is set to '%s'", kafka_brokers);
+	writeLog(trim(infostr), 0, 1);
+}
+
+void process_kafka_config_file(ConfVal value) {
+	size_t cf_len = strlen(value.strval) + 1;
+	kafkaConfigFile = malloc(cf_len);
+	if (kafkaConfigFile == NULL) {
+		fprintf(stderr, "Failed to allocate memory for kafka config file.\n");
+                writeLog("Failed to allocate memory [kafka_config_file]", 2, 1);
+                config_memalloc_fails++;
+                return;
+	}
+	snprintf(kafkaConfigFile, cf_len, "%s", value.strval);
+	snprintf(infostr, infostr_size, "Kafka config file is set to '%s'", kafkaConfigFile);
 	writeLog(trim(infostr), 0, 1);
 }
 
@@ -4224,7 +4150,7 @@ int getConfigurationValues() {
 	}
 	updateInterval = 60;
 	if (enableKafkaExport > 0) {
-       		if (kafkaexportreqs < 2) {
+       		if (kafkaexportreqs < 2 && useKafkaConfigFile != 1) {
                 	writeLog("Not sufficient configuration to export to Kafka. Brokers and or topic is unknown.", 1, 1);
                 	writeLog("Kafka export is not enabled.", 0, 1);
                 	enableKafkaExport = 0;
@@ -4243,572 +4169,6 @@ int getConfigurationValues() {
 	}
         return 0;
 }
-
-/*int dep_getConfigurationValues() {
-	char* file_name = NULL;
-	char* line = NULL;
-	size_t len = 0;
-	ssize_t read;
-	FILE *fp = NULL;
-	int index = 0;
-	file_name = "/etc/almond/almond.conf";
-        fp = fopen(file_name, "r");
-	char confName[MAX_STRING_SIZE] = "";
-        char confValue[MAX_STRING_SIZE] = "";
-
-	if (fp == NULL)
-   	{
-      		perror("Error while opening the file.\n");
-		writeLog("Error opening configuration file", 2, 1);
-      		exit(EXIT_FAILURE);
-   	}
-
-	while ((read = getline(&line, &len, fp)) != -1) {
-	   char * token = strtok(line, "=");
-	   while (token != NULL)
-	   {
-		   if (index == 0)
-		   {
-			   strncpy(confName, token, sizeof(confName));
-		   }
-		   else
-		   {
-			   strncpy(confValue, token, sizeof(confValue));
-		   }
-		   token = strtok(NULL, "=");
-		   index++;
-		   if (index == 2) index = 0;
-           }
-	   if (strcmp(confName, "almond.api") == 0) {
-		   int i = strtol(trim(confValue), NULL, 0);
-		   if (i >= 1) {
-			   local_api = 1;
-		   }
-	   }
-	   if (strcmp(confName, "almond.standalone") == 0) {
-		   int i = strtol(trim(confValue), NULL, 0);
-		   if (i >= 1) {
-			   writeLog("Almond will run standalone. No monitor data will be sent to HowRU.", 0, 1);
-			   standalone = 1;
-		   }
-	   }
-           if (strcmp(confName, "almond.port") == 0) {
-		   int i = strtol(trim(confValue), NULL, 0);
-		   if (i >= 1) {
-			   local_port = i;
-		   }
-		   else local_port = ALMOND_API_PORT;
-		   if (local_api > 0) {
-			   writeLog("Almond will enable local api.", 0, 1);
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.confDir") == 0) {
-		   confDir = malloc((size_t)50 * sizeof(char));
-		   if (confDir != NULL)
-		   	   memset(confDir, '\0', 50 * sizeof(char));
-		   if (directoryExists(confValue, 255) == 0) {
-			   strncpy(confDir,trim(confValue), strlen(confValue));
-			   snprintf(confDir, 
-			   confDirSet = 1;
-		   }
-		   else {
-			   int status = mkdir(trim(confValue), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-			   if(status != 0 && errno != EEXIST){
-                               printf("Failed to create directory. Errno: %d\n", errno);
-			       writeLog("Error creating configuration directory.", 2, 1);
-                           }
-			   else{
-			       strncpy(confDir, trim(confValue), strlen(confValue));
-			       confDirSet = 1;
-			   }
-		  }
-		  writeLog("Configuration directory is set.", 0, 1);
-	   }
-	   if (strcmp(confName, "scheduler.quickStart") == 0) {
-                   int i = strtol(trim(confValue), NULL, 0);
-                   if (i >= 1) {
-                           writeLog("Almond scheduler have quick start activated.", 0, 1);
-                           quick_start = 1;
-                   }
-           }
-	   if ((strcmp(confName, "scheduler.useTLS") == 0) || (strcmp(confName, "almond.useSSL") == 0)) {
-		   int i = strtol(trim(confValue), NULL, 0);
-		   if (i >= 1) {
-			   writeLog("Almond scheduler use TLS encryption.", 0, 1);
-			   use_ssl = 1;
-		   }
-	   }
-	   if ((strcmp(confName, "scheduler.certificate") == 0) || (strcmp(confName, "almond.certificate") == 0)) {
-                   almondCertificate = malloc((size_t)strlen(confValue)+1);
-                   if (almondCertificate == NULL) {
-                           fprintf(stderr, "Failed to allocate memory [almondCertificate].\n");
-                           writeLog("Failed to allocate memory [almondCertificate]", 2, 1);
-                           return 2;
-                   }
-                   strncpy(almondCertificate, trim(confValue), strlen(confValue));
-                   if (use_ssl > 0) {
-                        writeLog("Certificate for Almond is not provided. Almond API will not run with TLS encryption.", 1, 1);
-                        use_ssl = 0;
-                   }
-           }
-           if ((strcmp(confName, "scheduler.key") == 0) || (strcmp(confName, "almond.key") == 0)) {
-                   almondKey = malloc((size_t)strlen(confValue)+1);
-                   if (almondKey == NULL) {
-                           fprintf(stderr, "Failed to allocate memory [almondSSLKey].\n");
-                           writeLog("Failed to allocate memory [almondSSLKey]", 2, 1);
-                           return 2;
-                   }
-                   strcpy(almondKey, trim(confValue));
-                   if (use_ssl > 0) {
-                        writeLog("No SSL key for Almond certificate provided. Almond API will not run with SSL encryption.", 1, 1);
-                        use_ssl = 0;
-                   }
-           }
-	   if (strcmp(confName, "scheduler.format") == 0) {
-           	if (strcmp(trim(confValue), "json") == 0){
-			printf ("Export to json\n");
-		      	output_type= JSON_OUTPUT;
-	      	}
-	      	else if (strcmp(trim(confValue), "metrics") == 0) {
-			printf ("Export to metrics file\n");
-		      	output_type = METRICS_OUTPUT;
-	      	}
-	      	else if (strcmp(trim(confValue), "jsonmetrics") == 0) {
-			printf ("Export both to json and metrics file.\n");
-		      	writeLog("Exporting both to json and to metrics file.", 0, 1);
-		      	output_type = JSON_AND_METRICS_OUTPUT;
-	      	}
-	      	else if (strcmp(trim(confValue), "prometheus") == 0) {
-			printf("Export to prometheus.\n");
-		      	writeLog("Export to prometheus style metrics.", 0, 1);
-		      	output_type = PROMETHEUS_OUTPUT;
-	      	}
-	      	else if (strcmp(trim(confValue), "jsonprometheus") == 0) {
-                      	printf("Export to both json and Prometheus style metrics.\n");
-                      	writeLog("Exporting to both json and prometheus style metrics.", 0, 1);
-                      	output_type = JSON_AND_PROMETHEUS_OUTPUT;
-              	}
-	      	else {
-		      	printf("%s is not a valid value.  supported at this moment.\n", confValue);
-		      	writeLog("Unsupported value in configuration scheduler.format.", 1, 1);
-		      	writeLog("Using standard output (JSON_OUTPUT).", 0, 1);
-		      	output_type = JSON_OUTPUT;
-	   	}
-	   }
-	   if (strcmp(confName, "scheduler.initSleepMs") == 0) {
-              int i = strtol(trim(confValue), NULL, 0);
-	      if (i < 5000)
-		      i = 7000;
-	      initSleep = i;
-	      writeLog("Init sleep for scheduler read.", 0, 1);
-	   }
-	   if (strcmp(confName, "scheduler.type") == 0) {
-		   if (strcmp(trim(confValue), "time") == 0){
-			   timeScheduler = 1;
-			   writeLog("Almond will use a time scheduler.", 0, 1);
-		   }
-		   else {
-			   writeLog("Almond will useclassic scheduler.", 0, 1);
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.sleepMs") == 0) {
-		   int i = strtol(trim(confValue), NULL, 0);
-		   if (i < 2000)
-			   i = 2000;
-                   snprintf(infostr, infostr_size, "Scheduler sleep time is %d ms.", i);
-		   writeLog(trim(infostr), 0, 1);
-		   schedulerSleep = i;
-	   }
-	   if (strcmp(confName, "scheduler.dataDir") == 0) {
-		   if (directoryExists(confValue, 255) == 0) {
-			   strncpy(dataDir, trim(confValue), strlen(confValue));
-			   dataDirSet = 1;
-		   }
-		   else {
-			   int status = mkdir(trim(confValue), 0755);
-			   if (status != 0 && errno != EEXIST) {
-				   printf("Failed to create directory. Errno: %d\n", errno);
-				   writeLog("Error creating HowRU dataDir.", 2, 1);
-			   }
-			   else {
-				   strncpy(dataDir, trim(confValue), strlen(confValue));
-				   dataDirSet = 1;
-			   }
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.storeDir") == 0) {
-                   if (directoryExists(confValue, 255) == 0) {
-			   strncpy(storeDir, trim(confValue), storedir_size);
-                           storeDirSet = 1;
-                   }
-                   else {
-                           int status = mkdir(trim(confValue), 0755);
-                           if (status != 0 && errno != EEXIST) {
-                                   printf("Failed to create directory. Errno: %d\n", errno);
-                                   writeLog("Error creating HowRU storeDir.", 2, 1);
-                           }
-                           else {
-                                   strncpy(storeDir, trim(confValue), strlen(confValue));
-                                   storeDirSet = 1;
-                           }
-                   }
-           }
-	   if (strcmp(confName, "scheduler.logToStdout") == 0) {
- 		   printf("Found logToStdout\n");
- 		   dockerLog = atoi(confValue);
- 	   }
-	   if (strcmp(confName, "scheduler.logDir") == 0) {
-		   if (directoryExists(confValue, 255) == 0) {
-			   strncpy(logDir, trim(confValue), strlen(confValue));
-			   logDirSet = 1;
-		   }
-		   else {
-			   int status = mkdir(trim(confValue), 0755);
-			   if (status != 0 && errno != EEXIST) {
-				   printf("Failed to create directory. Errno: %d\n", errno);
-				   writeLog("Error creating log directory.", 2, 1);
-			   }
-			   else {
-				   strncpy(logDir, trim(confValue), strlen(confValue));
-				   logDirSet = 1;
-			   }
-		   }
-		   if (strcmp(confValue, "/var/log/almond") != 0) {
-			   char ch =  '/';
-			   FILE *logFile;
-			   strcpy(fileName, logDir);
-        		   strncat(fileName, &ch, 1);
-                           strcat(fileName, "almond.log");
-			   writeLog("Closing logfile...", 0, 1);
-			   fclose(fptr);
-			   fptr = NULL;
-			   sleep(0.2);
-                           logFile = fopen("/var/log/almond/almond.log", "r");
-			   fptr = fopen(fileName, "a");
-			   if (fptr == NULL) {
-				   fclose(logFile);
-				   logFile = NULL;
-				   fptr = fopen("/var/log/almond/almond.log", "a");
-				   writeLog("Could not create new logfile.", 1, 1);
-				   writeLog("Reopened logfile '/var/log/almond/almond.log'.", 0, 1);
-				   strcpy(logfile, "/var/log/almond/almond.log");
-			   }
-			   else {
-				   while ( (ch = fgetc(logFile)) != EOF)
-					   fputc(ch, fptr);
-				   fclose(logFile);
-				   logFile = NULL;
-				   writeLog("Created new logfile.", 0, 1);
-				   strcpy(logfile, fileName);
-			   }
-		   }
-		   else {
-			   strcpy(logfile, "/var/log/almond/almond.log");
-		   }
-
-	   }
-	   if (strcmp(confName, "scheduler.logPluginOutput") == 0) {
-	   	if (atoi(confValue) == 0) {
-			writeLog("Plugin outputs will not be written in the log file", 0, 1);
-		}
-		else {
-			writeLog("Plugin outputs will be written to the log file", 0, 1);
-			logPluginOutput = 1;
-		}
-	   }
-           if (strcmp(confName, "scheduler.storeResults") == 0) {
-		   if (atoi(confValue) == 0) {
-			   writeLog("Plugin results is not stored in specific csv file.", 0, 1);
-		   }
-		   else {
-			   writeLog("Plugin results will be stored in csv file.", 0, 1);
-			   pluginResultToFile = 1;
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.hostName") == 0) {
-		  strncpy(hostName, trim(confValue), strlen(confValue));
-		  snprintf(infostr, infostr_size, "Scheduler will name this host: %s", hostName);
-		  writeLog(trim(infostr), 0, 1);
-	   }
-	   if (strcmp(confName, "plugins.directory") == 0) {
-		   if (directoryExists(confValue, 255) == 0) {
-			   strcpy(pluginDir, trim(confValue));
-			   pluginDirSet = 1;
-		   }
-		   else {
-			   int status = mkdir(trim(confValue), 0755);
-			   if (status != 0 && errno != EEXIST) {
-				   printf("Failed to create directory. Errno: %d\n", errno);
-				   writeLog("Error creating plugins directory.", 2, 1);
-			   }
-			   else {
-				   strncpy(pluginDir, trim(confValue), strlen(confValue));
-				   pluginDirSet = 1;
-			   }
-		   }
-	   }
-	   if (strcmp(confName, "plugins.declaration") == 0) {
-		   if (access(trim(confValue), F_OK) == 0){
-			   strncpy(pluginDeclarationFile, trim(confValue), strlen(confValue));
-		   }
-		   else {
-			   printf("ERROR: Plugin declaration file does not exist.");
-			   writeLog("Plugin declaration file does not exist.", 2, 1);
-			   return 1;
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.enableGardener") == 0) {
-		   if (atoi(confValue) == 0) {
-                           writeLog("Metrics gardener is not enabled.", 0, 1);
-                   }
-                   else {
-                           writeLog("Metrics gardener is enabled.", 0, 1);
-                           enableGardener = 1;
-                   }
-           }
-	   if (strcmp(confName, "scheduler.runGardenerAtStart") == 0) {
-                   if (atoi(confValue) > 0) {
-                           writeLog("Gardener will run during startup.", 0, 1);
-                           runGardenerAtStart = 1;
-                   }
-           }
-	   if (strcmp(confName, "scheduler.gardenerScript") == 0) {
-                   if (access(trim(confValue), F_OK) == 0){
-                        strncpy(gardenerScript, trim(confValue), strlen(confValue));
-                   }
-                   else {
-                        enableGardener = 0;
-                        writeLog("Gardener script file could not be found", 1, 1);
-                        writeLog("Metrics gardener is disabled.", 2, 1);
-                   }
-           }
-	   if (strcmp(confName, "scheduler.enableClearDataCache") == 0) {
-                   if (atoi(confValue) == 0) {
-                           writeLog("Clear data cache is not enabled.", 0, 1);
-                   }
-                   else {
-                           writeLog("Clear data cache is enabled.", 0, 1);
-                           enableClearDataCache = 1;
-                   }
-           }
-	   if (strcmp(confName, "scheduler.enableKafkaExport") == 0) {
-		   if (atoi(confValue) == 0) {
-			   writeLog("Export to Kafka is not enabled.", 0, 1);
-		   }
-		   else {
-			   writeLog("Exporting results to Kafka is enabled.", 0, 1);
-			   enableKafkaExport = 1;
-		   }
-	   }
-           if (strcmp(confName, "scheduler.enableKafkaTag") == 0) {
-                   if (atoi(confValue) == 0) {
-                           writeLog("Use of tag to Kafka message is not enabled.", 0, 1);
-                   }
-                   else {
-                           writeLog("Use of tag to Kafka message is enabled.", 0, 1);
-                           enableKafkaTag = 1;
-                  }
-           }
-	   if (strcmp(confName, "scheduler.enableKafkaId") == 0) {
-                   if (atoi(confValue) == 0) {
-                           writeLog("Use of Kafka id is not enabled.", 0, 1);
-                   }
-                   else {
-                           writeLog("Use of Kafka id is enabled.", 0, 1);
-                           enableKafkaId = 1;
-                  }
-           }
-	   if (strcmp(confName, "scheduler.kafkaStartId") == 0) {
-		   int i = strtol(trim(confValue), NULL, 0);
-		   if (i > 0) {
-			   kafka_start_id = i;
-			   writeLog("Kafka start id check ok", 0, 1);
-		   }
-		   else {
-			   writeLog("Could not read kafka_start_id.", 1, 1);
-			   kafka_start_id = 0;
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.kafkaBrokers") == 0) {
-		   kafkaexportreqs++;
-		   kafka_brokers = malloc((size_t)strlen(confValue)+1);
-		   if (kafka_brokers == NULL) {
-			   fprintf(stderr, "Failed to allocate memory for kafka brokers.\n");
-			   writeLog("Failed to allocate memory [kafka_brokers]", 2, 1);
-			   return 2;
-		   }
-		   else
-			   memset(kafka_brokers, '\0', (size_t)(strlen(confValue)+1) * sizeof(char));
-		   strncpy(kafka_brokers, trim(confValue), strlen(confValue));
-		   snprintf(infostr, infostr_size, "Kafka export brokers is set to '%s'", kafka_brokers);
-		   writeLog(trim(infostr), 0, 1);
-	   }
-	   if (strcmp(confName, "scheduler.kafkaTopic") == 0) {
-		   kafkaexportreqs++;
-		   kafka_topic = malloc((size_t)strlen(confValue)+1);
-		   if (kafka_topic == NULL) {
-			   fprintf(stderr, "Failed to allocate memory [kafka_topic].\n");
-			   writeLog("Failed to allocate memory [kafka_topic]", 2, 1);
-			   return 2;
-		   }
-		   else
-			   memset(kafka_topic, '\0', (size_t)(strlen(confValue)+1) * sizeof(char));
-		   strncpy(kafka_topic, trim(confValue), strlen(confValue));
-		   snprintf(infostr, infostr_size, "Kafka export topic is set to '%s'", kafka_topic);
-		   writeLog(trim(infostr), 0, 1);
-	   }
-           if (strcmp(confName, "scheduler.kafkaTag") == 0) {
-                  kafka_tag = malloc((size_t)strlen(confValue)+1);
-		  if (kafka_tag == NULL) {
-		  	fprintf(stderr, "Failed to allocate memory [kafka_tag].\n");
-			writeLog("Failed to allocate memory [kafka_tag]", 2, 1);
-			return 2;
-		  }
-                  strncpy(kafka_tag, trim(confValue), strlen(confValue));
-                  snprintf(infostr, infostr_size, "Kafka tag is set to '%s'", kafka_tag);
-                  writeLog(trim(infostr), 0, 1);
-           }
-	   if (strcmp(confName, "scheduler.enableKafkaSSL") == 0) {
-		   if (atoi(confValue) == 0) {
-			   writeLog("Kafka producer will connect with plain text", 0, 1);
-                   }
-                   else {
-                           writeLog("Kafka producer will connect to cluster with SSL.", 0, 1);
-                           writeLog("Make sure you use a certificate with accordance to Kafka ACL list.", 0, 1);
-                           enableKafkaSSL = 1;
-                  }
-           }
-           if (strcmp(confName, "scheduler.kafkaCACertificate") == 0) {
-		   kafkaCACertificate = malloc((size_t)strlen(confValue)+1);
-		   if (kafkaCACertificate == NULL) {
-			   fprintf(stderr, "Failed to allocate memory [kafkaCACertificate].\n");
-			   writeLog("Failed to allocate memory [kafkaCACertificate]", 2, 1);
-			   return 2;
-		   }
-		   strncpy(kafkaCACertificate, trim(confValue), strlen(confValue));
-		   if (enableKafkaExport > 0) {
-                        writeLog("Kafka CACertificate not provided. Will try to connect to Kafka in plain text.", 1, 1);
-			enableKafkaSSL = 0;
-                   }
-	   }
-           if (strcmp(confName, "scheduler.kafkaProducerCertificate") == 0) {
-		   kafkaProducerCertificate = malloc((size_t)strlen(confValue)+1);
-		   if (kafkaProducerCertificate == NULL) {
-			   fprintf(stderr, "Failed to allocate memory [kafkaProducerCertificate].\n");
-			   writeLog("Failed to allocate memory [kafkaProducerPertificate", 2, 1);
-			   return 2;
-		   }
-		   strncpy(kafkaProducerCertificate, trim(confValue), strlen(confValue));
-		   if (enableKafkaExport > 0){
-                   	writeLog("Certificate for Almond Kafka Producer functionality not provided. Will try to connect to Kafka in plain text.", 1, 1);
-                   	enableKafkaSSL = 0;
-	   	}
-	   }
-           if (strcmp(confName, "scheduler.kafkaSSLKey") == 0) {
-		   kafkaSSLKey = malloc((size_t)strlen(confValue)+1);
-		   if (kafkaSSLKey == NULL) {
-			   fprintf(stderr, "Failed to allocate memory [kafkaSSLKey].\n");
-			   writeLog("Failed to allocate memory [kafkaSSLKey]", 2, 1);
-			   return 2;
-		   }
-		   strcpy(kafkaSSLKey, trim(confValue));
-		   if (enableKafkaExport > 0) {
-           		writeLog("No SSL key for Kafka producer certificate provided. Will try to connect to Kafka in plain text.", 1, 1);
-                   	enableKafkaSSL = 0;
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.gardenerRunInterval") == 0) {
-                   int i = strtol(trim(confValue), NULL, 0);
-                   if (i < 60)
-                           i = 43200;
-                   snprintf(infostr, infostr_size, "Gardener run interval is %d seconds.", i);
-                   writeLog(trim(infostr), 0, 1);
-                   gardenerInterval = i;
-           }
-	   if (strcmp(confName, "scheduler.clearDataCacheInterval") == 0) {
-                   int i = strtol(trim(confValue), NULL, 0);
-                   if (i < 60)
-                           i = 300;
-                   snprintf(infostr, infostr_size, "Clear data cache is %d seconds.", i);
-                   writeLog(trim(infostr), 0, 1);
-                   clearDataCacheInterval = i;
-           }
-  	   if (strcmp(confName, "scheduler.dataCacheTimeFrame") == 0) {
-                   int i = strtol(trim(confValue), NULL, 0);
-                   if (i < 180)
-                           i = 330;
-                   snprintf(infostr, infostr_size, "Data cache time frame is set to %d seconds.", i);
-                   writeLog(trim(infostr), 0, 1);
-                   dataCacheTimeFrame = i;
-           }
-	   if (strcmp(confName, "scheduler.tuneTimer") == 0) {
-		   if (atoi(confValue) == 0) {
-			   writeLog("Timer tuner is not enabled.", 0, 1);
-		   }
-		   else {
-			   writeLog("Timer tuner is enabled.", 0, 1);
-			   enableTimeTuner = 1;
-		   }
-	   }
-	   if (strcmp(confName, "scheduler.tunerCycle") == 0) {
-		   int i = strtol(trim(confValue), NULL, 15);
-                   snprintf(infostr, infostr_size, "Time tuner cycle is set to %d.", i);
-		   writeLog(trim(infostr), 0, 1);
-		   timeTunerCycle = i;
-	   }
-           if (strcmp(confName, "scheduler.tuneMaster") == 0) {
-                   int i = strtol(trim(confValue), NULL, 1);
-                   snprintf(infostr, infostr_size, "Time tuner cycle is set to %d.", i);
-                   writeLog(trim(infostr), 0, 1);
-                   timeTunerMaster = i;
-           } 
-	   if (strcmp(confName, "data.jsonFile") == 0) {
-		   strncpy(jsonFileName, trim(confValue), strlen(confValue));
-		   jsonFileName[strlen(confValue)] = '\0';
-		   snprintf(infostr, infostr_size, "Json data will be collected in file: %s.", jsonFileName);
-		   writeLog(trim(infostr), 0, 1);
-	   }
-	   if (strcmp(confName, "data.metricsFile") == 0) {
-		strncpy(metricsFileName, trim(confValue), strlen(confValue));
-		snprintf(infostr, infostr_size, "Metrics will be collected in file: %s", metricsFileName);
-		writeLog(trim(infostr), 0, 1);
-	   }
-	   if (strcmp(confName, "data.metricsOutputPrefix") == 0) {
-                   if ((int)strlen(confValue) <= 30) {
-                        strncpy(metricsOutputPrefix, trim(confValue), strlen(confValue));
-                        snprintf(infostr, infostr_size, "Metrics output prefix is set to '%s'", metricsOutputPrefix);
-                        writeLog(trim(infostr), 0, 1);
-                   }
-                   else {
-                        writeLog("Could not change metricsOutputPrefix. Prefix too long.", 1, 1);
-                   }
-           }
-	   if (strcmp(confName, "data.saveOnExit") == 0) {
-		if (atoi(confValue) == 0) {
-			writeLog("Json data will be deleted on shutdown.", 0, 1);
-		}
-		else {
-			writeLog("Data file will be saved in data directory after shutdown.", 0, 1);
-			saveOnExit = 1;
-		}
-	   }
- 	}
-
-	updateInterval = 60;
-	if ((kafkaexportreqs < 2) && (enableKafkaExport > 0)) {
-		writeLog("Not sufficient configuration to export to Kafka. Brokers and or topic is unknown.", 1, 1);
-               	writeLog("Kafka export is not enabled.", 0, 1);
-               	enableKafkaExport = 0;
-     	}
-
-   	fclose(fp);
-	fp = NULL;
-   	if (line){
-        	free(line);
-		line = NULL;
-	}
-   	return 0;
-}*/
 
 int truncateLogs() {
 	size_t compressed_name_size = logfile_size + 28;
@@ -4876,6 +4236,8 @@ void apiDryRun(int plugin_id) {
         }
 	else
 		memset(pluginName, '\0', (size_t)(pluginitemname_size + 1) * sizeof(char));
+	// In new structure increase id with 1
+	plugin_id++;
         strncpy(pluginName, g_plugins[plugin_id]->name, pluginitemname_size);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
@@ -4960,6 +4322,8 @@ void apiRunPlugin(int plugin_id, int flags) {
         }
 	else
 		memset(pluginName, '\0', (size_t)(pluginitemname_size+1) * sizeof(char));
+	// In new structure increase id with one
+	plugin_id++;
 	pluginName = strdup(g_plugins[plugin_id]->name);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
@@ -4973,7 +4337,7 @@ void apiRunPlugin(int plugin_id, int flags) {
 			break;
 		}
 	}
-	char p_id[3];
+	char p_id[12];
 	snprintf(p_id, sizeof(p_id), "%i",plugin_id);
 	setApiCmdFile("execute", p_id);
 	strcpy(message, "{\n     \"executePlugin\":\"");
@@ -5305,6 +4669,8 @@ void apiReadData(int plugin_id, int flags) {
                 message = pluginName = NULL;
 		return;
 	}
+	// In new structure I need to increase id with 1
+	plugin_id += 1;
 	pluginName = strdup(g_plugins[plugin_id]->name);
         removeChar(pluginName, '[');
         removeChar(pluginName, ']');
@@ -5427,7 +4793,7 @@ void createUpdateFile(PluginItem *item, char name[3]) {
 void apiRunAndRead(int plugin_id, int flags) {
 	char* pluginName = NULL;
 	char rCode[3];
-	char strNum[3];
+	char strNum[12];
         char* message = NULL;
 	unsigned short is_error = 0;
         
@@ -5461,6 +4827,8 @@ void apiRunAndRead(int plugin_id, int flags) {
                 message = pluginName = NULL;
                 return;
         }
+	// In new structure increase id with 1
+	plugin_id += 1;
         snprintf(strNum, sizeof(strNum), "%d", plugin_id);
         setApiCmdFile("update", strNum);
 	pluginName = (char *)malloc((size_t)(pluginitemname_size+1) * sizeof(char));
@@ -6188,8 +5556,8 @@ void writePluginResultToFile(int storeIndex, int update) {
 		checkName = strdup(g_plugins[storeIndex]->name);
 	else
 		checkName = strdup(update_g_plugins[storeIndex].name);
-	memmove(checkName, checkName+1,strlen(checkName));
-	checkName[strlen(checkName)-1] = '\0';
+	//memmove(checkName, checkName+1,strlen(checkName));
+	//checkName[strlen(checkName)-1] = '\0';
 	/*strcpy(fileName, storeDir);
 	strncat(fileName, &ch, 1);
 	strcat(fileName, checkName);*/
@@ -6211,7 +5579,7 @@ void writePluginResultToFile(int storeIndex, int update) {
 	if (update == 0) {
 		if (g_plugins[storeIndex]->name && pluginReturnString) {
 			if (fp != NULL)
-				fprintf(fp, "%s, %s, %s\n", timestr, g_plugins[storeIndex]->name, pluginReturnString);
+				fprintf(fp, "%s, %s, %s\n", timestr, g_plugins[storeIndex]->name, g_plugins[storeIndex]->output.retString);
 			else {
 				printf("DEBUG: Could not find file stream. Error.\n");
 				writeLog("Could not find file stream [writePluginResultToFile]", 1, 0);
@@ -6311,6 +5679,16 @@ void writeToKafkaTopic(int storeIndex, int update) {
         			sprintf(payload, "{\"name\":\"%s\", \"id\":\"%s\",\"tag\":\"%s\", \"data\": {\"lastChange\":\"%s\", \"lastRun\":\"%s\", \"name\":\"%s\", \"nextRun\":\"%s\", \"pluginName\":\"%s\", \"pluginOutput\":\"%s\", \"pluginStatus\":\"%s\", \"pluginStatusChanged\":\"%s\", \"pluginStatusCode\":\"%d\"}}", hostName, kafka_id, kafka_tag, g_plugins[storeIndex]->lastChangeTimestamp, currTime, pluginName, g_plugins[storeIndex]->nextRunTimestamp, g_plugins[storeIndex]->description, g_plugins[storeIndex]->output.retString, pluginStatus, g_plugins[storeIndex]->statusChanged, g_plugins[storeIndex]->output.retCode);
                         }
                 }
+	}
+	if (useKafkaConfigFile) {
+		send_message_to_gkafka(payload);
+		free(pluginName);
+		free(pluginStatus);
+		free(payload);
+		pluginName = NULL;
+		pluginStatus = NULL;
+		payload = NULL;
+		return;
 	}
         if (enableKafkaSSL == 0) {
 		if (kafkaAvro == 0)
@@ -7032,108 +6410,6 @@ void copyPluginItem(PluginItem *dest, const PluginItem *src, int mode) {
     }
 }
 
-/*void copyPluginItem(PluginItem *dest, const PluginItem *src, int mode) {
-	if (mode == 0) {
-		if (src->name != NULL) {
-			strncpy(dest->lastRunTimestamp, src->lastRunTimestamp, 20);
-			strncpy(dest->nextRunTimestamp, src->nextRunTimestamp, 20);
-			strncpy(dest->lastChangeTimestamp, src->lastChangeTimestamp, 20);
-			strncpy(dest->statusChanged, src->statusChanged, 1);
-			dest->active = src->active;
-			dest->interval = src->interval;
-			dest->nextRun = src->nextRun;
-		}
-		else {
-			//printf("Source is empty, do not copy\n");
-			writeLog("copyPluginItem[src->name] is empty. Do not copy.", 0, 0);
-		}
-	}
-	else if (mode == 2) {
-		strncpy(dest->lastRunTimestamp, src->lastRunTimestamp,20);
-		strncpy(dest->nextRunTimestamp, src->nextRunTimestamp, 20);
-		strncpy(dest->statusChanged, src->statusChanged, 1);
-		dest->nextRun = src->nextRun;
-	}
-	else {
-		strncpy(dest->name, src->name, pluginitemname_size);
-        	strncpy(dest->description, src->description, pluginitemdesc_size);
-        	strncpy(dest->command, src->command, pluginitemcmd_size);
-		strncpy(dest->lastRunTimestamp, src->lastRunTimestamp, 20);
-                strncpy(dest->nextRunTimestamp, src->nextRunTimestamp, 20);
-		strncpy(dest->lastChangeTimestamp, src->lastChangeTimestamp, 20);
-                strncpy(dest->statusChanged, src->statusChanged, 1);
-                dest->active = src->active;
-                dest->interval = src->interval;
-                dest->nextRun = src->nextRun;
-	}
-}*/
-
-/*void copyOutputItem(PluginOutput *dest, const PluginOutput *src) {
-	dest->retCode = src->retCode;
-	dest->prevRetCode = src->prevRetCode;
-	if (src->retString != NULL) {
-		if (dest->retString == NULL) {
-			dest->retString = malloc(pluginoutput_size);
-			if (dest->retString == NULL) {
-				writeLog("[copyOutputItem] Failed to allocate memory for dest->retString.", 1, 0);
-				return;
-			}
-		}
-		if (dest->retString && src->retString) {
-			strncpy(dest->retString, src->retString, pluginoutput_size-1);
-			dest->retString[pluginoutput_size -1] = '\0';
-		}
-		else {
-			writeLog("[copyOutputItem] Source or destination is non existing.", 1, 0);
-		}
-	}
-	else {
-		writeLog("copyOutputItem source->retString is NULL", 1, 0);
-		if (dest->retString != NULL) {
-			dest->retString[0] = '\0';
-		}
-	}
-}*/
-
-/*int copyOutputItem(PluginOutput *dest, const PluginOutput *src) {
-    	size_t maxSize;
-    	size_t srcLen;
-
-    	if (dest == NULL || src == NULL) {
-        	writeLog("[copyOutputItem] NULL parameter", 1, 0);
-        	return EINVAL;
-    	}
-
-    	dest->retCode     = src->retCode;
-    	dest->prevRetCode = src->prevRetCode;
-
-    	free(dest->retString);
-    	dest->retString = NULL;
-
-    	if (src->retString == NULL) {
-        	return 0;
-    	}
-
-    	maxSize = pluginoutput_size;
-    	if (maxSize == 0) {
-        	writeLog("[copyOutputItem] pluginoutput_size is zero", 1, 0);
-        	return EINVAL;
-    	}
-
-    	srcLen = strnlen(src->retString, maxSize - 1);
-
-    	dest->retString = malloc(srcLen + 1);
-    	if (dest->retString == NULL) {
-        	writeLog("[copyOutputItem] malloc failed", 1, 0);
-        	return ENOMEM;
-    	}
-
-    	memcpy(dest->retString, src->retString, srcLen);
-    	dest->retString[srcLen] = '\0';
-
-    	return 0;
-}*/
-
 void plugin_output_init(PluginOutput *o) {
 	if (!o) return;
     	o->retCode     = 0;
@@ -7820,7 +7096,7 @@ void initialLogging() {
         printf("Starting almond version %s.\n", VERSION);
         initConstants();
         writeLog("Almond constants initialized.", 0, 1);
-        writeLog("Starting almond (0.9.14)...", 0, 1);
+        writeLog("Starting almond (0.9.16)...", 0, 1);
 }
 
 int closeFileHandler() {
@@ -7855,6 +7131,30 @@ int loadConfiguration() {
 	int retVal = getConfigurationValues();
         if (retVal == 0) {
                 logInfo("Configuration read ok.", 0, 1);
+		if (useKafkaConfigFile > 0) {
+			if (kafkaConfigFile != NULL) {
+				if (fileExists(kafkaConfigFile) == 0) {
+					snprintf(infostr, infostr_size, "Setting Kafka config file to: %s.", kafkaConfigFile);
+					logInfo(trim(infostr), 0, 1);
+					setKafkaConfigFile(kafkaConfigFile);
+				}
+				else {
+					snprintf(infostr, infostr_size, "File does not exist: %s", kafkaConfigFile);
+					logInfo(trim(infostr), 2, 1);
+					logInfo("Kafka will use default config file: /etc/almond/kafka.conf", 0, 1);
+				}
+			}
+			if (loadKafkaConfig() == 0) {
+				logInfo("Kafka configuration read ok.", 0, 1);
+				if (init_kafka_producer() != 0) {
+					logInfo("Error initiating Kafka producer.", 2, 1);
+					return 1;
+				}
+				else {
+					logInfo("Kafka producer initaited.", 0, 1);
+				}
+			}
+		}
         }
         else {
                 logError("Could not load configuration, due to corruption or memory allocation failure.", 1, 1);
@@ -7866,7 +7166,7 @@ int loadConfiguration() {
 void initLoggerThread() {
 	fclose(fptr);
         fptr = NULL;
-        printf("Initaite logger\n");
+        printf("Initiate logger\n");
         initLogger();
         logInfo("Initiate plugins.", 0, 0);
         fflush(fptr);

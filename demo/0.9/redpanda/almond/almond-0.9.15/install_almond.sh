@@ -50,7 +50,7 @@ aclocal
 autoreconf -fi
 
 echo "Configuring build"
-./configure --disable-avro --prefix=/opt/almond
+./configure --prefix=/opt/almond
 
 echo "Building and installing"
 make
