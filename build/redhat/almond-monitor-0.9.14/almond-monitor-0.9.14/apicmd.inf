@@ -1,0 +1,3 @@
+This file could be removed :)
+But this directory is vital to the communication between api threads and the main thread of the program and will store command files here at times which is vital to API interactions.
+Do not remove this directory, even if it appears empty!!!

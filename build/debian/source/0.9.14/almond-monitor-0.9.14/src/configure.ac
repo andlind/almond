@@ -1,0 +1,66 @@
+AC_INIT([almond], [0.9.14], [andreas.lindell@almondmonitor.com])
+AM_INIT_AUTOMAKE([-Wall foreign])
+AC_PROG_CC
+
+CPPFLAGS="$CPPFLAGS -I/usr/include -I/usr/local/include -I/usr/include/libserdes"
+CPPFLAGS="$CPPFLAGS -I/opt/remi/librdkafka/include"
+LDFLAGS="$LDFLAGS -L/usr/lib64 -L/usr/local/lib -L/usr/lib"
+
+AS_MKDIR_P(/etc/almond)
+AS_MKDIR_P(/opt/almond/data)
+# Checks for header files.
+AC_HEADER_DIRENT
+AC_HEADER_SYS_WAIT
+AC_CHECK_HEADERS([arpa/inet.h sys/socket.h sys/types.h sys/stat.h math.h signal.h pthread.h time.h netdb.h unistd.h ctype.h string.h errno.h dirent.h stdlib.h stdio.h json-c/json.h librdkafka/rdkafka.h openssl/ssl.h openssl/x509.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_HEADER_STDBOOL
+AC_C_CONST
+AC_C_INLINE
+AC_TYPE_INT32_T
+AC_TYPE_INT64_T
+AC_TYPE_SIZE_T
+AC_TYPE_SSIZE_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT64_T
+
+# Checks for library functions.
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_FUNC_STAT
+AC_CHECK_FUNCS([memmove])
+
+AC_ARG_ENABLE([avro],
+  [AS_HELP_STRING([--enable-avro], [Enable Avro support])],
+  [],
+  [])
+
+if test "x$enable_avro" = "x"; then
+  enable_avro=no
+fi
+
+AM_CONDITIONAL([USE_AVRO], [test "x$enable_avro" = "xyes"])
+
+if test "x$enable_avro" = "xyes"; then
+  LIBS="$LIBS -lserdes -lavro"
+  AC_MSG_NOTICE([Avro support ENABLED])
+  AC_CHECK_HEADERS([avro.h], [], [
+    AC_MSG_ERROR([Avro header not found. Install libavro-dev or disable Avro support.])
+  ])
+
+  AC_CHECK_HEADERS([libserdes/serdes-avro.h], [], [
+    AC_MSG_ERROR([Serdes header not found. Try setting CPPFLAGS with the correct include path, install libserdes-dev or disable Avro support.])
+  ])
+
+  AC_CHECK_LIB([avro], [avro_schema_from_json], [], [
+    AC_MSG_ERROR([Avro library not found. Install libavro-dev or disable Avro support.])
+  ])
+  
+  AC_DEFINE([HAVE_SERDES], [1], [Define if Serdes is available])
+else
+  AC_MSG_NOTICE([Avro support DISABLED])
+fi
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
+

@@ -1,0 +1,14 @@
+Package: almond-monitor
+Version: 0.9.15-1
+Architecture: amd64
+Maintainer: Andreas Lindell <andreas.lindell@ealmondmonitor.com>
+Installed-Size: 4607
+Depends: libc6 (>= 2.38), libcurl4t64 (>= 7.16.2), libdbi1t64 (>= 0.9.0), libjson-c5 (>= 0.15), libldap2 (>= 2.6.2), libmysqlclient21 (>= 8.0.11), libpq5, libradcli4 (>= 1.2.11), librdkafka1 (>= 0.9.4), libssl3t64 (>= 3.0.0), liburiparser1 (>= 0.6.0), zlib1g (>= 1:1.1.4), gunicorn, python3, python3-flask, python3-yaml, python3-simplejson, python3-flask-httpauth, python3-matplotlib, python3-cryptography, python3-qrcode, libavro23, python3-pil, zlib1g-dev, nagios-plugins, ksh, sysstat, libsys-statistics-linux-perl, librdkafka
+Section: net
+Priority: optional
+Homepage: https://www.almondmonitor.com
+Description: Local monitoring system running Nagios plugins and exposing the results through various means (http, api, metrics, kafka data stream)
+ Full-featured local monitor that:
+  - Runs Nagios plugins on a schedule
+  - Exposes results via http, API and metrics endpoints
+  - Streams data to Kafka for downstream consumers

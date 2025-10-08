@@ -1,0 +1,7 @@
+#!/bin/bash
+export HOWRU_FERNET_KEY="TAWXNna1CaFfIAZNb0iujeZczqRf9qrvOlgEpALkl28="
+# To run development environment
+#/usr/bin/python3 /opt/almond/www/api/howru.py
+# To run production environment use gunicorn
+#/usr/local/bin/gunicorn --user root --bind 0.0.0.0:80 --chdir=/opt/almond/www/api --log-file /var/log/almond/gunicorn.log --log-level info wsgi:app --daemon
+/usr/bin/python3 -m gunicorn --bind 0.0.0.0:80 --chdir=/opt/almond/www/api --log-file /var/log/almond/gunicorn.log --log-level info wsgi:app --daemon
