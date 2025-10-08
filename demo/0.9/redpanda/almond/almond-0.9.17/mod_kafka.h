@@ -2,6 +2,8 @@
 #define MODKAFKA_H
 
 void setKafkaConfigFile(const char*);
+void setKafkaTopic(const char*);
+char* getKafkaTopic(void);
 int loadKafkaConfig();
 int init_kafka_producer(); 
 int send_message_to_gkafka(const char*);
