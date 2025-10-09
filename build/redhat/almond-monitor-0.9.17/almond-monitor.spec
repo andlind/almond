@@ -198,6 +198,9 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Thu Oct 09 2025 0.9.17-2
+<andreas.lindell@almondmonitor.com>
+- Buggfix enableKafkaSSL
 * Tue Oct 07 2025 0.9.17
 <andreas.lindell@almondmonitor.com>
 - Buggfix API Kafka topic

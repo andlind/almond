@@ -194,7 +194,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Tue Oct 7 2025 0.9.17
+* Thu Oct 09 2025 0.9.17
 <andreas.lindell@almondmonitor.com>
 - Refactor some config to booleans
 * Tue Sep 23 2025 0.9.15
