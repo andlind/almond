@@ -212,7 +212,7 @@ def main():
         sync_zabbix_hosts(zabbix_client, howru_client, config["ZABBIX_GROUP_ID"])
         
     except Exception as e:
-        logging.error(f"Synchronization failed: {str(e)}")
+        logger.error(f"Synchronization failed: {str(e)}")
         raise
 
 if __name__ == "__main__":
