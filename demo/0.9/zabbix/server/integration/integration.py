@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
 import os
+import sys
 import time
 import json
+import requests
 import logging
 import subprocess
 from logger_config import get_logger
@@ -16,6 +19,19 @@ proxy_server_count = 0
 proxy_job_count = 0
 
 logger = get_logger()
+
+def wait_for_zabbix(url="http://zabbix-web:8888/api_jsonrpc.php", timeout=60):
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            response = requests.post(url, json={})  # Minimal valid request
+            if response.status_code in [200, 401]:  # 401 if auth required
+                print("Zabbix API is reachable")
+                return True
+        except requests.exceptions.ConnectionError:
+            print("Waiting for Zabbix API...")
+            time.sleep(5)
+    raise TimeoutError("Zabbix API did not become ready in time")
 
 def get_proxy_data():
     global proxy_update_time, proxy_server_count, proxy_job_count
@@ -49,8 +65,11 @@ def main():
     global proxy_server_count
     global proxy_job_count
 
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.getcwd())
     logger = get_logger();
     logger.info('Starting Almond Zabbix integration (version:' + str(CURRENT_VERSION) + ')')
+    wait_for_zabbix()
     logger.info('Initiating Zabbix sync')
     subprocess.run(['python3', 'zabbix_sync_init.py'])
     logger.info('Initiating Almond sync mechanism')
