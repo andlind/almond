@@ -18,7 +18,7 @@ proxy_job_count = 0
 logger = get_logger()
 
 def get_proxy_data():
-    global proxy_update_time, proxy_server_count, proxy_plugin_count
+    global proxy_update_time, proxy_server_count, proxy_job_count
 
     result = subprocess.run(                        
         ['python3', 'howru_get_proxy_data.py'],
@@ -35,17 +35,20 @@ def get_proxy_data():
             proxy_update_time = data["lastmodifiedtimestamp"]
             #print("Server/job data:", data["server_job_data"])        
             summary = data["server_job_data"]["summary"][0]
-            print ("DEBUG: summary = ", summary)
+            #print ("DEBUG: summary = ", summary)
             proxy_server_count = summary["servercount"]
             proxy_job_count = summary["plugincount"]
-            print ("DEBUG: proxy_server_count = ", proxy_server_count)
-            print ("DEBUG: proxy_job_count = ", proxy_job_count)
+            #print ("DEBUG: proxy_server_count = ", proxy_server_count)
+            #print ("DEBUG: proxy_job_count = ", proxy_job_count)
             logger.info("Extracted metadata from HowRU proxy")
     except json.JSONDecodeError:                                 
         print("Failed to parse proxy data output")      
         logger.warning("Failed to parse proxy data output.")
 
 def main():
+    global proxy_server_count
+    global proxy_job_count
+
     logger = get_logger();
     logger.info('Starting Almond Zabbix integration (version:' + str(CURRENT_VERSION) + ')')
     logger.info('Initiating Zabbix sync')
@@ -60,12 +63,12 @@ def main():
             logger.info("Synching data.")
             nos = proxy_server_count
             noj = proxy_job_count
-            print ("DEBUG: proxy_server_count = ", proxy_server_count)
-            print ("DEBUG: proxy_job_count = ", proxy_job_count)
-            print ("DEBUG: Running get_proxy_data")
+            #print ("DEBUG: proxy_server_count = ", proxy_server_count)
+            #print ("DEBUG: proxy_job_count = ", proxy_job_count)
+            #print ("DEBUG: Running get_proxy_data")
             get_proxy_data()
-            print ("DEBUG: proxy_server_count = ", proxy_server_count)
-            print ("DEBUG: proxy_job_count = ", proxy_job_count) 
+            #print ("DEBUG: proxy_server_count = ", proxy_server_count)
+            #print ("DEBUG: proxy_job_count = ", proxy_job_count) 
             if not proxy_current_update_time == proxy_update_time:
                 logger.info("Config updates detected on proxy servers.")
                 logger.info("We will not react upon this right now")
@@ -76,7 +79,7 @@ def main():
                 subprocess.run(['python3', 'sync_mechanism.py'])
             subprocess.run(['python3', 'zabbix_sync_init.py'])
         else:
-            print ("DEBUG: Init sync")
+            #print ("DEBUG: Init sync")
             get_proxy_data()
             proxy_current_update_time = proxy_update_time
         if not is_syncing:

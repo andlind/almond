@@ -57,7 +57,7 @@ def sync_zabbix_hosts(zabbix_client: ZabbixAPIClient,
                 "filter": {"name": ["Almond servers"]},
                 "output": ["groupid"]
             })
-            print("Hostgroup.get response:", group_lookup)
+            #print("Hostgroup.get response:", group_lookup)
             if isinstance(group_lookup.get("result"), list) and group_lookup["result"]:
                 group_id = group_lookup["result"][0]["groupid"]
             else:
@@ -156,7 +156,7 @@ def sync_zabbix_hosts(zabbix_client: ZabbixAPIClient,
                             }
 
                             #expression = r"last(/app01.demo.com/check_howru_api.sh[http://host.docker.internal:8085,check_app,app01.demo.com])>0"
-                            expression = f"last(/{server_name}/check_howru_api.sh[{howru_client.base_url},{plugin_name},{server_name}])>0"
+                            expression = f"last(/{server_name}/check_howru_api.sh[{howru_client.base_url},{plugin_name},{server_name}])=2"
                             description = f"Problem with {description} on {server_name}"
 
                             payload = {
@@ -173,6 +173,38 @@ def sync_zabbix_hosts(zabbix_client: ZabbixAPIClient,
 
                             response = requests.post(ZABBIX_URL, json=payload, headers=headers)
                             #print(response.json()) 
+                            expression = f"last(/{server_name}/check_howru_api.sh[{howru_client.base_url},{plugin_name},{server_name}])=1"
+                            description = f"Warning on {description} on {server_name}"                                                          
+                                                                                                                                                  
+                            payload = {                                                                                                           
+                                "jsonrpc": "2.0",                                                                                                 
+                                "method": "trigger.create",                                                                                       
+                                "params": {                                                                                                       
+                                    "description": description,                                                                           
+                                    "expression": expression,                           
+                                    "priority": 2,                             
+                                    "status": 0                
+                                },                             
+                                "id": 1                          
+                            }                                  
+                                                                    
+                            response = requests.post(ZABBIX_URL, json=payload, headers=headers)  
+                            expression = f"last(/{server_name}/check_howru_api.sh[{howru_client.base_url},{plugin_name},{server_name}])>2"        
+                            description = f"Unknown state on {description} on {server_name}"                                                            
+                                                                                                                                                  
+                            payload = {                                                                                                           
+                                "jsonrpc": "2.0",                                                                                                 
+                                "method": "trigger.create",                                                                                       
+                                "params": {                                                                                                       
+                                    "description": description,                                                                           
+                                    "expression": expression,                           
+                                    "priority": 0,                             
+                                    "status": 0                                                
+                                },                             
+                                "id": 1                                                                                                   
+                            }                                                            
+                                                                    
+                            response = requests.post(ZABBIX_URL, json=payload, headers=headers)
                         except ZabbixSyncError as e:
                             logger.error(f"Failed to send item trigger for item {plugin_name}: {str(e)}") 
                     else:

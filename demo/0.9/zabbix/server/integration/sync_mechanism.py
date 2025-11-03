@@ -131,6 +131,51 @@ def delete_zabbix_hosts(client: ZabbixAPIClient, hostnames):
     deleted_ids = response.get("result", [])
     logger.info(f"Successfully deleted host IDs: {deleted_ids}")
 
+def delete_zabbix_items_and_triggers(client: ZabbixAPIClient, item_names):     
+    item_ids = []                                                              
+    trigger_ids = []                                                      
+                                                                          
+    for name in item_names:                                               
+        # Get item details                                                
+        item_response = client._api_request("item.get", {                 
+            "output": ["itemid", "key_", "hostid"],                       
+            "filter": {"name": [name]}                                    
+        })                                                                
+                                                                          
+        logger.debug(f"item_response for '{name}': {item_response} (type: {type(item_response)})")
+        item_result = item_response.get("result", [])                                                
+        if not item_result:                                                                         
+            logger.warning(f"No items found for '{name}'")                                          
+            continue                                                                                
+                                                                                                    
+        for item in item_result:                                                                    
+            item_ids.append(item["itemid"])                                                         
+            key = item["key_"]                                                                      
+            hostid = item["hostid"]                                                                 
+                                                                                                    
+            # Get triggers referencing this item's key                                              
+            trigger_response = client._api_request("trigger.get", {                                
+                "output": ["triggerid", "expression"],                                              
+                "filter": {"hostid": hostid},                                                       
+                "expandExpression": True                                                            
+            })                                                                                      
+                                                                                                    
+            for trigger in trigger_response.get("result", []):                                     
+                if key in trigger["expression"]:                                                    
+                    trigger_ids.append(trigger["triggerid"])                                        
+                                                                                                    
+    if trigger_ids:                                                                                
+        logger.info(f"Deleting triggers: {trigger_ids}")                                            
+        client._api_request("trigger.delete", trigger_ids)                                          
+                                                                                                    
+    if item_ids:                                                                                    
+        logger.info(f"Deleting items: {item_names}")                                                
+        response = client._api_request("item.delete", item_ids)                                     
+        deleted_ids = response.get("result", [])                                                    
+        logger.info(f"Successfully deleted item IDs: {deleted_ids}")                                
+    else:                                                                                           
+        logger.info("Found no items to delete")                                                     
+
 def main():                       
     """Main entry point"""
     # Get Zabbix items, delete if extra on Zabbix 
@@ -168,12 +213,22 @@ def main():
         for server in howru_server_jobs:
             howru_jobs = set(howru_server_jobs[server]) 
             zabbix_items_raw = set(zabbix_server_items.get(server, []))  
-            zabbix_items = {re.search(r'\((.*?)\)', item).group(1) for item in zabbix_items_raw if re.search(r'\((.*?)\)', item)}
+            #zabbix_items = {re.search(r'\((.*?)\)', item).group(1) for item in zabbix_items_raw if re.search(r'\((.*?)\)', item)}
+            zabbix_items_lookup = {
+                re.search(r'\((.*?)\)', item).group(1): item
+                for item in zabbix_items_raw
+                if re.search(r'\((.*?)\)', item)
+            }
+            zabbix_items = set(zabbix_items_lookup.keys()) 
             print("DEBUG: howru_jobs = ", howru_jobs)
             print("DEBUG: zabbix_items = ", zabbix_items)
             extra_in_zabbix = zabbix_items - howru_jobs
+            extra_items_for_deletion = {zabbix_items_lookup[job] for job in extra_in_zabbix} 
+            print("DEBUG extra_items_for_deletion = ", extra_items_for_deletion)
             print(f"\n🔍 Server: {server}")
             print(f"➕ Extra items in Zabbix: {extra_in_zabbix}")                                               
+            delete_zabbix_items_and_triggers(zabbix_client, extra_items_for_deletion)
+
     except Exception as e:                                                     
         logger.error(f"Synchronization failed: {str(e)}")
         raise     
