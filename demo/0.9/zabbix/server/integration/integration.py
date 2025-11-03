@@ -35,8 +35,11 @@ def get_proxy_data():
             proxy_update_time = data["lastmodifiedtimestamp"]
             #print("Server/job data:", data["server_job_data"])        
             summary = data["server_job_data"]["summary"][0]
+            print ("DEBUG: summary = ", summary)
             proxy_server_count = summary["servercount"]
-            proxy_plugin_count = summary["plugincount"]
+            proxy_job_count = summary["plugincount"]
+            print ("DEBUG: proxy_server_count = ", proxy_server_count)
+            print ("DEBUG: proxy_job_count = ", proxy_job_count)
             logger.info("Extracted metadata from HowRU proxy")
     except json.JSONDecodeError:                                 
         print("Failed to parse proxy data output")      
@@ -57,7 +60,12 @@ def main():
             logger.info("Synching data.")
             nos = proxy_server_count
             noj = proxy_job_count
+            print ("DEBUG: proxy_server_count = ", proxy_server_count)
+            print ("DEBUG: proxy_job_count = ", proxy_job_count)
+            print ("DEBUG: Running get_proxy_data")
             get_proxy_data()
+            print ("DEBUG: proxy_server_count = ", proxy_server_count)
+            print ("DEBUG: proxy_job_count = ", proxy_job_count) 
             if not proxy_current_update_time == proxy_update_time:
                 logger.info("Config updates detected on proxy servers.")
                 logger.info("We will not react upon this right now")
@@ -66,9 +74,13 @@ def main():
                 logger.info("Server or job change detected on proxy")
                 logger.info("Let us dig...")
                 subprocess.run(['python3', 'sync_mechanism.py'])
+            subprocess.run(['python3', 'zabbix_sync_init.py'])
         else:
+            print ("DEBUG: Init sync")
             get_proxy_data()
             proxy_current_update_time = proxy_update_time
+        if not is_syncing:
+            is_syncing = True
         print(f"Waiting {TIMER_INTERVAL} seconds before next cycle...\n")
         logger.info("Sleeping " +str(TIMER_INTERVAL) + " seconds.")
         is_syncing = True

@@ -1,4 +1,5 @@
 import requests
+import re
 import json
 import urllib.parse
 from typing import Dict, List, Optional
@@ -44,13 +45,26 @@ def get_zabbix_hosts(client: ZabbixAPIClient):
     zabbix_servers = [host["name"] for host in response["result"]]    
     print (zabbix_servers)
 
-def get_zabbix_items(client: ZabbixAPIClient):
-    return
+def get_zabbix_items(client: ZabbixAPIClient, host_name: str):
+    host_response = client._api_request("host.get", {
+        "output": ["hostid"],
+        "filter": {
+            "name": [host_name]
+        }
+    })
+    hosts = host_response.get("result", [])
+    if not hosts:
+        raise ValueError(f"Host '{host_name}' not found")
+    host_id = hosts[0]["hostid"]
 
-    # Get HowRU data
-    # Get Zabbix hosts
-    # Compare hostlists, delete if extra on Zabbix
-    # Get Zabbix items, delete if extra on Zabbix
+    # Now, get all items associated with the host ID
+    item_response = client._api_request("item.get", {
+        "output": ["itemid", "name", "key_", "lastvalue"],
+        "hostids": host_id
+    })
+    items = item_response.get("result", [])
+    return items
+
     # Run initscript
 
 def compare_registered_hosts(howru, zabbix):
@@ -147,8 +161,19 @@ def main():
         print (remove_hosts)
         if (remove_hosts):
             delete_zabbix_hosts(zabbix_client, remove_hosts)
-
-                                                          
+        zabbix_server_items = {
+            server: [item["name"] for item in get_zabbix_items(zabbix_client, server)]
+                for server in howru_server_jobs.keys()
+        }
+        for server in howru_server_jobs:
+            howru_jobs = set(howru_server_jobs[server]) 
+            zabbix_items_raw = set(zabbix_server_items.get(server, []))  
+            zabbix_items = {re.search(r'\((.*?)\)', item).group(1) for item in zabbix_items_raw if re.search(r'\((.*?)\)', item)}
+            print("DEBUG: howru_jobs = ", howru_jobs)
+            print("DEBUG: zabbix_items = ", zabbix_items)
+            extra_in_zabbix = zabbix_items - howru_jobs
+            print(f"\n🔍 Server: {server}")
+            print(f"➕ Extra items in Zabbix: {extra_in_zabbix}")                                               
     except Exception as e:                                                     
         logger.error(f"Synchronization failed: {str(e)}")
         raise     

@@ -122,7 +122,7 @@ def sync_zabbix_hosts(zabbix_client: ZabbixAPIClient,
                     if not result["result"]:
                         # Create new item
                         zabbix_client._api_request("item.create", create_item_params)
-                        logging.info(f"Created item: {description} on {server_name}")
+                        logger.info(f"Created item: {description} on {server_name}")
                         item_result =  zabbix_client._api_request("item.get", {
                             "hostids": host_id,
                             "search": {"name": item_name},   # or filter/search on key_
