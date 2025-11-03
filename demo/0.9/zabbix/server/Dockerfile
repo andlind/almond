@@ -26,5 +26,6 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 ENV ZBX_TIMEOUT=30
 
 COPY integration/* /opt/almond/integration
+RUN chmod +x /opt/almond/integration/integration.py
 
 # Optional: expose Zabbix server port

@@ -39,4 +39,5 @@ docker run -d --name zabbix-agent \
   -e ZBX_SERVER_HOST=zabbix-server \
   -e HOSTNAME=agent-host \
   zabbix/zabbix-agent:alpine-latest
-
+echo "Start the integration"
+docker exec -u root zabbix-server python3 /opt/almond/integration.py
