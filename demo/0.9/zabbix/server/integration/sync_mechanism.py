@@ -97,30 +97,22 @@ def get_host_ids_by_names(client, hostnames):
             host_ids.append(response[0]["hostid"])
     return host_ids
 
-#def delete_zabbix_hosts(client: ZabbixAPIClient, hostnames):
-#    host_ids = []                                                              
-#    for name in hostnames:                                                     
-#        response = client._api_request("host.get", {                           
-#            "output": ["hostid"],                                              
-#            "filter": {"host": [name]}                                         
-#        })                                                                     
-#        if response:                                                           
-#            host_ids.append(response[0]["hostid"])             
-#    if not host_ids:
-#        logger.info("Found no hosts to delete")
-#        return
-#    response = client._api_request("host.delete", host_ids)
-#    logger.info(f"Deleted hosts with IDs: {response}")
 
 def delete_zabbix_hosts(client: ZabbixAPIClient, hostnames):
     host_ids = []
+
     for name in hostnames:
         response = client._api_request("host.get", {
             "output": ["hostid"],
             "filter": {"host": [name]}
         })
-        if response:
-            host_ids.extend([host["hostid"] for host in response])
+
+        # Correctly extract host IDs from response["result"]
+        if isinstance(response, dict) and "result" in response:
+            host_list = response["result"]
+            host_ids.extend([host["hostid"] for host in host_list if "hostid" in host])
+        else:
+            logger.warning(f"Unexpected response format for host '{name}': {response}")
 
     if not host_ids:
         logger.info("Found no hosts to delete")
@@ -128,8 +120,12 @@ def delete_zabbix_hosts(client: ZabbixAPIClient, hostnames):
 
     logger.info(f"Deleting hosts: {hostnames}")
     response = client._api_request("host.delete", host_ids)
-    deleted_ids = response.get("result", [])
-    logger.info(f"Successfully deleted host IDs: {deleted_ids}")
+
+    if isinstance(response, dict) and "result" in response:
+        deleted_ids = response["result"]
+        logger.info(f"Successfully deleted host IDs: {deleted_ids}")
+    else:
+        logger.warning(f"Unexpected delete response: {response}")
 
 def delete_zabbix_items_and_triggers(client: ZabbixAPIClient, item_names):     
     item_ids = []                                                              
@@ -220,11 +216,11 @@ def main():
                 if re.search(r'\((.*?)\)', item)
             }
             zabbix_items = set(zabbix_items_lookup.keys()) 
-            print("DEBUG: howru_jobs = ", howru_jobs)
-            print("DEBUG: zabbix_items = ", zabbix_items)
+            #print("DEBUG: howru_jobs = ", howru_jobs)
+            #print("DEBUG: zabbix_items = ", zabbix_items)
             extra_in_zabbix = zabbix_items - howru_jobs
             extra_items_for_deletion = {zabbix_items_lookup[job] for job in extra_in_zabbix} 
-            print("DEBUG extra_items_for_deletion = ", extra_items_for_deletion)
+            #print("DEBUG extra_items_for_deletion = ", extra_items_for_deletion)
             print(f"\n🔍 Server: {server}")
             print(f"➕ Extra items in Zabbix: {extra_in_zabbix}")                                               
             delete_zabbix_items_and_triggers(zabbix_client, extra_items_for_deletion)
