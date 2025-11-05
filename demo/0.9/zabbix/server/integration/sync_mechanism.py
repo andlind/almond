@@ -99,6 +99,7 @@ def get_host_ids_by_names(client, hostnames):
 
 def delete_zabbix_hosts(client: ZabbixAPIClient, hostnames):
     host_ids = []
+
     for name in hostnames:
         response = client._api_request("host.get", {
             "output": ["hostid"],
