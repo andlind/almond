@@ -1,0 +1,6 @@
+{
+  "mongodb_uri": "mongodb://localhost:27017/",
+  "database": "monitoring_db",
+  "collection": "plugin_status",
+  "json_file_path": "/path/to/your/document.json"
+}
