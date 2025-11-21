@@ -201,6 +201,7 @@ fi
 * Wed Nov 19 2025 0.9.19
 <andreas.lindell@almondmonitor.com>
 - New dashboard for Howru proxy
+- New monitoring API for Howru
 * Tue Oct 28 2025 0.9.18
 <andreas.lindell@almondmonitor.com>
 - New parameter for HowRU plugin API call
