@@ -198,10 +198,11 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Wed Nov 19 2025 0.9.19
+* Mon Nov 24 2025
 <andreas.lindell@almondmonitor.com>
-- New dashboard for Howru proxy
-- New monitoring API for Howru
+- Almond API allowed_hosts file option
+- New dashboard for howru proxy
+- New monitoring API for howru
 * Tue Oct 28 2025 0.9.18
 <andreas.lindell@almondmonitor.com>
 - New parameter for HowRU plugin API call
