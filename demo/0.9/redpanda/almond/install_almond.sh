@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 echo "Installing Almond on containter redpanda-10"
 echo "Installing dependencies"
 #cd /redpanda/almond
