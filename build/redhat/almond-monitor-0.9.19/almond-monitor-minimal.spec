@@ -194,7 +194,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Mon Nov 24 2025
+* Mon Nov 24 2025 0.9.19
 <andreas.lindell@almondmonitor.com>
 - Almond API allowed_hosts file option
 - New dashboard for howru proxy
