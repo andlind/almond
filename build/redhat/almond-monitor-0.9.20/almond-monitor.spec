@@ -198,6 +198,10 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Wed Dec 10 2025 0.9.20
+<andreas.lindell@almondmonitor.com>
+- New monitoring API:s for Almond and HowRU
+- Updated HowRU templates
 * Mon Nov 24 2025 0.9.19
 <andreas.lindell@almondmonitor.com>
 - Almond API allowed_hosts file option
@@ -207,6 +211,9 @@ fi
 <andreas.lindell@almondmonitor.com>
 - New parameter for HowRU plugin API call
 - Buggfixes
+* Thu Oct 09 2025 0.9.17-3
+<andreas.lindell@almondmonitor.com>
+- Buggfix enableKafkaSSL
 * Tue Oct 07 2025 0.9.17
 <andreas.lindell@almondmonitor.com>
 - Buggfix API Kafka topic

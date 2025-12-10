@@ -194,6 +194,10 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Wed Dec 10 2025 0.9.20
+<andreas.lindell@almondmonitor.com>
+- New monitoring API:s for Almond and HowRU
+- Updated HowRU templates
 * Mon Nov 24 2025 0.9.19
 <andreas.lindell@almondmonitor.com>
 - Almond API allowed_hosts file option
@@ -201,11 +205,12 @@ fi
 - New monitoring API for howru
 * Tue Oct 28 2025 0.9.18
 <andreas.lindell@almondmonitor.com>
-- New HowRU API parameter for plugins
+- New parameter for HowRU plugin API call
 - Buggfixes
-* Tue Oct 7 2025 0.9.17
+* Thu Oct 9 2025 0.9.17
 <andreas.lindell@almondmonitor.com>
 - Refactor some config to booleans
+- Buggfixes
 * Tue Sep 23 2025 0.9.15
 <andreas.lindell@almondmonitor.com>
 - Buggfix Almond API calls
