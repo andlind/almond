@@ -1,4 +1,4 @@
-AC_INIT([almond], [0.9.16], [andreas.lindell@almondmonitor.com])
+AC_INIT([almond], [0.9.20], [andreas.lindell@almondmonitor.com])
 AM_INIT_AUTOMAKE([-Wall foreign])
 AC_PROG_CC
 

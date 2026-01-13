@@ -11,7 +11,7 @@
 #include "mod_kafka.h"
 
 #define MAX_STRING_SIZE 50
-#define INFO_STR_SIZE 500
+#define INFO_STR_SIZE 810
 
 char* configFile = NULL;
 char* brokers = NULL;
@@ -47,6 +47,7 @@ int retry_backoff = 100;
 int statistics_interval = 60000;
 int kafka_socket_timeout = 60000;
 int kafka_socket_blocking = 1000;
+//int transaction_timeout = 30000;
 int timeout_ms = 30000;
 rd_kafka_t *global_producer = NULL;
 
@@ -751,6 +752,27 @@ void setKafkaConfigFile(const char* configPath) {
 	configFile = tmp;
 }
 
+void setKafkaTopic(const char* topicName) {
+	if (topicName == NULL) return;
+	size_t len = strlen(topicName) + 1;
+	char* tmp = malloc(len);
+	if (tmp == NULL) {
+                fprintf(stderr, "[mod_kafka] Failed to allocate memory for topic name.\n");
+                writeLog("[mod_kafka] Memory allocation failed in 'setKafkaTopic'.", 2, 0);
+                writeLog("[mod_kafka] Could not change topic name.", 1, 0);
+                return;
+        }
+	snprintf(tmp, len, "%s", topicName);
+	if (topic != NULL) {
+		free(topic);
+	}
+	topic = tmp;
+}
+
+char* getKafkaTopic(void) {
+	return topic;
+}
+
 int loadKafkaConfig() {
 	initConfigFile();
 	if (configFile == NULL) return 2;
@@ -782,6 +804,7 @@ static void dr_msg_cb(rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void 
 static int set_kafka_conf(rd_kafka_conf_t *conf, const char *key, const char *value) {
 	char errstr[512];
 	if (rd_kafka_conf_set(conf, key, value, errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+		printf("[mod_kafka] %s\n", errstr);
         	writeLog(errstr, 1, 0);
         	return 1;
     	}
