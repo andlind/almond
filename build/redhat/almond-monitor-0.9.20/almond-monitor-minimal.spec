@@ -194,6 +194,9 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Tue Jan 13 2026 0.9.20-2
+<andreas.lindell@almondmonitor.com>
+- Buggfix update_plugins
 * Wed Dec 10 2025 0.9.20
 <andreas.lindell@almondmonitor.com>
 - New monitoring API:s for Almond and HowRU
