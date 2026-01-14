@@ -198,7 +198,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Tue Jan 13 2026 0.9.20-2
+* Wed Jan 14 2026 0.9.20-3
 <andreas.lindell@almondmonitor.com>
 - Buggfix update_plugins
 * Wed Dec 10 2025 0.9.20
@@ -211,7 +211,7 @@ fi
 - New dashboard for howru proxy
 - New monitoring API for howru
 * Tue Oct 28 2025 0.9.18
-<andreas.lindell@almondmonitor.com>
+<andreaslindell@almondmonitor.com>
 - New parameter for HowRU plugin API call
 - Buggfixes
 * Thu Oct 09 2025 0.9.17-3
