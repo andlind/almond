@@ -305,7 +305,13 @@ void update_plugins(void) {
             }
         }
 
-        // Brand-new plugin ⇒ initialize and run once
+	// Add the cfg (both new and reused) to the hash
+        HASH_ADD_KEYPTR(hh, g_plugin_map, cfg->name, strlen(cfg->name), cfg);
+
+        // Install in the new array
+        g_plugins[i] = cfg;
+	
+	// Brand-new plugin ?~G~R initialize and run once
         if (!reused) {
             cfg->nextRun                 = 0;
             cfg->lastRunTimestamp[0]     = '\0';
@@ -315,13 +321,6 @@ void update_plugins(void) {
 
             run_plugin(cfg);
         }
-
-        // Add the cfg (both new and reused) to the hash
-        HASH_ADD_KEYPTR(hh, g_plugin_map, cfg->name, strlen(cfg->name), cfg);
-
-        // Install in the new array
-        g_plugins[i] = cfg;
-
         free(new_bc);
     }
 
