@@ -912,8 +912,9 @@ int init_kafka_producer() {
         }
 	snprintf(value_str, sizeof(value_str), "%d", kafka_socket_timeout);
         if (set_kafka_conf(conf, "socket.timeout.ms", value_str)) return 1;
+        /* Remove deprecated, use request.timeout.ms, delivery.timeout.ms and retries instead
         snprintf(value_str, sizeof(value_str), "%d", kafka_socket_blocking);
-        if (set_kafka_conf(conf, "socket.blocking.max.ms", value_str)) return 1;
+        if (set_kafka_conf(conf, "socket.blocking.max.ms", value_str)) return 1; */
 
         rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
 

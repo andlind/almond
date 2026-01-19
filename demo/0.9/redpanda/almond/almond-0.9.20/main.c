@@ -222,6 +222,7 @@ int config_memalloc_fails = 0;
 int trunc_time = 0;
 int max_try = 60;
 int g_plugin_count = 0;
+static int g_current_scheduler_cnt = 0;
 size_t infostr_size = 400;
 size_t gardenermessage_size = 1035;
 size_t pluginmessage_size = 2300;
@@ -1282,9 +1283,20 @@ int check_plugin_conf_file(char *declarationFile) {
         return retval;
 }
 
+void checkSchedulerCount() {
+	if (g_current_scheduler_cnt != decCount) {
+		writeLog("Reinitate scheduler since number of plugins changed.", 0, 0);
+		free(scheduler);
+		scheduler = NULL;
+		g_current_scheduler_cnt = decCount;
+		initTimeScheduler();
+	}
+}
+
 void rescheduleChecks() {
 	size_t n = (size_t)decCount;
         writeLog("Schedule new exectution times.", 0, 0);
+	checkSchedulerCount();
         qsort(scheduler, n, sizeof(struct Scheduler), compare_timestamps);
         flushLog();
 }
@@ -4939,7 +4951,7 @@ void apiMonitorItem(int plugin_id, int a_flags) {
 
 void apiReadData(int plugin_id, int flags) {
 	char* pluginName = NULL;
-	char rCode[3];
+	char rCode[12];
 	char* message = NULL;
 	unsigned short is_error = 0;
 
@@ -5107,7 +5119,7 @@ void createUpdateFile(PluginItem *item, char name[3]) {
 
 void apiRunAndRead(int plugin_id, int flags) {
 	char* pluginName = NULL;
-	char rCode[3];
+	char rCode[12];
 	char strNum[12];
         char* message = NULL;
 	unsigned short is_error = 0;
@@ -5867,6 +5879,7 @@ void timeTune(int seconds) {
 		}
 	}
 	if (timeScheduler) {
+		checkSchedulerCount();
 		qsort(scheduler, decCount, sizeof(struct Scheduler), compare_timestamps);
 	}
 }
@@ -6098,8 +6111,8 @@ void runPluginCommand(int index, char* command) {
 		char *trimmed = trim(pluginReturnString);
 		size_t trimmed_len = strlen(trimmed);
 		size_t copy_len = (trimmed_len < pluginoutput_size - 1) ? trimmed_len : pluginoutput_size - 1;
-		strncpy(g_plugins[index]->output.retString, trimmed, copy_len);
-		//snprintf(g_plugins[index]->output.retString, sizeof(g_plugins[index]->output.retString),"%s", trimmed);
+		//strncpy(g_plugins[index]->output.retString, trimmed, copy_len);
+		snprintf(g_plugins[index]->output.retString, pluginoutput_size, "%s", trimmed);
 		g_plugins[index]->output.retString[copy_len] = '\0';
 	}
 	size_t dest_size = 20;
@@ -6990,7 +7003,8 @@ int initTimeScheduler() {
 		printf("Could not initiate a time scheduler of count %d.\n", decCount);
 		return 1;
 	}
-	scheduler = malloc((size_t)sizeof(Scheduler)*decCount);
+	//scheduler = malloc((size_t)sizeof(Scheduler)*decCount);
+	scheduler = calloc(decCount, sizeof(Scheduler));
 	if (!scheduler) {
         	printf("Error allocating memory");
         	writeLog("Error allocating memory [initTimeScheduler]", 2, 0);
@@ -7107,6 +7121,7 @@ void initScheduler(int numOfP, int msSleep) {
 		}
 	}
 	if (timeScheduler) {
+		checkSchedulerCount();
 		qsort(scheduler, decCount, sizeof(struct Scheduler), compare_timestamps);
 	}
 	if (runGardenerAtStart) {
@@ -7307,6 +7322,7 @@ void scheduleChecks(){
 			sleep(sleepTime);
 		}
 		else {
+			checkSchedulerCount();
 			qsort(scheduler, decCount, sizeof(struct Scheduler), compare_timestamps);
 			//writeLog("VERBOSE: Scheduler sorted. Sleeping for a second.", 0, 0);
 			sleep(1);
@@ -7635,21 +7651,19 @@ int main(int argc, char* argv[]) {
         }
         threadIds = (unsigned short*)malloc((size_t)MAX_PLUGINS * sizeof(unsigned short));
     	memset(threadIds, 0, MAX_PLUGINS * sizeof(unsigned short));
-    	for (int i = 0; i < decCount; i++) {
-        	threadIds[i] = 0;
-    	}
-    	//thread_counter++;
-    	//size_t plugin_count = (size_t)decCount;
 	checkPluginFileStat(pluginDeclarationFile, tPluginFile, 0);
 	logInfo("No errors found in plugins.conf", 0, 0);
 	decCount = countDeclarations(pluginDeclarationFile);
+	for (int i = 0; i < decCount; i++) {
+                threadIds[i] = 0;
+        }
+	g_current_scheduler_cnt = decCount;
 	if (init_plugins() != 0) {
 		logError("Failed to initiate plugins", 2, 0);
 		flushLog();
 		return 2;
 	}
 	flushLog();
-        //plugin_count = (size_t)decCount;
         initScheduler(decCount, initSleep);
 	while (!is_stopping) {
         	scheduleChecks();
