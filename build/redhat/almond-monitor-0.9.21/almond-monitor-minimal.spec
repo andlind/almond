@@ -10,7 +10,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        1.minimal%{?dist}
+Release:        2.minimal%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -194,10 +194,11 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Mon Jan 19 2026 0.9.21
+* Thu Jan 22 2026 0.9.21
 <andreas.lindell@almondmonitor.com>
 - Code refactoring
 - Buggfixes, update scheduler
+- Add metric to Almond API status
 * Wed Jan 14 2026 0.9.20-3
 <andreas.lindell@almondmonitor.com>
 - Buggfix update_plugins
