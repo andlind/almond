@@ -3,7 +3,7 @@ AUTOMAKE_OPTIONS = foreign
 bin_PROGRAMS = almond
 
 almond_SOURCES =
-COMMON_SOURCES = plugins.c logger.c
+COMMON_SOURCES = plugins.c logger.c api.c config.c
 
 AM_CPPFLAGS = -I/usr/include -I/usr/local/include
 AM_LDFLAGS = -L/usr/lib64 -L/usr/local/lib -L/usr/lib

@@ -1,4 +1,4 @@
-AC_INIT([almond], [0.9.20], [andreas.lindell@almondmonitor.com])
+AC_INIT([almond], [0.9.23], [andreas.lindell@almondmonitor.com])
 AM_INIT_AUTOMAKE([-Wall foreign])
 AC_PROG_CC
 
@@ -66,6 +66,7 @@ if test "x$enable_kafka" = "xyes"; then
   ])
 else
   AC_MSG_NOTICE([Kafka support DISABLED])
+  AC_DEFINE([USE_MINIMAL], [1], [Disable KAFKA support])
 fi
 
 if test "x$enable_avro" = "xyes"; then
@@ -85,6 +86,7 @@ if test "x$enable_avro" = "xyes"; then
   ])
   
   AC_DEFINE([HAVE_SERDES], [1], [Define if Serdes is available])
+  AC_DEFINE([USE_AVRO], [1], [Enable AVRO support])
 else
   AC_MSG_NOTICE([Avro support DISABLED])
 fi
