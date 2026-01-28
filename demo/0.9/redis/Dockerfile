@@ -10,12 +10,11 @@ RUN apt install supervisor wget -y && apt upgrade -y
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY apps.conf /etc/supervisord/conf.d/apps.conf
 COPY plugins/* /opt/almond/plugins
-#RUN wget https://github.com/andlind/almond/raw/refs/heads/main/build/source/linux-version/0.9.17/almond-0.9.17.tar.gz
-RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/0.9.20/almond-0.9.20.tar.gz
-RUN tar xfvz almond-0.9.20.tar.gz 
-RUN chmod +x almond-0.9.20/install_almond.sh
-RUN cd almond-0.9.20 && ./install_almond.sh
-RUN rm -rf almond-0.9.20 
+RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/0.9.23/almond-0.9.23.tar.gz
+RUN tar xfvz almond-0.9.23.tar.gz 
+RUN chmod +x almond-0.9.23/install_almond.sh
+RUN cd almond-0.9.23 && ./install_almond.sh
+RUN rm -rf almond-0.9.23 
 RUN mkdir -p /var/log/redis
 COPY plugins.conf /etc/almond/plugins.conf
 COPY almond.conf /etc/almond/almond.conf
