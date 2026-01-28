@@ -1,0 +1,5 @@
+# NOTE
+# The Nagios plugins included in this build is compiled for x86_64/RedHat 10.
+# If you are compiling for another architecture and or distribution, you should
+# first compile the plugins you want from Nagios source and put then in the
+# plugins directory.
