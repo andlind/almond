@@ -1,5 +1,5 @@
-#ifndef MODKAFKA_H
-#define MODKAFKA_H
+#ifndef ALMOND_MODKAFKA_AVRO_H
+#define ALMOND_MODKAFKA_AVRO_H
 
 void setKafkaConfigFile(const char*);
 void setKafkaTopic(const char*);
@@ -12,6 +12,7 @@ int send_message_to_kafka(char*, char*, char*);
 int send_ssl_message_to_kafka(char*, char*, char*, char*, char*, char*);
 int send_avro_message_to_kafka(char*, char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, int);
 int send_ssl_avro_message_to_kafka(char*, char*, char*, char*, char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, int);
+void process_kafka_avro(ConfVal);
 void free_kafka_memalloc();
 
-#endif // MODKAFKA_H 
+#endif // ALMOND_MODKAFKA_AVRO_H 

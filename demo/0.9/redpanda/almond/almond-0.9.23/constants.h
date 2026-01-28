@@ -1,6 +1,8 @@
 #ifndef ALMOND_CONSTANTS_STRUCTURES_HEADER
 #define ALMOND_CONSTANTS_STRUCTURES_HEADER
 
+#define MAX_HOSTS 100
+
 //typedef void (*ConstantHandler)(void);
 
 typedef struct Constant {

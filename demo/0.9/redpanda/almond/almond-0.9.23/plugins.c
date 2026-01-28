@@ -4,16 +4,39 @@
 #include <time.h>
 #include <stdbool.h>
 #include <assert.h>
+#ifdef __linux__
 #include <malloc.h>
+#endif
 #include <sys/types.h>
 #include "data.h"
 #include "plugins.h"
 
 #define STATUS_SIZE 2
+#define PLUGIN_LINE_MAX 1024
 
-// if strdup is missing, declare it
-extern char *strdup(const char *);
+/* Helper utilities */
+static char *safe_strdup(const char *s) {
+    if (!s) return NULL;
+    size_t n = strlen(s) + 1;
+    char *d = malloc(n);
+    if (!d) {
+        perror("safe_strdup");
+        return NULL;
+    }
+    memcpy(d, s, n);
+    return d;
+}
 
+static void free_plugin_item(PluginItem *it, int free_retstring) {
+    if (!it) return;
+    if (it->name) free(it->name);
+    if (it->description) free(it->description);
+    if (it->command) free(it->command);
+    if (free_retstring && it->output.retString) free(it->output.retString);
+    free(it);
+}
+
+/* Extract the base command (existing) */
 static char *extract_base_command(const char *cmd) {
     if (!cmd) return NULL;
 
@@ -28,6 +51,50 @@ static char *extract_base_command(const char *cmd) {
     return base;
 }
 
+static PluginItem *parse_declaration_line(const char *line) {
+    if (!line) return NULL;
+    char buf[PLUGIN_LINE_MAX];
+    strncpy(buf, line, sizeof(buf));
+    buf[sizeof(buf)-1] = '\0';
+
+    // Skip comments and short lines
+    if (buf[0] == '#' || strlen(buf) < 5) return NULL;
+
+    // Strip newline
+    buf[strcspn(buf, "\n")] = '\0';
+
+    // Find [name]…;…;…;…
+    char *start = strchr(buf, '[');
+    char *end   = strchr(buf, ']');
+    if (!start || !end || end <= start) return NULL;
+    *end = '\0';
+    char *name = start + 1;
+
+    // Split remainder by ';'
+    char *rest = end + 1;
+    while (*rest == ' ') rest++;
+    char *description = strtok(rest, ";");
+    char *command     = strtok(NULL, ";");
+    char *active_str  = strtok(NULL, ";");
+    char *interval_str= strtok(NULL, ";");
+    if (!description || !command || !active_str || !interval_str) return NULL;
+
+    PluginItem *item = calloc(1, sizeof *item);
+    if (!item) {
+        perror("calloc PluginItem");
+        return NULL;
+    }
+
+    item->name        = safe_strdup(name);
+    item->description = safe_strdup(description);
+    item->command     = safe_strdup(command);
+    item->active      = atoi(active_str);
+    item->interval    = atoi(interval_str);
+    item->touched     = false;
+
+    return item;
+}
+
 static PluginItem **load_declarations(const char *path, int *out_count) {
     FILE *f = fopen(path, "r");
     if (!f) {
@@ -37,69 +104,25 @@ static PluginItem **load_declarations(const char *path, int *out_count) {
 
     PluginItem **list = NULL;
     size_t cap = 0, n = 0;
-    char   line[1024];
+    char line[PLUGIN_LINE_MAX];
 
     while (fgets(line, sizeof line, f)) {
-        // Skip comments and short lines
-        if (line[0] == '#' || strlen(line) < 5) 
-            continue;
+        PluginItem *item = parse_declaration_line(line);
+        if (!item) continue;
 
-        // Strip newline
-        line[strcspn(line, "\n")] = '\0';
-
-        // Find [name]…;…;…;…
-        char *start = strchr(line, '[');
-        char *end   = strchr(line, ']');
-        if (!start || !end || end <= start) 
-            continue;
-        *end = '\0';
-        char *name = start + 1;
-
-        // Split remainder by ';'
-        char *rest        = end + 1;
-        while (*rest == ' ') rest++;
-             char *description = strtok(rest, ";");
-        char *command     = strtok(NULL, ";");
-        char *active_str  = strtok(NULL, ";");
-        char *interval_str= strtok(NULL, ";");
-        if (!description || !command || !active_str || !interval_str) 
-            continue;
-
-        // Grow pointer array if needed
         if (n + 1 > cap) {
             cap = cap ? cap * 2 : 16;
             PluginItem **tmp = realloc(list, cap * sizeof *list);
             if (!tmp) {
                 perror("realloc in load_declarations");
                 // cleanup partial list
-                for (size_t i = 0; i < n; ++i) {
-                    free(list[i]->name);
-                    free(list[i]->description);
-                    free(list[i]->command);
-                    free(list[i]);
-                }
+                for (size_t i = 0; i < n; ++i) free_plugin_item(list[i], 1);
                 free(list);
                 fclose(f);
                 return NULL;
             }
             list = tmp;
         }
-
-        // Allocate and initialize one PluginItem
-        PluginItem *item = calloc(1, sizeof *item);
-        if (!item) {
-            perror("calloc PluginItem");
-            break;
-        }
-         // Fill config fields
-        item->name        = strdup(name);
-        item->description = strdup(description);
-        item->command     = strdup(command);
-        item->active      = atoi(active_str);
-        item->interval    = atoi(interval_str);
-        // id & runtime fields will be set later in update_plugins()
-        item->touched     = false;
-
         list[n++] = item;
     }
 
@@ -115,84 +138,41 @@ void load_plugins() {
         return;
     }
 
-    /* Allocate array of pointers */
-    PluginItem **new_list = calloc(decCount, sizeof *new_list);
+    PluginItem **new_list = calloc(decCount ? decCount : 16, sizeof *new_list);
     if (!new_list) {
         perror("Memory allocation failed for plugin list");
         fclose(fp);
         return;
     }
 
-    char  line[1024];
-    int   index = 0;
-    //int lineno = 0;
-    
-    while (fgets(line, sizeof(line), fp) && index < decCount) {
-        //printf("[DBG] line %3d: %s", ++lineno, line);
-        /* Skip comments and very short lines */
-        if (line[0] == '#' || strlen(line) < 5) 
-            continue;
+    char line[PLUGIN_LINE_MAX];
+    int index = 0;
 
-        /* Trim newline */
-        line[strcspn(line, "\n")] = '\0';
+    while (fgets(line, sizeof(line), fp)) {
+        if (index >= decCount) break;
+        PluginItem *item = parse_declaration_line(line);
+        if (!item) continue;
 
-        /* Parse [name]desc;cmd;active;interval */
-        char *start = strchr(line, '[');
-        char *end   = strchr(line, ']');
-        if (!start || !end || end <= start) 
-            continue;
+        item->id = index;
 
-        *end = '\0';
-        char *name        = start + 1;
-        char *rest        = end + 1;
-        while (*rest == ' ') rest++;
-
-        char *description = strtok(rest, ";");
-        char *command     = strtok(NULL, ";");
-        char *active_str  = strtok(NULL, ";");
-        char *interval_str= strtok(NULL, ";");
-        if (!description || !command || !active_str || !interval_str)
-            continue;
-       
-         /* Allocate and initialize one PluginItem */
-        PluginItem *item = calloc(1, sizeof *item);
-        if (!item) {
-            perror("calloc PluginItem");
-            break;
-        }
-
-        /* Copy config fields */
-        item->name        = strdup(name);
-        item->description = strdup(description);
-        item->command     = strdup(command);
-        item->active      = atoi(active_str);
-        item->interval    = atoi(interval_str);
-        item->id          = index;
-
-        /* Initialize all timestamps and status */
         item->lastRunTimestamp[0]    = '\0';
         item->nextRunTimestamp[0]    = '\0';
         item->lastChangeTimestamp[0] = '\0';
         strcpy(item->statusChanged, "0");
         item->nextRun = 0;
 
-        /* Initialize output state */
         item->output.retCode     = 0;
         item->output.prevRetCode = 0;
-        item->output.retString   = strdup("");  // or NULL if you prefer
+        item->output.retString   = safe_strdup("");
 
-        /* Mark as present (for future reload logic) */
         item->touched = true;
-	/* Add to hash map keyed by name */
         HASH_ADD_KEYPTR(hh, g_plugin_map, item->name, strlen(item->name), item);
 
-        /* Append to ordered list */
         new_list[index++] = item;
     }
 
     fclose(fp);
 
-    /* Replace globals */
     free(g_plugins);
     g_plugins      = new_list;
     g_plugin_count = index;
@@ -204,16 +184,16 @@ int init_plugins() {
 	if (!g_plugins) {
 		return 1;
 	}
-        g_plugin_count = (size_t)decCount;
-        printf("Loaded %d plugins\n", g_plugin_count);
+	printf("Loaded %d plugins\n", g_plugin_count);
         for (int i = 0; i < g_plugin_count; i++) {
-        	//printf("  [%zu] name=%s cmd=\"%s\"\n",
-                //        i,
-                //        g_plugins[i].name,
-                //        g_plugins[i].command);
-                //mock_runCommand(&g_plugins[i]);
-                //runPlugin(i);
-    	}
+            /* optionally: debug print
+            printf("  [%d] name=%s cmd=\"%s\"\n",
+                    i,
+                    g_plugins[i]->name,
+                    g_plugins[i]->command);
+            */
+            //runPlugin(i);
+        }
 	return 0;
 }
 
@@ -292,10 +272,7 @@ void update_plugins(void) {
                     HASH_DEL(g_plugin_map, old);
 
                     // Free old struct (fields we did NOT transfer)
-                    free(old->name);
-                    free(old->description);
-                    free(old->command);
-                    free(old);
+                    free_plugin_item(old, 0); // retString was transferred (disowned above)
 
                     // Mark slot as consumed (Step 6 won't see it)
                     old_plugs[j] = NULL;
@@ -334,16 +311,8 @@ void update_plugins(void) {
             // Remove from hash first
             HASH_DEL(g_plugin_map, old);
 
-            // Free fields (retString only if still owned)
-            free(old->name);
-            free(old->description);
-            free(old->command);
-            if (old->output.retString) {
-                free(old->output.retString);
-                old->output.retString = NULL;
-            }
-
-            free(old);
+            // Free old plugin entirely
+            free_plugin_item(old, 1);
         }
         free(old_plugs);
     }
@@ -351,7 +320,9 @@ void update_plugins(void) {
     // 7) Cleanup
     g_plugin_count = decCount;
     free(decls);       // decls holds pointers now owned by g_plugins (or freed above)
+#ifdef __linux__
     malloc_trim(0);
+#endif
 }
 
 PluginItem *getPluginItem(size_t index) {

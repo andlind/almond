@@ -6,14 +6,19 @@
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <avro.h>
 #include <libserdes/serdes-avro.h>
 #include <librdkafka/rdkafka.h>
 #include "main.h"
 #include "config.h"
 #include "logger.h"
-#include "mod_kafka.h"
+#include "mod_avro.h"
+#include "kafkaapi.h"
 
+#ifndef RD_KAFKA_RESP_ERR__UNKNOWN
+#define RD_KAFKA_RESP_ERR__UNKNOWN RD_KAFKA_RESP_ERR_UNKNOWN
+#endif
 #define MAX_STRING_SIZE 50
 #define INFO_STR_SIZE 810 
 
@@ -172,52 +177,89 @@ int mem_k_alloc(void* ptr, char* name) {
         return 0;
 }
 
+static char *safe_strdup(const char *src, const char *name) {
+        if (!src || !*src) return NULL;
+        size_t n = strlen(src) + 1;
+        char *dup = malloc(n);
+        if (!dup) {
+                /* mem_k_alloc logs the failure and increments the counter */
+                mem_k_alloc(dup, (char *)name);
+                return NULL;
+        }
+        memcpy(dup, src, n);
+        return dup;
+}
+
+static void free_and_null(char **p) {
+        if (p && *p) {
+                free(*p);
+                *p = NULL;
+        }
+}
+
+static bool str_to_bool(const char *s, bool default_val) {
+        if (!s) return default_val;
+        char tmp[64];
+        strncpy(tmp, s, sizeof(tmp));
+        tmp[sizeof(tmp)-1] = '\0';
+        triminfo(tmp);
+        to_uppercase(tmp);
+        if (strcmp(tmp, "TRUE") == 0) return true;
+        if (strcmp(tmp, "FALSE") == 0) return false;
+        return default_val;
+}
+
+static int parse_int_with_default(const char *s, int def) {
+        if (!s) return def;
+        char *endptr = NULL;
+        long v = strtol(s, &endptr, 0);
+        if (endptr == s) return def;
+        return (int)v;
+}
+
 static void process_kafka_brokers(ConfVal value) {
-        size_t kf_len = strlen(value.strval) + 1;
-        if (kf_len > 5) {
-                brokers = malloc(kf_len);
-                mem_k_alloc(brokers, "kafka.bootstrap.servers");
-                if (brokers == NULL) return;
-                snprintf(brokers, kf_len, "%s", value.strval);
+        if (value.strval && strlen(value.strval) > 4) {
+                char *dup = safe_strdup(value.strval, "kafka.bootstrap.servers");
+                if (!dup) return;
+                free_and_null(&brokers);
+                brokers = dup;
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] Kafka export brokers is set to '%s'.", brokers);
                 writeLog(triminfo(info), 0, 1);
                 requirements_met++;
-        }
-        else
+        } else {
                 writeLog("[mod_kafka] Almond brokers is set to NULL.", 2, 1);
+        }
 }
 
 static void process_kafka_topic(ConfVal value) {
-        size_t t_len = strlen(value.strval) + 1;
-        if (t_len > 2) {
-                topic = malloc(t_len);
-                mem_k_alloc(topic, "kafka.topic");
-                if (topic == NULL) return;
-                snprintf(topic, t_len, "%s", value.strval);
+        if (value.strval && strlen(value.strval) > 1) {
+                char *dup = safe_strdup(value.strval, "kafka.topic");
+                if (!dup) return;
+                free_and_null(&topic);
+                topic = dup;
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] Kafka topic is set to '%s'.", topic);
                 writeLog(triminfo(info), 0, 1);
                 requirements_met++;
-        }
-        else
+        } else {
                 writeLog("[mod_kafka] Almond topic is set to NULL.", 2, 1);
+        }
 }
 
 void process_kafka_client_id(ConfVal value) {
-        size_t c_len = strlen(value.strval) + 1;
-        if (c_len > 2) {
-                kafka_client_id = malloc(c_len);
-                mem_k_alloc(kafka_client_id, "kafka.client.id");
-                if (kafka_client_id == NULL) return;
-                snprintf(kafka_client_id, c_len, "%s", value.strval);
+        if (value.strval && strlen(value.strval) > 1) {
+                char *dup = safe_strdup(value.strval, "kafka.client.id");
+                if (!dup) return;
+                free_and_null(&kafka_client_id);
+                kafka_client_id = dup;
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] Kafka client id is set to '%s'.", kafka_client_id);
                 writeLog(triminfo(info), 0, 1);
-        }
-        else
+        } else {
                 writeLog("[mod_kafka] kafka.client.id is set to NULL.", 0, 1);
+        }
 }
 
 void process_metadata_request_timeout(ConfVal value) {
-        int i = strtol(value.strval, NULL, 0);
+        int i = parse_int_with_default(value.strval, 0);
         if (i == 0) {
                 writeLog("[mod_kafka] Could not interpret 'kafka.metadata.max.age.ms' value from config file.", 1, 1);
                 writeLog("[mod_kafka] 'kafka.metadata.max.age.ms' is set to 60000.", 0, 1);
@@ -229,26 +271,28 @@ void process_metadata_request_timeout(ConfVal value) {
 }
 
 void process_kafka_acks(ConfVal value) {
-        char *str = triminfo(value.strval);
+        char tmp[32] = "";
+        if (value.strval && strlen(value.strval) > 0) {
+                strncpy(tmp, value.strval, sizeof(tmp));
+                tmp[sizeof(tmp)-1] = '\0';
+                triminfo(tmp);
+        }
 
-        if (str && strlen(str) > 0 && !is_numeric_string(str)) {
-                if (strcmp(str, "all") == 0) {
+        if (tmp[0] && !is_numeric_string(tmp)) {
+                if (strcmp(tmp, "all") == 0) {
                         acks = -1; // sentinel for 'all'
                         writeLog("[mod_kafka] Kafka.acks is set to 'all'.", 0, 1);
-                }
-                else {
-                        snprintf(info, INFO_STR_SIZE, "[mod_kafka] Invalid string value for Kafka.acks: %s.", str);
+                } else {
+                        snprintf(info, INFO_STR_SIZE, "[mod_kafka] Invalid string value for Kafka.acks: %s.", tmp);
                         writeLog(triminfo(info), 1, 1);
                         writeLog("[mod_kafka] Kafka.acks will be set to 1.", 0, 1);
                         acks = 1;
                 }
-        }
-        else if (value.intval == 0 || value.intval == 1) {
+        } else if (value.intval == 0 || value.intval == 1) {
                 acks = value.intval;
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] Kafka.acks is set to %d.", value.intval);
                 writeLog(triminfo(info), 0, 1);
-        }
-        else {
+        } else {
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] Invalid integer value for Kafka.acks: %d", value.intval);
                 writeLog(triminfo(info), 1, 1);
                 writeLog("[mod_kafka] Kafka.acks will be set to 1.", 0, 1);
@@ -257,47 +301,31 @@ void process_kafka_acks(ConfVal value) {
 }
 
 void process_kafka_idempotence(ConfVal value) {
-        if (strcmp(triminfo(value.strval), "true") == 0) {
-                enable_idempotence = true;
-        }
+        enable_idempotence = str_to_bool(value.strval, false);
         snprintf(info, INFO_STR_SIZE, "[mod_kafka] Kafka.enable.idempotence is set to %s.", enable_idempotence ? "true" : "false");
         writeLog(triminfo(info), 0, 1);
 }
 
 void process_kafka_transactional_id(ConfVal value) {
-        size_t t_len = strlen(value.strval) + 1;
-        if (t_len <= 1) {
+        if (!value.strval || strlen(triminfo(value.strval)) == 0) {
                 writeLog("[mod_kafka] kafka.transactional.id can not be an empty string.", 1, 1);
                 return;
         }
-        if (value.intval) {
-                if (value.intval != 0) {
-                        writeLog("[mod_kafka] kafka.transactional.id should not be an integer value, but a string.", 1, 1);
-                        return;
-                }
+        /* Reject numeric-only values */
+        if (value.intval && value.intval != 0) {
+                writeLog("[mod_kafka] kafka.transactional.id should not be an integer value, but a string.", 1, 1);
+                return;
         }
-        transactional_id = malloc(t_len);
-        mem_k_alloc(transactional_id, "kafka.transactional.id");
-        if (transactional_id == NULL) return;
-        snprintf(transactional_id, t_len, "%s", value.strval);
+        char *dup = safe_strdup(value.strval, "kafka.transactional.id");
+        if (!dup) return;
+        free_and_null(&transactional_id);
+        transactional_id = dup;
         snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.transactional.id is set to '%s'.", transactional_id);
         writeLog(triminfo(info), 0, 1);
-        /*
-        rd_kafka_conf_set(conf, "transactional.id", "my-transactional-producer", errstr, sizeof(errstr));
-        rd_kafka_conf_set(conf, "enable.idempotence", "true", errstr, sizeof(errstr));
-        You must also:
-                Initialize transactions with rd_kafka_init_transactions()
-
-                Begin a transaction with rd_kafka_begin_transaction()
-
-                Send messages as usual
-
-                Commit with rd_kafka_commit_transaction() or abort with rd_kafka_abort_transaction()
-        */
 }
 
 void process_kafka_retries(ConfVal value) {
-        int i = strtol(value.strval, NULL, 0);
+        int i = parse_int_with_default(value.strval, retries);
         if (i < 0) {
                 writeLog("[mod_kafka] Can not evaluate negative numbers in kafka.retries.", 1, 1);
                 writeLog("[mod_kafka] Kafka.retries is set to 5.", 0, 1);
@@ -308,7 +336,7 @@ void process_kafka_retries(ConfVal value) {
 }
 
 void process_kafka_in_flight_requests(ConfVal value) {
-        int i = strtol(value.strval, NULL, 0);
+        int i = parse_int_with_default(value.strval, max_in_flight_requests);
         if (i > 5) {
                 writeLog("[mod_kafka] kafka.max.in.flight.requests.per.connection should not be above 5 if enabling kafka idempotence.", 0, 1);
         }
@@ -317,12 +345,11 @@ void process_kafka_in_flight_requests(ConfVal value) {
 }
 
 void process_kafka_linger(ConfVal value) {
-        int i = strtol(value.strval, NULL, 0);
+        int i = parse_int_with_default(value.strval, 0);
         if (i > 900000) {
                 writeLog("[mod_kafka] kafka.linger.ms value is above maximum value, will reduce it to 900000.", 1, 1);
                 writeLog("[mod_kafka] Note that kafka.linger.ms is at its hard limit (15 minutes).", 1, 1);
-                i = 90000;
-                return;
+                i = 900000;
         }
         if (i < 0) i = 0;
         linger_ms = i;
@@ -352,31 +379,24 @@ void process_queue_buffering_kbytes(ConfVal value) {
 }
 
 void process_kafka_compression(ConfVal value) {
-        size_t c_pen = strlen(value.strval) + 1;
-        kafka_compression = malloc(c_pen);
-        mem_k_alloc(kafka_compression, "kafka.compression.codec");
-        if (kafka_compression == NULL) return;
-        snprintf(kafka_compression, c_pen, "%s", value.strval);
-        if (strcmp(triminfo(kafka_compression), "gzip") == 0) {
-                writeLog("[mod_kafka] kafka.compression.codec is set to 'gzip'.", 0, 1);
+        if (!value.strval || !*value.strval) {
+                writeLog("[mod_kafka] kafka.compression.codec is set to NULL.", 0, 1);
+                return;
         }
-        else if (strcmp(triminfo(kafka_compression), "snappy") == 0) {
-                writeLog("[mod_kafka] kafka.compression.codec is set to 'snappy'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_compression), "lz4") == 0) {
-                writeLog("[mod_kafka] kafka.compression.codec is set to 'lz4'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_compression), "zstd") == 0) {
-                writeLog("[mod_kafka] kafka.compression.codec is set to 'zstd'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_compression), "none") == 0) {
-                writeLog("[mod_kafka] kafka.compression.codec is set to 'none'.", 0, 1);
-        }
-        else {
+        char *dup = safe_strdup(value.strval, "kafka.compression.codec");
+        if (!dup) return;
+        free_and_null(&kafka_compression);
+        kafka_compression = dup;
+        char *t = triminfo(kafka_compression);
+        if (strcmp(t, "gzip") == 0 || strcmp(t, "snappy") == 0 || strcmp(t, "lz4") == 0 || strcmp(t, "zstd") == 0 || strcmp(t, "none") == 0) {
+                snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.compression.codec is set to '%s'.", t);
+                writeLog(triminfo(info), 0, 1);
+        } else {
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] %s is not a valid kafka.compression.codec value", kafka_compression);
                 writeLog(triminfo(info), 1, 1);
                 writeLog("[mod_kafka] kafka.compression.codec will be set to 'lz4'.", 0, 1);
-                snprintf(kafka_compression, 4, "%s", "lz4");
+                free_and_null(&kafka_compression);
+                kafka_compression = safe_strdup("lz4", "kafka.compression.codec");
         }
 }
 
@@ -416,9 +436,7 @@ void process_kafka_retry_backoff(ConfVal value) {
 }
 
 void process_kafka_dr_cb(ConfVal value) {
-        if (strcmp(triminfo(value.strval), "false") == 0) {
-                kafka_dr_cb = false;
-        }
+        kafka_dr_cb = str_to_bool(value.strval, true);
         snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.dr_cb is set to %s.", kafka_dr_cb ? "true" : "false");
         writeLog(triminfo(info), 0, 1);
 }
@@ -431,157 +449,131 @@ void process_kafka_statistics_interval(ConfVal value) {
 }
 
 void process_kafka_log_connection_close(ConfVal value) {
-        if (strcmp(triminfo(value.strval), "true") == 0) {
-                kafka_log_connection_close = true;
-        }
+        kafka_log_connection_close = str_to_bool(value.strval, false);
         snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.log.connection.close is set to  %s.", kafka_log_connection_close ? "true" : "false");
         writeLog(triminfo(info), 0, 1);
 }
 
 void process_kafka_ssl_ca_location(ConfVal value) {
-        size_t ca_len = strlen(value.strval) + 1;
-        if (ca_len > 5) {
-                kafkaCALocation = malloc(ca_len);
-                mem_k_alloc(kafkaCALocation, "kafka.ssl.ca.location");
-                if (kafkaCALocation== NULL) return;
-                snprintf(kafkaCALocation, ca_len, "%s", value.strval);
+        if (value.strval && strlen(value.strval) > 4) {
+                char *dup = safe_strdup(value.strval, "kafka.ssl.ca.location");
+                if (!dup) return;
+                free_and_null(&kafkaCALocation);
+                kafkaCALocation = dup;
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.ssl.ca.location is set to '%s'.", kafkaCALocation);
                 writeLog(triminfo(info), 0, 1);
-        }
-        else
+        } else {
                 writeLog("[mod_kafka] kafka.ssl.ca.location is set to NULL.", 0, 1);
+        }
 }
 
 void process_kafka_certificate(ConfVal value) {
-        size_t this_len = strlen(value.strval) + 1;
-        if (this_len > 5) {
-                kafkaSSLCertificate = malloc(this_len);
-                mem_k_alloc(kafkaSSLCertificate, "kafka.ssl.certificate.location");
-                if (kafkaSSLCertificate == NULL) return;
-                snprintf(kafkaSSLCertificate, this_len, "%s", value.strval);
+        if (value.strval && strlen(value.strval) > 4) {
+                char *dup = safe_strdup(value.strval, "kafka.ssl.certificate.location");
+                if (!dup) return;
+                free_and_null(&kafkaSSLCertificate);
+                kafkaSSLCertificate = dup;
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.ssl.certificate.location is set to '%s'.", kafkaSSLCertificate);
                 writeLog(triminfo(info), 0, 1);
-        }
-        else
+        } else {
                 writeLog("[mod_kafka] kafka.ssl.certificate.location is set to NULL.", 0, 1);
+        }
 }
 
 void process_kafka_key(ConfVal value) {
-        size_t k_len = strlen(value.strval) + 1;
-        if (k_len > 5) {
-                kafka_SSLKey = malloc(k_len);
-                mem_k_alloc(kafka_SSLKey, "kafka.ssl.key.location");
-                if (kafka_SSLKey == NULL) return;
-                snprintf(kafka_SSLKey, k_len, "%s", value.strval);
+        if (value.strval && strlen(value.strval) > 4) {
+                char *dup = safe_strdup(value.strval, "kafka.ssl.key.location");
+                if (!dup) return;
+                free_and_null(&kafka_SSLKey);
+                kafka_SSLKey = dup;
                 snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.ssl.key.location is set to '%s'.", kafka_SSLKey);
                 writeLog(triminfo(info), 0, 1);
-        }
-        else
+        } else {
                 writeLog("[mod_kafka] kafka.ssl.key.location is set to NULL.", 0, 1);
+        }
 }
 
 void process_kafka_security_protocol(ConfVal value) {
-        if (strlen(value.strval) > 2) {
-                size_t s_len = strlen(value.strval) + 1;
-                kafka_security_protocol = malloc(s_len);
-                mem_k_alloc(kafka_security_protocol, "kafka.security.protocol");
-                if (kafka_security_protocol == NULL) return;
-                //snprintf(kafka_security_protocol, s_len, "%s", to_uppercase(value.strval));
-                strncpy(kafka_security_protocol, value.strval, s_len);
-                kafka_security_protocol[s_len -1] = '\0';
-                to_uppercase(kafka_security_protocol);
-                char *trimmed = triminfo(kafka_security_protocol);
-                if ((strcmp(trimmed, "PLAINTEXT") == 0) ||
-                        (strcmp(trimmed, "SSL") == 0) ||
-                        (strcmp(trimmed, "SASL_PLAINTEXT") == 0) ||
-                        (strcmp(trimmed, "SASL_SSL") == 0) ||
-                        (strcmp(trimmed, "SASL") == 0)) {
-                        snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.security.protocol is set to '%s'.", kafka_security_protocol);
-                        writeLog(triminfo(info), 0, 1);
-
-                }
-                else {
-                        snprintf(info, INFO_STR_SIZE, "[mod_kafka] %s is not a valid entry for kafka.security.protocol.", value.strval);
-                        writeLog(triminfo(info), 1, 1);
-                        free(kafka_security_protocol);
-                        kafka_security_protocol = NULL;
-                        writeLog("[mod_kafka] kafka.security.protocol is set to NULL.", 0, 1);
-                }
+        if (!value.strval || strlen(value.strval) <= 2) {
+                writeLog("[mod_kafka] kafka.security.protocol is set to NULL.", 0, 1);
+                return;
         }
-        else {
+        char *dup = safe_strdup(value.strval, "kafka.security.protocol");
+        if (!dup) return;
+        free_and_null(&kafka_security_protocol);
+        kafka_security_protocol = dup;
+        to_uppercase(kafka_security_protocol);
+        char *trimmed = triminfo(kafka_security_protocol);
+        if ((strcmp(trimmed, "PLAINTEXT") == 0) ||
+                (strcmp(trimmed, "SSL") == 0) ||
+                (strcmp(trimmed, "SASL_PLAINTEXT") == 0) ||
+                (strcmp(trimmed, "SASL_SSL") == 0) ||
+                (strcmp(trimmed, "SASL") == 0)) {
+                snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.security.protocol is set to '%s'.", kafka_security_protocol);
+                writeLog(triminfo(info), 0, 1);
+        } else {
+                snprintf(info, INFO_STR_SIZE, "[mod_kafka] %s is not a valid entry for kafka.security.protocol.", value.strval);
+                writeLog(triminfo(info), 1, 1);
+                free_and_null(&kafka_security_protocol);
                 writeLog("[mod_kafka] kafka.security.protocol is set to NULL.", 0, 1);
         }
 }
 
 void process_kafka_sasl_mechanisms(ConfVal value) {
-        size_t m_len = strlen(value.strval) + 1;
-        kafka_sasl_mechanisms = malloc(m_len);
-        mem_k_alloc(kafka_sasl_mechanisms, "kafka.sasl.mechanisms");
-        if (kafka_sasl_mechanisms == NULL) return;
-        //snprintf(kafka_sasl_mechanisms, m_len, "%s", value.strval);
-        strncpy(kafka_sasl_mechanisms, value.strval, m_len);
-        kafka_sasl_mechanisms[m_len -1] = '\0';
+        if (!value.strval || strlen(value.strval) == 0) {
+                writeLog("[mod_kafka] kafka.sasl.mechanisms is set to NULL.", 0, 1);
+                return;
+        }
+        char *dup = safe_strdup(value.strval, "kafka.sasl.mechanisms");
+        if (!dup) return;
+        free_and_null(&kafka_sasl_mechanisms);
+        kafka_sasl_mechanisms = dup;
         to_uppercase(kafka_sasl_mechanisms);
         char *trimmed = triminfo(kafka_sasl_mechanisms);
         if (strcmp(trimmed, "PLAIN") == 0) {
                 writeLog("[mod_kafka] Kafka security mechanism is set to 'PLAIN'.", 0, 1);
-        }
-        else if (strcmp(trimmed, "SCRAM-SHA-256") == 0) {
+        } else if (strcmp(trimmed, "SCRAM-SHA-256") == 0) {
                 writeLog("[mod_kafka] Kafka security mechanism is set to SCRAM-SHA-256.", 0, 1);
-        }
-        else if (strcmp(trimmed, "SCRAM-SHA-512") == 0) {
+        } else if (strcmp(trimmed, "SCRAM-SHA-512") == 0) {
                 writeLog("[mod_kafka] Kafka security mechanism is set to SCRAM-SHA-512.", 0, 1);
-        }
-        else if (strcmp(trimmed, "GSSAPI") == 0) {
+        } else if (strcmp(trimmed, "GSSAPI") == 0) {
                 writeLog("[mod_kafka] Kafka security mechanism is set to GSSAPI.", 0, 1);
-        }
-        else if (strcmp(trimmed, "OAUTHBEARER") == 0) {
+        } else if (strcmp(trimmed, "OAUTHBEARER") == 0) {
                 writeLog("[mod_kafka] Kafka security mechanism is set to OAUTHBEARER.", 0, 1);
-        }
-        else if (strcmp(trimmed, "AWS_MSK_IAM") == 0) {
+        } else if (strcmp(trimmed, "AWS_MSK_IAM") == 0) {
                 writeLog("[mod_kafka] Kafka security mechanism is set to AWS_MSK_IAM.", 0, 1);
-        }
-        else {
-                if (m_len > 1) {
-                        snprintf(info, INFO_STR_SIZE, "[mod_kafka] '%s' is not a valid entry for kafka.sasl.mechanims.", kafka_sasl_mechanisms);
-                        writeLog(triminfo(info), 1, 1);
-                }
-                else {
-                        writeLog("[mod_kafka] kafka.sasl.mechanisms is set to NULL.", 0, 1);
-                }
-                free(kafka_sasl_mechanisms);
-                kafka_sasl_mechanisms = NULL;
+        } else {
+                snprintf(info, INFO_STR_SIZE, "[mod_kafka] '%s' is not a valid entry for kafka.sasl.mechanims.", kafka_sasl_mechanisms);
+                writeLog(triminfo(info), 1, 1);
+                free_and_null(&kafka_sasl_mechanisms);
                 writeLog("[mod_kafka] kafka.sasl.mechanism is set to NULL.", 0, 1);
         }
 }
 
 void process_kafka_sasl_username(ConfVal value) {
-        size_t u_len = strlen(value.strval) + 1;
-        kafka_sasl_username = malloc(u_len);
-        mem_k_alloc(kafka_sasl_username, "kafka.sasl.username");
-        if (kafka_sasl_username == NULL) return;
-        if (u_len <= 1) {
-                free(kafka_sasl_username);
-                kafka_sasl_username = NULL;
+        if (!value.strval || strlen(value.strval) == 0) {
+                free_and_null(&kafka_sasl_username);
                 writeLog("[mod_kafka] kafka.sasl.username is empty. Value is set to NULL.", 0, 1);
                 return;
         }
-        snprintf(kafka_sasl_username, u_len, "%s", value.strval);
+        char *dup = safe_strdup(value.strval, "kafka.sasl.username");
+        if (!dup) return;
+        free_and_null(&kafka_sasl_username);
+        kafka_sasl_username = dup;
         snprintf(info, INFO_STR_SIZE, "[mod_kafka] kafka.sasl.username is set to '%s'.", kafka_sasl_username);
         writeLog(triminfo(info), 0, 1);
 }
 
 void process_kafka_sasl_password(ConfVal value) {
-        size_t p_len = strlen(value.strval) + 1;
-        if (p_len > 2) {
-                kafka_sasl_password = malloc(p_len);
-                mem_k_alloc(kafka_sasl_password, "kafka.sasl.password");
-                if (kafka_sasl_mechanisms == NULL) return;
-                snprintf(kafka_sasl_password, p_len, "%s", value.strval);
+        if (value.strval && strlen(value.strval) > 1) {
+                char *dup = safe_strdup(value.strval, "kafka.sasl.password");
+                if (!dup) return;
+                free_and_null(&kafka_sasl_password);
+                kafka_sasl_password = dup;
                 writeLog("[mod_kafka] Kafka.sasl.password is set.", 0, 1);
-        }
-        else
+        } else {
                 writeLog("[mod_kafka] kafka.sasl.password is set to NULL.", 0, 1);
+        }
 }
 
 void process_kafka_socket_timeout(ConfVal value) {
@@ -606,38 +598,67 @@ void process_kafka_transaction_timeout(ConfVal value)  {
 }
 
 void process_kafka_partitioner(ConfVal value) {
-        size_t p_len = strlen(value.strval) + 1;
-        kafka_partitioner = malloc(p_len);
-        mem_k_alloc(kafka_partitioner, "kafka.partitioner");
-        if (kafka_partitioner == NULL) return;
-        snprintf(kafka_partitioner, p_len, "%s", value.strval);
-        if (strcmp(triminfo(kafka_partitioner), "consistent_random") == 0) {
+        if (!value.strval || strlen(value.strval) == 0) {
+                writeLog("[mod_kafka] kafka.partitioner is set to NULL.", 0, 1);
+                return;
+        }
+        char *dup = safe_strdup(value.strval, "kafka.partitioner");
+        if (!dup) return;
+        free_and_null(&kafka_partitioner);
+        kafka_partitioner = dup;
+        char *t = triminfo(kafka_partitioner);
+        if (strcmp(t, "consistent_random") == 0) {
                 writeLog("[mod_kafka] Kafka partitioner is set to 'consistent_random'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_partitioner), "random") == 0) {
+        } else if (strcmp(t, "random") == 0) {
                 writeLog("[mod_kafka] Kafka partitioner is set to 'random'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_partitioner), "consistent") == 0) {
+        } else if (strcmp(t, "consistent") == 0) {
                 writeLog("[mod_kafka] Kafka partitioner is set to 'consistent'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_partitioner), "murmur2") == 0) {
+        } else if (strcmp(t, "murmur2") == 0) {
                 writeLog("[mod_kafka] Kafka partitioner is set to 'murmur2'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_partitioner), "murmur2_random") == 0) {
+        } else if (strcmp(t, "murmur2_random") == 0) {
                 writeLog("[mod_kafka] Kafka partitioner is set to 'murmur2_random'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_partitioner), "fnvla") == 0) {
+        } else if (strcmp(t, "fnvla") == 0) {
                 writeLog("[mod_kafka] Kafka partitioner is set to 'fnvla'.", 0, 1);
-        }
-        else if (strcmp(triminfo(kafka_partitioner), "fnvla2_random") == 0) {
+        } else if (strcmp(t, "fnvla2_random") == 0) {
                 writeLog("[mod_kafka] Kafka partitioner is set to 'fnvla2_random'.", 0, 1);
-        }
-        else {
-                snprintf(info, INFO_STR_SIZE, "[mod_kafka] '%s' is not a valid value for kafka.partioner.", kafka_partitioner);
+        } else {
+                snprintf(info, INFO_STR_SIZE, "[mod_kafka] '%s' is not a valid value for kafka.partitioner.", kafka_partitioner);
                 writeLog(triminfo(info), 1, 1);
-                snprintf(kafka_partitioner, p_len, "%s", "consistent_random");
+                free_and_null(&kafka_partitioner);
+                kafka_partitioner = safe_strdup("consistent_random", "kafka.partitioner");
                 writeLog("[mod_kafka] Kafka partitioner will be set to 'consistent_random'.", 0, 1);
         }
+}
+
+void process_kafka_avro(ConfVal value) {
+        if ((strcmp(value.strval, "true") == 0) || (value.intval > 0)) {
+                writeLog("Kafka avro scheme enabled.", 0, 1);
+                writeLog("Using avro is an optional add on and you might need to recompile Almond. Make sure you know what to do.", 1, 1);
+                kafkaAvro = true;
+        }
+        else
+                kafkaAvro = false;
+}
+
+static bool parse_conf_line(char *line, char *name_out, size_t name_len, char *val_out, size_t val_len) {
+    if (!line) return false;
+    triminfo(line);
+    /* skip empty lines and comments */
+    char *p = line;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p == '\0' || *p == '#' || *p == ';') return false;
+    char *eq = strchr(p, '=');
+    if (!eq) return false;
+    *eq = '\0';
+    char *name = p;
+    char *value = eq + 1;
+    strncpy(name_out, name, name_len);
+    name_out[name_len - 1] = '\0';
+    triminfo(name_out);
+    strncpy(val_out, value, val_len);
+    val_out[val_len - 1] = '\0';
+    triminfo(val_out);
+    return true;
 }
 
 static int getKafkaConfiguration() {
@@ -645,7 +666,6 @@ static int getKafkaConfiguration() {
         size_t len = 0;
         ssize_t read;
         FILE *fp = NULL;
-        int index = 0;
         fp = fopen(configFile, "r");
         char confName[MAX_STRING_SIZE] = "";
         char confValue[MAX_STRING_SIZE] = "";
@@ -658,18 +678,7 @@ static int getKafkaConfiguration() {
         }
 
         while ((read = getline(&line, &len, fp)) != -1) {
-                char * token = strtok(line, "=");
-                while (token != NULL) {
-                        if (index == 0) {
-                                snprintf(confName, sizeof(confName), "%s", token);
-                        }
-                        else {
-                                snprintf(confValue, sizeof(confValue), "%s", token);
-                        }
-                        token = strtok(NULL, "=");
-                        index++;
-                        if (index == 2) index = 0;
-                }
+                if (!parse_conf_line(line, confName, sizeof(confName), confValue, sizeof(confValue))) continue;
                 ConfVal cvu;
                 cvu.intval = strtol(triminfo(confValue), NULL, 0);
                 cvu.strval = triminfo(confValue);
@@ -695,11 +704,10 @@ static int getKafkaConfiguration() {
 
 static void initConfigFile() {
         if (configFile == NULL) {
-                configFile = malloc(strlen("/etc/almond/kafka.conf") + 1);
-                if (configFile != NULL) {
-                        snprintf(configFile, strlen("/etc/almond/kafka.conf") + 1, "%s", "/etc/almond/kafka.conf");
-                }
-                else {
+                char *dup = safe_strdup("/etc/almond/kafka.conf", "configFile");
+                if (dup != NULL) {
+                        configFile = dup;
+                } else {
                         fprintf(stderr, "[mod_kafka] Memory allocation failed for Kafka config file.");
                         writeLog("[mod_kafka] Memory allocation failed for Kafka config file.", 2, 0);
                 }
@@ -708,36 +716,28 @@ static void initConfigFile() {
 
 void setKafkaConfigFile(const char* configPath) {
         if (configPath == NULL) return;
-        size_t len = strlen(configPath) + 1;
-        char* tmp = malloc(len);
-        if (tmp == NULL) {
+        char *dup = safe_strdup(configPath, "configFile");
+        if (dup == NULL) {
                 fprintf(stderr, "[mod_kafka] Failed to allocate memory for config file\n");
                 writeLog("[mod_kafka] Memory allocation failed in 'setConfigFile'.", 2, 0);
                 writeLog("[mod_kafka] Could not change config file value.", 1, 0);
                 return;
         }
-        snprintf(tmp, len, "%s", configPath);
-        if (configFile != NULL) {
-                free(configFile);
-        }
-        configFile = tmp;
+        if (configFile != NULL) free_and_null(&configFile);
+        configFile = dup;
 }
 
 void setKafkaTopic(const char* topicName) {
         if (topicName == NULL) return;
-        size_t len = strlen(topicName) + 1;
-        char* tmp = malloc(len);
-        if (tmp == NULL) {
-                fprintf(stderr, "[mod_kafka] Failed to allocate memory for topic name.\n");
+        char *dup = safe_strdup(topicName, "kafka.topic");
+        if (dup == NULL) {
+                fprintf(stderr, "[mod_kafka] Failed to allocate memory for topic name.\n");     
                 writeLog("[mod_kafka] Memory allocation failed in 'setKafkaTopic'.", 2, 0);
                 writeLog("[mod_kafka] Could not change topic name.", 1, 0);
                 return;
         }
-        snprintf(tmp, len, "%s", topicName);
-        if (topic != NULL) {
-                free(topic);
-        }
-        topic = tmp;
+        if (topic != NULL) free_and_null(&topic);
+        topic = dup;
 }
 
 char* getKafkaTopic(void) {
@@ -787,7 +787,7 @@ static void dr_msg_cb(rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void 
 		writeLog(triminfo(info), 1, 0);
 	}
         else {
-		snprintf(info, 810, "%% Message delivered (%zd bytes, "
+		snprintf(info, 810, "%% Message delivered (%zu bytes, "
                         "partition %" PRId32 ")",
 			rkmessage->len, rkmessage->partition);
 		writeLog(triminfo(info), 0, 0);
@@ -932,8 +932,11 @@ int init_kafka_producer() {
         return 0;
 }
 
-int send_message_to_gkafka(const char *payload) {
+/*int send_message_to_gkafka(const char *payload) {
         size_t plen = strlen(payload);
+        (void)plen;
+        (void)plen;
+        (void)plen;
         rd_kafka_resp_err_t err;
 
         if (use_transactions) {
@@ -966,6 +969,50 @@ int send_message_to_gkafka(const char *payload) {
         else
                 rd_kafka_poll(global_producer, 0);
         return 0;
+}*/
+
+int send_message_to_gkafka(const char *payload) {
+        size_t plen = strlen(payload);
+        (void)plen;
+        rd_kafka_resp_err_t err;
+
+        if (use_transactions) {
+                rd_kafka_begin_transaction(global_producer);
+        }
+
+{
+        int attempts = 0;
+        const int max_attempts = 5;
+        err = RD_KAFKA_RESP_ERR__UNKNOWN;
+        do {
+                err = rd_kafka_producev(global_producer,
+                        RD_KAFKA_V_TOPIC(topic),
+                        RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
+                        RD_KAFKA_V_VALUE((void *)payload, plen),
+                        RD_KAFKA_V_OPAQUE(NULL),
+                        RD_KAFKA_V_END);
+                if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL) {
+                        if (use_transactions) {
+                                rd_kafka_abort_transaction(global_producer, timeout_ms);
+                        }
+                        rd_kafka_poll(global_producer, 1000);
+                        attempts++;
+                }
+                else if (err) {
+                        writeLog(rd_kafka_err2str(err), 1, 0);
+                        break;
+                }
+                else {
+                        writeLog("Message enqueued", 0, 0);
+                        break;
+                }
+        } while (attempts < max_attempts);
+        if (use_transactions)
+                rd_kafka_commit_transaction(global_producer, timeout_ms);
+        else
+                rd_kafka_poll(global_producer, 0);
+        return 0;
+}
 }
 
 int send_avro_message_to_gkafka(const char *name,
@@ -1090,7 +1137,7 @@ int send_avro_message_to_gkafka(const char *name,
                 }
         }
         else {
-		snprintf(info, 810, "%% Enqueued message (%zd bytes) "
+		snprintf(info, 810, "%% Enqueued message (%zu bytes) "
                                        "for topic %s",
                                        length, topic);
                 writeLog(triminfo(info), 0, 0);
@@ -1134,29 +1181,34 @@ int send_message_to_kafka(char *brokers, char *topic, char *payload) {
         }
 
         size_t plen = strlen(payload);
-        retry:
-                rd_kafka_resp_err_t err  = rd_kafka_producev(producer,
+        (void)plen;
+        int attempts = 0; const int max_attempts = 5;
+        rd_kafka_resp_err_t err = RD_KAFKA_RESP_ERR__UNKNOWN;
+        do {
+                err  = rd_kafka_producev(producer,
                                 RD_KAFKA_V_TOPIC(topic),
                                 RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
                                 RD_KAFKA_V_VALUE(payload, plen),
                                 RD_KAFKA_V_OPAQUE(NULL),
                                 RD_KAFKA_V_END);
-
                 if (err) {
                         snprintf(info, 810, "%% Failed to produce topic %s: %s", topic, rd_kafka_err2str(err));
                         writeLog(triminfo(info), 1, 0);
                         if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL) {
                                 rd_kafka_poll(producer, 1000);
-                                goto retry;
+                                attempts++;
+                                if (attempts < max_attempts) continue;
+                                else break;
                         }
                 }
                 else {
-                        snprintf(info, 810, "%% Enqueued message (%zd bytes) "
+                        snprintf(info, 810, "%% Enqueued message (%zu bytes) "
                                        "for topic %s",
                                        plen, topic);
                         writeLog(triminfo(info), 0, 0);
                 }
                 rd_kafka_poll(producer, 0);
+        } while (attempts < max_attempts);
         writeLog("Flushing final Kafka messages...", 0, 0);
         rd_kafka_flush(producer, 10 * 1000 /* wait for max 10 seconds */);
         if (rd_kafka_outq_len(producer) > 0) {
@@ -1211,8 +1263,11 @@ int send_ssl_message_to_kafka(char *brokers, char *cacertificate, char *certific
                 return 1;
         }
         size_t plen = strlen(payload);
-        retry:
-                rd_kafka_resp_err_t err  = rd_kafka_producev(producer,
+        (void)plen;
+        int attempts = 0; const int max_attempts = 5;
+        rd_kafka_resp_err_t err = RD_KAFKA_RESP_ERR__UNKNOWN;
+        do {
+                err  = rd_kafka_producev(producer,
                                 RD_KAFKA_V_TOPIC(topic),
                                 RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
                                 RD_KAFKA_V_VALUE(payload, plen),
@@ -1224,15 +1279,18 @@ int send_ssl_message_to_kafka(char *brokers, char *cacertificate, char *certific
                         writeLog(triminfo(info), 1, 0);
                         if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL) {
                                 rd_kafka_poll(producer, 1000);
-                                goto retry;
+                                attempts++;
+                                if (attempts < max_attempts) continue;
+                                else break;
                         }
                 }
                 else {
-                        snprintf(info, 810, "%% Enqueued message (%zd bytes) "
+                        snprintf(info, 810, "%% Enqueued message (%zu bytes) "
                                        "for topic %s",
                                        plen, topic);
                         writeLog(triminfo(info), 0, 0);
                 }
+        } while (attempts < max_attempts);
                 rd_kafka_poll(producer, 0);
         writeLog("Flushing final Kafka messages...", 0, 0);
         rd_kafka_flush(producer, 10 * 1000 /* wait for max 10 seconds */);
@@ -1385,7 +1443,7 @@ int send_avro_message_to_kafka(char *brokers, char *topic,
                         }
                 }
                 else {
-			snprintf(info, 810, "%% Enqueued message (%zd bytes) "
+			snprintf(info, 810, "%% Enqueued message (%zu bytes) "
                                        "for topic %s", 
 				       length, topic);
 			writeLog(triminfo(info), 0, 0);
@@ -1545,7 +1603,7 @@ int send_ssl_avro_message_to_kafka(char *brokers, char *cacertificate, char *cer
                         }
                 }
                 else {
-                        snprintf(info, 810, "%% Enqueued message (%zd bytes) "
+                        snprintf(info, 810, "%% Enqueued message (%zu bytes) "
                                        "for topic %s",
                                        length, topic);
                         writeLog(triminfo(info), 0, 0);
@@ -1575,56 +1633,17 @@ static void shutdown_kafka_producer() {
 
 void free_kafka_memalloc() {
         shutdown_kafka_producer();
-        if (brokers != NULL) {
-                free(brokers);
-                brokers = NULL;
-        }
-        if (topic != NULL) {
-                free(topic);
-                topic = NULL;
-        }
-        if (kafka_client_id != NULL) {
-                free(kafka_client_id);
-                kafka_client_id = NULL;
-        }
-        if (kafka_partitioner != NULL) {
-                free(kafka_partitioner);
-                kafka_partitioner = NULL;
-        }
-        if (transactional_id != NULL) {
-                free(transactional_id);
-                transactional_id = NULL;
-        }
-        if (kafka_compression != NULL) {
-                free(kafka_compression);
-                kafka_compression = NULL;
-        }
-        if (kafkaCALocation != NULL) {
-                free(kafkaCALocation);
-                kafkaCALocation = NULL;
-        }
-        if (kafkaSSLCertificate != NULL) {
-                free(kafkaSSLCertificate);
-                kafkaSSLCertificate = NULL;
-        }
-        if (kafka_SSLKey != NULL) {
-                free(kafka_SSLKey);
-                kafka_SSLKey = NULL;
-        }
-        if (kafka_sasl_mechanisms != NULL) {
-                free(kafka_sasl_mechanisms);
-                kafka_sasl_mechanisms = NULL;
-        }
-        if (kafka_sasl_username != NULL) {
-                free(kafka_sasl_username);
-                kafka_sasl_username = NULL;
-        }
-        if (kafka_sasl_password != NULL) {
-                free(kafka_sasl_password);
-                kafka_sasl_password = NULL;
-        }
-        if (kafka_security_protocol != NULL) {
-                free(kafka_security_protocol);
-                kafka_security_protocol = NULL;
-        }
+	free_and_null(&brokers);
+        free_and_null(&topic);
+        free_and_null(&kafka_client_id);
+        free_and_null(&kafka_partitioner);
+        free_and_null(&transactional_id);
+        free_and_null(&kafka_compression);
+        free_and_null(&kafkaCALocation);
+        free_and_null(&kafkaSSLCertificate);
+        free_and_null(&kafka_SSLKey);
+        free_and_null(&kafka_sasl_mechanisms);
+        free_and_null(&kafka_sasl_username);
+        free_and_null(&kafka_sasl_password);
+        free_and_null(&kafka_security_protocol);
 }

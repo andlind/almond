@@ -9,8 +9,6 @@
 #include "logger.h"
 #include "main.h"
 
-#define TIMESTAMP_SIZE 20
-
 //static FILE* fptr = NULL;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int dockerLog = 0;
