@@ -1,6 +1,6 @@
 FROM andreaslindell72/almond-monitor:latest
 LABEL org.opencontainers.image.authors="andreas.lindell@almondmonitor.com"
-LABEL version="0.9.9.5"
+LABEL version="0.9.23"
 
 RUN yum update -y && yum upgrade -y
 
