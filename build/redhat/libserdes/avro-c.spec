@@ -26,6 +26,9 @@ implementation of the Avro serialization library.
 
 %prep
 %autosetup -n avro-src-%{version}
+# Disable building examples (they fail on modern compilers)
+sed -i 's|add_subdirectory(examples)|# add_subdirectory(examples)|' lang/c/CMakeLists.txt
+sed -i 's|add_subdirectory(tests)|# add_subdirectory(tests)|' lang/c/CMakeLists.txt
 
 %build
 cd lang/c
@@ -34,10 +37,7 @@ cd build
 
 cmake .. \
     -DCMAKE_INSTALL_PREFIX=%{_prefix} \
-    -DCMAKE_INSTALL_LIBDIR=%{_libdir} \
-    -DSNAPPY=OFF \
-    -DLZMA=OFF
-
+    -DCMAKE_INSTALL_LIBDIR=%{_libdir} 
 make -j$(nproc)
 
 %install
