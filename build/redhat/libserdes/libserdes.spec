@@ -17,7 +17,7 @@ BuildRequires:  zlib-devel
 BuildRequires: avro-c-devel
 
 Requires:       avro-c
-Requires:	librdkafka1|librdkafka
+Requires: /usr/lib64/librdkafka.so.1
 
 %description
 libserdes is a C client library for the Confluent Schema Registry,
