@@ -1,8 +1,8 @@
 # Stage 1 — extract Prometheus
-FROM prom/prometheus:latest AS prometheus
+FROM --platform=linux/amd64 prom/prometheus:latest AS prometheus
 
 # Stage 2 — final runtime image (Ubuntu, amd64)
-FROM ubuntu:24.04
+FROM --platform=linux/amd64 ubuntu:24.04
 
 # Install tools Almond plugins need
 RUN apt-get update && apt-get install -y \
