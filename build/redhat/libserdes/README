@@ -1,0 +1,9 @@
+## BUILD AVRO
+# Get source
+cd rpmbuild/SOURCES
+wget https://archive.apache.org/dist/avro/avro-1.11.3/avro-src-1.11.3.tar.gz
+# Use avro-c.spec to build the rpm
+## BUILD SERDES
+cd rpmbuild/SOURCES
+wget https://github.com/confluentinc/libserdes/archive/refs/tags/v6.2.0.tar.gz
+# Use libserdes.spec to build the rpm

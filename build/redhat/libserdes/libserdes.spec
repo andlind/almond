@@ -1,79 +1,61 @@
 Name:           libserdes
-Version:        1.0
+Version:        6.2.0
 Release:        1%{?dist}
-Summary:        Schema Registry C client library
+Summary:        Confluent Schema Registry C client library
 
 License:        Apache-2.0
 URL:            https://github.com/confluentinc/libserdes
-Source0:        libserdes-1.0.tar.gz
-Source1: 	avro-src-1.11.3.tar.gz
-Patch0:		avro-quickstop-fix.patch
+Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz
 
+BuildRequires:  gcc
+BuildRequires:  gcc-c++
+BuildRequires:  make
+BuildRequires:  librdkafka-devel
+BuildRequires:  libcurl-devel
+BuildRequires:  openssl-devel
+BuildRequires:  zlib-devel
+BuildRequires: avro-c-devel
 
-BuildRequires:  cmake, gcc, make, libcurl-devel, jansson-devel, librdkafka-devel
-Requires:       librdkafka
+Requires:       avro-c
+Requires: /usr/lib64/librdkafka.so.1
 
 %description
-libserdes is a C library for working with Confluent's Schema Registry and Avro serialization.
+libserdes is a C client library for the Confluent Schema Registry,
+providing serialization and deserialization support for Avro-encoded
+Kafka messages.
 
 %prep
-%setup -q -n libserdes-1.0
-tar xzf %{SOURCE1}
-mv avro-src-1.11.3/lang/c avro-c
-cd avro-c/examples
-%patch 0 -p0
-cd ../..
+%autosetup -n %{name}-%{version}
 
 %build
-mkdir -p avro-c/build
-cd avro-c/build
-cmake .. -DCMAKE_INSTALL_PREFIX=%{_builddir}/avro-c/install -DBUILD_SHARED_LIBS=ON
-make
-make install
-
-# Symlink libavro.so to a standard location for linker visibility
-mkdir -p %{_builddir}/lib
-ln -sf %{_builddir}/avro-c/install/lib64/libavro.so %{_builddir}/lib/libavro.so
-
-# Set environment variables so libserdes can find Avro during configure
-export CFLAGS="-I%{_builddir}/avro-c/install/include"
-export LDFLAGS="-L%{_builddir}/lib"
-export PKG_CONFIG_PATH="%{_builddir}/avro-c/install/lib/pkgconfig"
-
-cd ../..
-./configure --prefix=%{_prefix}
-make
+./configure --prefix=%{_prefix} --libdir=%{_libdir}
+%make_build
 
 %install
-make install DESTDIR=%{buildroot}
+%make_install
 
-# Include Avro C headers and libs
-mkdir -p %{buildroot}/usr/include
-cp -a %{_builddir}/avro-c/install/include/* %{buildroot}/usr/include/
-
-mkdir -p %{buildroot}/usr/lib
-cp -a %{_builddir}/avro-c/install/lib64/libavro.so* %{buildroot}/usr/lib/
-
+#
+# --- Main runtime package ---
+#
 %files
 %license LICENSE
+%doc README.md
+%{_libdir}/libserdes.so*
 
-# Shared libs
-/usr/lib/libserdes.so*
-/usr/lib/libavro.so*
+#
+# --- Development subpackage ---
+#
+%package devel
+Summary: Development files for libserdes
+Requires: %{name}%{?_isa} = %{version}-%{release}
 
-# Static lib
-/usr/lib/libserdes.a
+%description devel
+Development headers and static library for libserdes.
 
-# Headers
-/usr/include/libserdes/*.h
-/usr/include/avro.h
-/usr/include/avro/*.h
-
-# pkg-config
-/usr/lib/pkgconfig/serdes.pc
-/usr/lib/pkgconfig/serdes-static.pc
+%files devel
+%{_includedir}/libserdes/
+%{_libdir}/libserdes.a
 
 %changelog
-* Tue Sep 23 2025 Andreas Lindell <andreas.lindell@almond.monitor.com> - 1.0-1
-- Initial RPM build
-- Building libserdes with avro
+* Thu Feb 05 2026 Andreas Lindell <andreas.lindell@almondmonitor.com@example.com> - 6.2.0-1
+- Initial EL9 package
