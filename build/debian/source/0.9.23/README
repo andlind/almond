@@ -5,3 +5,5 @@ Build will create three packages with different binaries.
 - almond-monitor-minimal	Almond binary without support for Kafka.
 
 Only one of the three packages should be deployed on the same server.
+
+NOTE: Nagios plugin binaries included in this source package are compiled for jammy. If you install on a different version of Ubuntu, you need to update included binaries in /opt/almond/utilities and /opt/almond/plugins.
