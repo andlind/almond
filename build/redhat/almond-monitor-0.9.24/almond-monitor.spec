@@ -145,7 +145,6 @@ cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modya
 %attr(0755,almond,almond) /opt/almond/plugins/check_nt
 %attr(0755,almond,almond) /opt/almond/plugins/check_time
 %attr(0755,almond,almond) /opt/almond/plugins/check_swap
-%attr(0755,almond,almond) /opt/almond/plugins/check_apt
 %attr(0755,almond,almond) /opt/almond/plugins/check_mysql_query
 %attr(0755,almond,almond) /opt/almond/plugins/check_file_age
 %attr(0755,almond,almond) /opt/almond/plugins/check_ntp_peer
