@@ -1,0 +1,7 @@
+# INSTALL venv to run Python script
+cd /opt/almond/utilities/almond-to-prom 
+python3 -m venv venv 
+source venv/bin/activate 
+pip install requests
+# RUN
+python3 almond-to-prom.py --url [url to Almond API] --output [filename.prom]

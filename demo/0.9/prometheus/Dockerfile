@@ -43,6 +43,7 @@ COPY prometheus.yml /etc/prometheus/prometheus.yml
 COPY almond/plugins/check_memory.py /usr/lib/nagios/plugins
 COPY almond/plugins/check_uptime.sh /usr/lib/nagios/plugins
 COPY almond/plugins/check_cpu_stats.sh /usr/lib/nagios/plugins
+COPY almond/plugins/check_almond_process.sh /usr/lib/nagios/plugins
 
 # Copy Almond configuration files
 COPY almond/almond.conf /etc/almond
