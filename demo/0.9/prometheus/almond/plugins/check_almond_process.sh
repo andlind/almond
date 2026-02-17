@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Run your command and store the count in a variable
-COUNT=$(ps -ef | grep almond | grep -v grep | wc -l)
+COUNT=$(pgrep -f almond | wc -l)
 
 if [ "$COUNT" -gt 0 ]; then
     echo "OK - $COUNT almond processes running."
