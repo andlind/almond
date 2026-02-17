@@ -1,4 +1,0 @@
-docker compose up -d
-(docker exec -it redpanda-10 rpk topic consume almond_monitoring --brokers=localhost:9092)
-(python3 read_data_sample.py)
-docker compose down

@@ -1,2 +1,0 @@
-docker build -t redisdemo .
-docker run --rm --platform linux/amd64 -d -v ~/almond_demo/data:/opt/almond/data -p 8087:87 -p 6370:6379 redisdemo
