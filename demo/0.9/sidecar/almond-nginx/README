@@ -1,0 +1,47 @@
+RUNNING ALMOND AS A SIDECAR TO NGINX EXAMPLE
+________________________________________________________________________________________
+
+You can just run the script 
+
+./start.sh
+
+to get Almond running as a sidecar to a Nginx container.
+
+When finsihed you can clean everything up running
+
+./stop.sh
+
+That´s it!
+
+Step by step instructions described shortly below,
+if you want to do steps yourself and maybe lab with the content.
+
+*******************************************************************************************
+1. Begin with creating config maps for configuration files used in the pod
+
+	kubectl create configmap almond-plugins --from-file=plugins.conf
+	kubectl create configmap almond-config --from-file=almond.conf
+	kubectl create configmap almond-supervisor --from-file=supervisord-override.conf
+	kubectl create configmap nginx-config --from-file=nginx.conf
+	kubectl create configmap almond-nginx-scripts \
+  	  --from-file=plugins/check_nginx_active.sh \
+  	  --from-file=plugins/check_nginx.sh \
+  	  --dry-run=client -o yaml | kubectl apply -f -
+
+2. Apply the manifests to start the pod
+
+	kubectl apply -f manifest.yaml
+	kubectl apply -f services.yaml
+
+3. Check that the pod is ready
+
+   	kubectl get pods -w
+
+4. Port forward the ports you want to use, as an example
+
+kubectl port-forward pod/nginx-almond 8880:80 8885:8085 9890:9090 
+
+5. Now you are ready to use the Almond API:s against the sidecar and get
+   monitoring data about the applied Nginx as well as from the sidecar itself.
+
+******************************************************************************************
