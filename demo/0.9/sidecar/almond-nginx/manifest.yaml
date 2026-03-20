@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-almond
+  labels:
+    app: nginx-almond
+spec:
+  initContainers:
+    - name: copy-nginx-scripts
+      # Use the same image that contains the original /opt/almond/plugins
+      image: andreaslindell72/almond-monitor:0.9.25
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          # copy built-in plugins from the image into the writable volume
+          cp -a /opt/almond/plugins/. /plugins/
+          # add/overwrite with your custom script from the ConfigMap
+          cp /scripts/*.sh /plugins/
+          chmod +x /plugins/*.sh
+      volumeMounts:
+        - name: almond-nginx-scripts
+          mountPath: /scripts
+        - name: almond-plugin-bin
+          mountPath: /plugins
+
+  containers:
+    - name: nginx
+      image: nginx:latest
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+
+    - name: almond-monitor
+      image: andreaslindell72/almond-monitor:0.9.25
+      command:
+        - /usr/bin/supervisord
+        - -c
+        - /etc/supervisord.d/almond.conf
+      volumeMounts:
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+        - name: almond-plugins
+          mountPath: /etc/almond/plugins.conf
+          subPath: plugins.conf
+        - name: almond-config
+          mountPath: /etc/almond/almond.conf
+          subPath: almond.conf
+        - name: almond-supervisor
+          mountPath: /etc/supervisord.d/almond.conf
+          subPath: supervisord-override.conf
+
+        # Mount the writable merged plugin directory (only one mount at this path)
+        - name: almond-plugin-bin
+          mountPath: /opt/almond/plugins
+
+  volumes:
+    - name: nginx-logs
+      emptyDir: {}
+
+    - name: nginx-config
+      configMap:
+        name: nginx-config
+
+    - name: almond-plugins
+      configMap:
+        name: almond-plugins
+
+    - name: almond-config
+      configMap:
+        name: almond-config
+
+    - name: almond-supervisor
+      configMap:
+        name: almond-supervisor
+
+    # ConfigMap that contains your script (key: check_nginx_active.sh)
+    - name: almond-nginx-scripts
+      configMap:
+        name: almond-nginx-scripts
+
+    # Writable directory for merged plugins (built-ins + custom)
+    - name: almond-plugin-bin
+      emptyDir: {}

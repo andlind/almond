@@ -1,0 +1,11 @@
+# To make standard Almond rpm file
+rpmbuild -bb almond-monitor.spec
+# To make Almond rpm with avro support for Kafka
+rpmbuild -bb almond-monitor.spec --define 'with_avro 1'
+# To make Almond rpm without Kafka support, ie 'minimal'
+rpmbuild -bb almond-monitor-minimal.spec
+# To make Almond standalone rpm
+rpmbuild -bb almond-only.spec # --define "with_avro 1"
+# To make HowRU standalone rpm
+rpmbuild -bb howru-only.spec
+# Note: supplied Nagios plugins are compiled for rhel9
