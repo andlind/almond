@@ -13,7 +13,6 @@ COPY plugins/* /opt/almond/plugins
 RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/0.9.26/almond-0.9.26.tar.gz
 RUN tar xfvz almond-0.9.26.tar.gz 
 RUN chmod +x almond-0.9.26/install_almond.sh
-RUN mv almond-0.9.26/librdkafka almond-0.9.26/librdkafka_stubb
 RUN cd almond-0.9.26 && ./install_almond.sh
 RUN rm -rf almond-0.9.26 
 RUN mkdir -p /var/log/redis
