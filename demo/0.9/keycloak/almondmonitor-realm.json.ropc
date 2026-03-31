@@ -377,6 +377,43 @@
   "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister" : false,
   "webAuthnPolicyPasswordlessAcceptableAaguids" : [ ],
   "webAuthnPolicyPasswordlessExtraOrigins" : [ ],
+  "users" : [ {
+    "id" : "66b59442-fd91-4386-98ba-e370f0ca8c4a",
+    "username" : "almond",
+    "firstName" : "Almond",
+    "lastName" : "Monitor",
+    "emailVerified" : false,
+    "createdTimestamp" : 1774862636302,
+    "enabled" : true,
+    "totp" : false,
+    "credentials" : [ {
+      "id" : "1c4d1eca-d239-45b4-9f67-bcdcc2d322d0",
+      "type" : "password",
+      "userLabel" : "My password",
+      "createdDate" : 1774862651575,
+      "secretData" : "{\"value\":\"awdL/0W3Nfci9BUoV31a277AWDclkXdBXs6anjWqU7G+m/Jb+LJd/fEvBNKxF66HCESPhR8e3Ff4D3QX4G2t2A==\",\"salt\":\"WmVXzMSRK425g3qFgWVe5g==\",\"additionalParameters\":{}}",
+      "credentialData" : "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-almondmonitor" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  }, {
+    "id" : "6d608aed-c139-433c-aeb3-4a645bade84c",
+    "username" : "service-account-howru",
+    "emailVerified" : false,
+    "createdTimestamp" : 1774858578697,
+    "enabled" : true,
+    "totp" : false,
+    "serviceAccountClientId" : "howru",
+    "credentials" : [ ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-almondmonitor" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  } ],
   "scopeMappings" : [ {
     "clientScope" : "offline_access",
     "roles" : [ "offline_access" ]
@@ -476,9 +513,7 @@
     "publicClient" : true,
     "frontchannelLogout" : false,
     "protocol" : "openid-connect",
-    "attributes" : {
-      "post.logout.redirect.uris" : "+"
-    },
+    "attributes" : { },
     "authenticationFlowBindingOverrides" : { },
     "fullScopeAllowed" : false,
     "nodeReRegistrationTimeout" : 0,
@@ -497,25 +532,23 @@
     "alwaysDisplayInConsole" : false,
     "clientAuthenticatorType" : "client-secret",
     "secret" : "9eDIcYdgWZ7Uf0TBpsEfG0t9E6a07U9j",
-    "redirectUris" : [ "http://localhost:8015/callback" ],
-    "webOrigins" : [ "", "http://localhost:8015" ],
+    "redirectUris" : [ "/*" ],
+    "webOrigins" : [ "/*" ],
     "notBefore" : 0,
     "bearerOnly" : false,
     "consentRequired" : false,
     "standardFlowEnabled" : true,
     "implicitFlowEnabled" : false,
-    "directAccessGrantsEnabled" : false,
+    "directAccessGrantsEnabled" : true,
     "serviceAccountsEnabled" : false,
     "publicClient" : false,
     "frontchannelLogout" : true,
     "protocol" : "openid-connect",
     "attributes" : {
       "oidc.ciba.grant.enabled" : "false",
+      "oauth2.device.authorization.grant.enabled" : "false",
       "client.secret.creation.time" : "1774861971",
       "backchannel.logout.session.required" : "true",
-      "post.logout.redirect.uris" : "http://localhost:8015/almond/admin",
-      "oauth2.device.authorization.grant.enabled" : "false",
-      "display.on.consent.screen" : "false",
       "backchannel.logout.revoke.offline.tokens" : "false"
     },
     "authenticationFlowBindingOverrides" : { },
@@ -543,9 +576,7 @@
     "publicClient" : false,
     "frontchannelLogout" : false,
     "protocol" : "openid-connect",
-    "attributes" : {
-      "post.logout.redirect.uris" : "+"
-    },
+    "attributes" : { },
     "authenticationFlowBindingOverrides" : { },
     "fullScopeAllowed" : false,
     "nodeReRegistrationTimeout" : 0,
@@ -586,7 +617,6 @@
       "config" : {
         "user.session.note" : "clientAddress",
         "introspection.token.claim" : "true",
-        "userinfo.token.claim" : "true",
         "id.token.claim" : "true",
         "access.token.claim" : "true",
         "claim.name" : "clientAddress",
@@ -601,7 +631,6 @@
       "config" : {
         "user.session.note" : "client_id",
         "introspection.token.claim" : "true",
-        "userinfo.token.claim" : "true",
         "id.token.claim" : "true",
         "access.token.claim" : "true",
         "claim.name" : "client_id",
@@ -616,7 +645,6 @@
       "config" : {
         "user.session.note" : "clientHost",
         "introspection.token.claim" : "true",
-        "userinfo.token.claim" : "true",
         "id.token.claim" : "true",
         "access.token.claim" : "true",
         "claim.name" : "clientHost",
@@ -645,9 +673,7 @@
     "publicClient" : false,
     "frontchannelLogout" : false,
     "protocol" : "openid-connect",
-    "attributes" : {
-      "post.logout.redirect.uris" : "+"
-    },
+    "attributes" : { },
     "authenticationFlowBindingOverrides" : { },
     "fullScopeAllowed" : false,
     "nodeReRegistrationTimeout" : 0,
@@ -765,7 +791,7 @@
       "subType" : "authenticated",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "oidc-sha256-pairwise-sub-mapper", "oidc-usermodel-attribute-mapper", "saml-user-attribute-mapper", "oidc-full-name-mapper", "saml-user-property-mapper", "oidc-address-mapper", "saml-role-list-mapper", "oidc-usermodel-property-mapper" ]
+        "allowed-protocol-mapper-types" : [ "oidc-usermodel-attribute-mapper", "saml-user-property-mapper", "oidc-full-name-mapper", "oidc-sha256-pairwise-sub-mapper", "oidc-usermodel-property-mapper", "saml-user-attribute-mapper", "oidc-address-mapper", "saml-role-list-mapper" ]
       }
     }, {
       "id" : "9e31c217-0ac2-4218-bf33-6575e7dd9bdf",
@@ -818,7 +844,7 @@
       "subType" : "anonymous",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "oidc-sha256-pairwise-sub-mapper", "saml-role-list-mapper", "oidc-address-mapper", "oidc-full-name-mapper", "saml-user-property-mapper", "oidc-usermodel-attribute-mapper", "oidc-usermodel-property-mapper", "saml-user-attribute-mapper" ]
+        "allowed-protocol-mapper-types" : [ "oidc-full-name-mapper", "saml-user-attribute-mapper", "oidc-usermodel-property-mapper", "oidc-sha256-pairwise-sub-mapper", "oidc-usermodel-attribute-mapper", "saml-role-list-mapper", "saml-user-property-mapper", "oidc-address-mapper" ]
       }
     } ],
     "org.keycloak.userprofile.UserProfileProvider" : [ {
@@ -1433,12 +1459,8 @@
     "cibaExpiresIn" : "120",
     "cibaAuthRequestedUserHint" : "login_hint",
     "oauth2DeviceCodeLifespan" : "600",
-    "clientOfflineSessionMaxLifespan" : "0",
     "oauth2DevicePollingInterval" : "5",
-    "clientSessionIdleTimeout" : "0",
     "parRequestUriLifespan" : "60",
-    "clientSessionMaxLifespan" : "0",
-    "clientOfflineSessionIdleTimeout" : "0",
     "cibaInterval" : "5",
     "realmReusableOtpCode" : "false"
   },
@@ -1449,42 +1471,5 @@
   },
   "clientPolicies" : {
     "policies" : [ ]
-  },
-  "users" : [ {
-    "id" : "66b59442-fd91-4386-98ba-e370f0ca8c4a",
-    "username" : "almond",
-    "firstName" : "Almond",
-    "lastName" : "Monitor",
-    "emailVerified" : false,
-    "createdTimestamp" : 1774862636302,
-    "enabled" : true,
-    "totp" : false,
-    "credentials" : [ {
-      "id" : "1c4d1eca-d239-45b4-9f67-bcdcc2d322d0",
-      "type" : "password",
-      "userLabel" : "My password",
-      "createdDate" : 1774862651575,
-      "secretData" : "{\"value\":\"awdL/0W3Nfci9BUoV31a277AWDclkXdBXs6anjWqU7G+m/Jb+LJd/fEvBNKxF66HCESPhR8e3Ff4D3QX4G2t2A==\",\"salt\":\"WmVXzMSRK425g3qFgWVe5g==\",\"additionalParameters\":{}}",
-      "credentialData" : "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
-    } ],
-    "disableableCredentialTypes" : [ ],
-    "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-almondmonitor" ],
-    "notBefore" : 0,
-    "groups" : [ ]
-  }, {
-    "id" : "6d608aed-c139-433c-aeb3-4a645bade84c",
-    "username" : "service-account-howru",
-    "emailVerified" : false,
-    "createdTimestamp" : 1774858578697,
-    "enabled" : true,
-    "totp" : false,
-    "serviceAccountClientId" : "howru",
-    "credentials" : [ ],
-    "disableableCredentialTypes" : [ ],
-    "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-almondmonitor" ],
-    "notBefore" : 0,
-    "groups" : [ ]
-  } ]
+  }
 }
