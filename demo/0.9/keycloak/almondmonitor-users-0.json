@@ -1,0 +1,40 @@
+{
+  "realm" : "almondmonitor",
+  "users" : [ {
+    "id" : "66b59442-fd91-4386-98ba-e370f0ca8c4a",
+    "username" : "almond",
+    "firstName" : "Almond",
+    "lastName" : "Monitor",
+    "emailVerified" : false,
+    "createdTimestamp" : 1774862636302,
+    "enabled" : true,
+    "totp" : false,
+    "credentials" : [ {
+      "id" : "1c4d1eca-d239-45b4-9f67-bcdcc2d322d0",
+      "type" : "password",
+      "userLabel" : "My password",
+      "createdDate" : 1774862651575,
+      "secretData" : "{\"value\":\"awdL/0W3Nfci9BUoV31a277AWDclkXdBXs6anjWqU7G+m/Jb+LJd/fEvBNKxF66HCESPhR8e3Ff4D3QX4G2t2A==\",\"salt\":\"WmVXzMSRK425g3qFgWVe5g==\",\"additionalParameters\":{}}",
+      "credentialData" : "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-almondmonitor" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  }, {
+    "id" : "6d608aed-c139-433c-aeb3-4a645bade84c",
+    "username" : "service-account-howru",
+    "emailVerified" : false,
+    "createdTimestamp" : 1774858578697,
+    "enabled" : true,
+    "totp" : false,
+    "serviceAccountClientId" : "howru",
+    "credentials" : [ ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-almondmonitor" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  } ]
+}
