@@ -12,6 +12,3 @@ services:
       - "5000:5000"
     volumes:
       - ./almondmonitor-realm.json:/opt/keycloak/data/import/keycloak-realm.json
-      - ./almondmonitor-users-0.json:/opt/keycloak/data/import/keycloal-users-0.json
-   # volumes:
-   #   - ./keycloak-realm.json:/opt/keycloak/data/import/keycloak-realm.json
