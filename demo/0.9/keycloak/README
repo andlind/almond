@@ -1,0 +1,13 @@
+# To start Keycloak with RBOC
+# use this volume in docker compose
+    volumes:
+      - ./almondmonitor-realm.json.ropc:/opt/keycloak/data/import/keycloak-realm.json
+# To use Keycloak AuthFlow use this
+    volumes:
+      - ./almondmonitor-realm.json:/opt/keycloak/data/import/keycloak-realm.json
+#####
+# Start Keycloak
+docker compose up -d
+#
+# Stop Keycloak
+docker compose down -v
