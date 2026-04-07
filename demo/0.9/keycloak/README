@@ -9,5 +9,8 @@
 # Start Keycloak
 docker compose up -d
 #
+# Start an Almond Monitor instance
+docker run --rm --platform linux/amd64 --net almond-demo --name almond_keycloak -d -p 8015:80 -p 9015:90 andreaslindell72/almond-monitor:latest
+#
 # Stop Keycloak
 docker compose down -v
