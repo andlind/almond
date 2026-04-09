@@ -8,11 +8,19 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
 
-      KC_HOSTNAME: localhost
+      KC_HOSTNAME: localhost 
       KC_HOSTNAME_PORT: 8089
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY: edge
 
     ports:
       - "8089:8080"
-      - "5000:5000"
     volumes:
       - ./almondmonitor-realm.json:/opt/keycloak/data/import/keycloak-realm.json
+    networks:
+      - almond-demo
+
+networks:
+  almond-demo:
+    driver: bridge
+
