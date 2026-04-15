@@ -1,0 +1,18 @@
+docker cp almond.conf almond_keycloak:/etc/almond/almond.conf
+docker cp keycloak_pubkey.pem almond_keycloak:/opt/almond/keycloak_pubkey.pem
+docker exec almond_keycloak chown almond:almond /etc/almond/almond.conf
+docker exec almond_keycloak chown almond:almond /opt/almond/keycloak_pubkey.pem
+docker exec almond_keycloak supervisorctl restart almond
+
+curl -X POST "http://localhost:8089/realms/almondmonitor/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=almond-api" \
+  -d "username=testuser" \
+  -d "password=testuser"
+
+curl -X POST localhost:9015 -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICIteWs0RGVuTGkxS1ZDZkVTRzZkMWo4cnFEci1Gbjd4R3ZmdnRNSDRnZWNZIn0.eyJleHAiOjE3NzU3MjE5OTUsImlhdCI6MTc3NTcyMTY5NSwianRpIjoiMzcyNDEzOWYtY2MzYi00ZTJjLWJjNWYtZjk0MWJiZTk3ZTk2IiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDg5L3JlYWxtcy9hbG1vbmRtb25pdG9yIiwic3ViIjoiOGQ2YTQ2NjktOWMxOS00ZTQxLWFhN2ItNDg2YmY1NzFmODMzIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoiYWxtb25kLWxvZ2luIiwic2Vzc2lvbl9zdGF0ZSI6IjYzMDBjZWExLTVjYWEtNGVlZS1hMDRhLTNjMjExMzJjYmUwYiIsInNjb3BlIjoiIiwic2lkIjoiNjMwMGNlYTEtNWNhYS00ZWVlLWEwNGEtM2MyMTEzMmNiZTBiIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJuYW1lIjoiVGVzdCBVc2VyIiwicHJlZmVycmVkX3VzZXJuYW1lIjoidGVzdHVzZXIiLCJnaXZlbl9uYW1lIjoiVGVzdCIsImZhbWlseV9uYW1lIjoiVXNlciIsImVtYWlsIjoidGVzdEBhbG1vbmRtb25pdG9yLmNvbSJ9.VSB0hMGg6WxIbR1z9bVWEqH2-ftb2rAeu1GuccrV3_pZ-PDFzMVy0eNPHmRWA0b3M0ORNhlTl3eZkZYotBPFHTwuOZKxxoutv6-o53HT0SZiDfICKMpdkqK5A1u-QnKqfPQhkhfWZ3PCEH26jRqqcFAePoif_Hebhl96CGL9cDUeYxMosMKVhnxiFfHOxWilQdhH85IHiTC1h072Ptr0SIccCTwfJdqYHIywGxGLzVL4f0TWzYCbehvZikzPhoRHNcbiBswC3c0FribmRejHjRxBUcDGNxvWEDHJGngEtXQNVmgnkvLePmo_3jGaedb2gSqLJ-naDUA2zul_zfbbng" -H "Content-Type: application/json" -d '{"action":"run", "name":"check_almond", "flags":"verbose"}' 
+{
+     "executePlugin":"check_almond",
+     "pluginOutput:":"PROCS OK: 1 process with command name 'almond'"
+}
