@@ -9,6 +9,7 @@ COPY apps.conf /etc/supervisord.d/apps.conf
 COPY plugins/* /opt/almond/plugins
 #RUN useradd almond && usermod -a -G almond almond
 RUN chmod +x /opt/almond/plugins/* && chown -R almond:almond /opt/almond/plugins
+RUN chmod ug+x /opt/almond/plugin_status.avsc
 RUN mkdir /webapp
 COPY webapp/ /webapp
 RUN chmod +x /webapp/start_app.sh

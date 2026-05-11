@@ -4,17 +4,17 @@ RUN mkdir -p /etc/almond
 RUN mkdir -p /var/log/almond
 RUN mkdir -p /opt/almond/plugins
 RUN apt update -y && apt install gcc make automake -y
-RUN apt install libjson-c-dev librdkafka-dev autoconf zlib1g-dev -y
+RUN apt install libjson-c-dev librdkafka-dev autoconf zlib1g-dev libjwt-dev -y
 RUN apt install libssl-dev libredis-perl sysstat ksh python3-psutil iputils-ping procps sudo -y
 RUN apt install supervisor wget -y && apt upgrade -y
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY apps.conf /etc/supervisord/conf.d/apps.conf
 COPY plugins/* /opt/almond/plugins
-RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/0.9.26/almond-0.9.26.tar.gz
-RUN tar xfvz almond-0.9.26.tar.gz 
-RUN chmod +x almond-0.9.26/install_almond.sh
-RUN cd almond-0.9.26 && ./install_almond.sh
-RUN rm -rf almond-0.9.26 
+RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/0.9.30/almond-0.9.30.tar.gz
+RUN tar xfvz almond-0.9.30.tar.gz 
+RUN chmod +x almond-0.9.30/install_almond.sh
+RUN cd almond-0.9.30 && ./install_almond.sh
+RUN rm -rf almond-0.9.30 
 RUN mkdir -p /var/log/redis
 COPY plugins.conf /etc/almond/plugins.conf
 COPY almond.conf /etc/almond/almond.conf
