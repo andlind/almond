@@ -17,6 +17,8 @@ RUN git clone https://github.com/confluentinc/libserdes.git /tmp/libserdes && \
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY apps.conf /etc/supervisord/conf.d/apps.conf
 COPY plugins/* /opt/almond/plugins
+COPY plugin_status.avsc /opt/almond/plugin_status.avsc
+RUN chmod +x /opt/almond/plugin_status.avsc
 RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/0.9.30/almond-0.9.30.tar.gz
 RUN tar xfvz almond-0.9.30.tar.gz 
 RUN sed -i 's|./configure --prefix=/opt/almond|./configure --prefix=/opt/almond --enable-avro|' almond-0.9.30/install_almond.sh
