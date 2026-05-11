@@ -3,10 +3,17 @@ COPY redis.conf /usr/local/etc/redis/redis.conf
 RUN mkdir -p /etc/almond
 RUN mkdir -p /var/log/almond
 RUN mkdir -p /opt/almond/plugins
-RUN apt update -y && apt install gcc make automake -y
-RUN apt install libjson-c-dev librdkafka-dev autoconf zlib1g-dev libjwt-dev -y
+RUN apt update -y && apt install gcc make automake curl gnupg -y
+RUN apt install git autoconf libtool pkg-config build-essential -y
+RUN apt install libjson-c-dev librdkafka-dev zlib1g-dev libjwt-dev libavro-dev -y
 RUN apt install libssl-dev libredis-perl sysstat ksh python3-psutil iputils-ping procps sudo -y
-RUN apt install supervisor wget -y && apt upgrade -y
+RUN apt install libjansson-dev supervisor wget -y && apt upgrade -y
+RUN git clone https://github.com/confluentinc/libserdes.git /tmp/libserdes && \
+    cd /tmp/libserdes && \
+    ./configure --prefix=/usr && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/libserdes
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY apps.conf /etc/supervisord/conf.d/apps.conf
 COPY plugins/* /opt/almond/plugins
