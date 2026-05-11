@@ -1,0 +1,6 @@
+#!/Users/alio/git/private/almond/demo/0.9/redpanda/venv/bin/python3.12
+import sys
+from fastavro.__main__ import main
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(main())

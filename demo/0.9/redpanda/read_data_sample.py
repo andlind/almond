@@ -1,59 +1,68 @@
-#############################################
-## Sample script consume Almond Kafka data ##
-#############################################
-try:
-    from kafka import KafkaConsumer
-except ImportError:
-    print("Missing module 'kafka'. Please install it before running the script.")
-    exit(1)
-try:
-    import json
-except ImportError:
-    print("Missing module 'json'. Please install it before running this script.")
-    exit(1)
-try:
-    import lz4
-except ImportError:
-    print("Missing module 'lz4'. Please install it before running this script.")
-    exit(1)
+#!/usr/bin/env python3
 
+from confluent_kafka import DeserializingConsumer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroDeserializer
+from confluent_kafka.serialization import StringDeserializer
+
+# ANSI colors
 red = "\033[31m"
 green = "\033[32m"
 black = "\033[0;30m"
 yellow = "\033[1;33m"
 purple = "\033[0;35m"
 
-consumer = KafkaConsumer(
-   bootstrap_servers='localhost:19092',
-   value_deserializer = lambda v: json.loads(v.decode('utf-8'), strict=False),
-   auto_offset_reset = 'earliest'
-)
-consumer.subscribe(topics='almond_monitoring')
-for message in consumer:
-   value = message.value
-   #print("Value is of type:", type(value))
-   #for item in value.items():
-   #   print (item)
-   server = value.get("name")
-   tag = value.get("tag")
-   id = value.get("id")
-   if (server == None):
-      server = "Unknown"
-   if (tag == None):
-      tag = "None"
-   if (id == None):
-       id = "-1"
-   data = value.get("data")
-   plugin = data.get("pluginName")
-   status = data.get("pluginStatus")
-   # Ugly print
-   if (server == "app01.demo.com"):
-      server = "app01.demo.com\t"
-   if (status == "OK"):
-   	print(green + status + "     " + black + "\t\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin) 
-   elif (status == "WARNING"):
-        print(yellow + status + " " + black + "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
-   elif (status == "UNKNOWN"):
-        print(purple + status + "\t" + black + "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
-   else:
-        print(red + status + black + "\tServer: " + server + "\tTag: " + tag +" \tId: " + id + "\tOffset:" + str(message.offset) + "\tPlugin: " + plugin)
+# --- Redpanda Schema Registry configuration ---
+schema_registry_conf = {
+    "url": "http://localhost:18081"   # Redpanda Schema Registry
+}
+schema_registry_client = SchemaRegistryClient(schema_registry_conf)
+
+value_deserializer = AvroDeserializer(schema_registry_client)
+
+# --- Redpanda Kafka API configuration ---
+consumer_conf = {
+    "bootstrap.servers": "localhost:19092",  # Redpanda broker
+    "key.deserializer": StringDeserializer(),
+    "value.deserializer": value_deserializer,
+    "group.id": "almond-monitoring-consumer",
+    "auto.offset.reset": "earliest"
+}
+
+consumer = DeserializingConsumer(consumer_conf)
+consumer.subscribe(["almond_monitoring"])
+
+print("Connected to Redpanda… waiting for messages.")
+
+while True:
+    msg = consumer.poll(1.0)
+    if msg is None:
+        continue
+
+    value = msg.value()  # Already a Python dict from Avro
+
+    server = value.get("name", "Unknown")
+    tag = value.get("tag", "None")
+    id = value.get("id", "-1")
+
+    data = value.get("data", {})
+    plugin = data.get("pluginName")
+    status = data.get("pluginStatus")
+
+    # Pretty output
+    if server == "app01.demo.com":
+        server = "app01.demo.com\t"
+
+    if status == "OK":
+        print(green + status + "     " + black +
+              f"\t\tServer: {server}\tTag: {tag}\tId: {id}\tOffset: {msg.offset()}\tPlugin: {plugin}")
+    elif status == "WARNING":
+        print(yellow + status + " " + black +
+              f"\tServer: {server}\tTag: {tag}\tId: {id}\tOffset: {msg.offset()}\tPlugin: {plugin}")
+    elif status == "UNKNOWN":
+        print(purple + status + "\t" + black +
+              f"\tServer: {server}\tTag: {tag}\tId: {id}\tOffset: {msg.offset()}\tPlugin: {plugin}")
+    else:
+        print(red + status + black +
+              f"\tServer: {server}\tTag: {tag}\tId: {id}\tOffset: {msg.offset()}\tPlugin: {plugin}")
+
