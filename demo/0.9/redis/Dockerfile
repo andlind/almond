@@ -12,6 +12,7 @@ COPY apps.conf /etc/supervisord/conf.d/apps.conf
 COPY plugins/* /opt/almond/plugins
 RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/0.9.30/almond-0.9.30.tar.gz
 RUN tar xfvz almond-0.9.30.tar.gz 
+RUN sed -i 's|./configure --prefix=/opt/almond|./configure --prefix=/opt/almond --enable-avro|' almond-0.9.30/install_almond.sh
 RUN chmod +x almond-0.9.30/install_almond.sh
 RUN cd almond-0.9.30 && ./install_almond.sh
 RUN rm -rf almond-0.9.30 
