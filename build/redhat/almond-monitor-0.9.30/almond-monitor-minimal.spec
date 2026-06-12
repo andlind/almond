@@ -34,6 +34,7 @@ Almond scheduler and Howru API, compatible with Nagios plugins
 %setup -q
 
 %build
+autoreconf -fiv
 %configure --prefix /opt/almond --disable-kafka
 make %{?_smp_mflags}
 

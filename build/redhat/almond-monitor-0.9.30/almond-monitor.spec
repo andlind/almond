@@ -36,6 +36,7 @@ Almond scheduler and Howru API, compatible with Nagios plugins
 %setup -q
 
 %build
+autoreconf -fiv
 %configure %{?with_avro:--enable-avro} --prefix=/opt/almond
 make %{?_smp_mflags}
 
