@@ -9,7 +9,7 @@ docker exec -u 0 redpanda-10 apt install libjson-c-dev libcurl4-openssl-dev libj
 docker exec -u 0 redpanda-10 apt install libssl-dev sysstat ksh python3-psutil iputils-ping procps sudo -y
 docker exec -u 0 redpanda-10 apt upgrade -y
 echo "Installing Almond from source"
-docker exec -u 0 redpanda-10 /bin/sh -c "cd /root/almond-0.9.23 && ./install_almond.sh"
+docker exec -u 0 redpanda-10 /bin/sh -c "cd /root/almond-0.9.23 && autoreconf -fi && ./install_almond.sh"
 echo "Installation finished"
 echo "Start Almond"
 docker exec -u 0 redpanda-10 /bin/sh -c "/opt/almond/start_almond.sh &"
