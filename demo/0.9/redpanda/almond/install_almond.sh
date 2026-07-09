@@ -16,11 +16,11 @@ docker exec -u 0 redpanda-10 /bin/sh -c "/opt/almond/start_almond.sh &"
 echo "Installing Almond on container redpanda-console-10"
 echo "Installing dependencies"
 docker cp ../../alpine/libjwt/libjwt.so.2.10.2 redpanda-console-10:/usr/lib/libjwt.so.2.10.2
-docker cp ../../alpine/libjwt/libjwt.so.2 redpanda-console-10:/usr/lib/libjwt.so.2
-docker cp ../../alpine/libjwt/libjwt.so.14 redpanda-console-10:/usr/lib/libjwt.so.14
+docker exec -u 0 redpanda-console-10 ln -s /usr/lib/libjwt.so.2.10.2 /usr/lib/libjwt.so.2
+docker exec -u 0 repanda-console-10 ln -s /usr/lib/libjwt.so.2.10.2 /usr/lib/libjwt.so.14
 docker cp ../../alpine/almond/almond-0.9.30.alpine.aarch64.tar.gz redpanda-console-10:/tmp
 docker exec -u 0 redpanda-console-10 apk update
-docker exec -u 0 redpanda-console-10 apk add --no-cache perl sysstat bash openssl musl libc6-compat python3 py3-psutil procps busybox iputils json-c librdkafka
+docker exec -u 0 redpanda-console-10 apk add --no-cache perl sysstat bash openssl musl libc6-compat python3 py3-psutil procps busybox iputils json-c librdkafka jansson
 docker exec -u 0 redpanda-console-10 tar xfvz /tmp/almond-0.9.30.alpine.aarch64.tar.gz 
 echo "Installing precompiled Almond"
 docker exec -u 0 redpanda-console-10 /bin/sh -c "cd almond-0.9.30.alpine.aarch64 && ./install.sh"
