@@ -10,7 +10,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        %{?with_avro:1.avro}%{!?with_avro:1}%{?dist}
+Release:        %{?with_avro:2.avro}%{!?with_avro:2}%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -142,6 +142,10 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Thu Jul 16 2026 0.9.30-2
+<andreaslindell@almondmonitor.com>
+- HowRU API for labels
+- Updated templates
 * Tue Jun 02 2026 0.9.30
 <andreas.lindell@almondmonitor.com>
 - Almond labels
