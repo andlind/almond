@@ -1,0 +1,352 @@
+import requests
+import json
+import logging
+from typing import Dict, List, Optional
+from urllib.parse import urljoin
+
+class ZabbixSyncError(Exception):
+    """Custom exception for Zabbix sync errors"""
+    pass
+
+class ZabbixAPIClient:
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url.rstrip('/')
+        self.username = username
+        self.password = password
+        self.session = requests.Session()
+        self.auth_token = None
+        
+        # Configure logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+
+    def login(self) -> None:
+        """Authenticate with Zabbix API using modern Bearer token approach"""
+        try:
+            response = self._api_request(
+                "user.login",
+                {"username": self.username, "password": self.password}
+            )
+            self.auth_token = response["result"]
+            self.logger.info("Successfully authenticated with Zabbix API")
+        except Exception as e:
+            print("Zabbix API error:", result["error"])
+            raise ZabbixSyncError(f"Authentication failed: {str(e)}")
+
+    def _api_request(self, method: str, params: Dict) -> Dict:
+        """Make a request to the Zabbix API"""
+        headers = {
+            "Content-Type": "application/json-rpc",
+            "Authorization": f"Bearer {self.auth_token}" if self.auth_token else ""
+        }
+        
+        payload = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": 1
+        }
+
+        try:
+            response = self.session.post(
+                urljoin(self.base_url, "api_jsonrpc.php"),
+                json=payload,
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            if "error" in result:
+                print("Zabbix API error:", result["error"])
+                raise ZabbixSyncError(result["error"]["message"])
+                
+            return result
+            
+        except requests.RequestException as e:
+            print("Zabbix API error:", result["error"])
+            raise ZabbixSyncError(f"API request failed: {str(e)}")
+
+class HowruAPIClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip('/')
+        self.session = requests.Session()
+
+    def get_servers_and_jobs(self) -> Dict[str, List[Dict]]:
+        """Fetch servers and jobs from HOWRU API"""
+        try:
+            servers_response = self._get("/api/listservers")
+            jobs_response = self._get("/api/listjobs")
+            
+            # Combine server and job data
+            combined_data = {}
+            for job_entry in jobs_response:
+                server = job_entry["server"]
+                if server not in combined_data:
+                    combined_data[server] = []
+                combined_data[server].extend(job_entry["jobs"])
+                
+            return combined_data
+            
+        except Exception as e:
+            raise ZabbixSyncError(f"Failed to fetch HOWRU API data: {str(e)}")
+
+    def _get(self, endpoint: str) -> Dict:
+        """Make GET request to HOWRU API"""
+        response = self.session.get(urljoin(self.base_url, endpoint))
+        response.raise_for_status()
+        return response.json()
+
+def sync_zabbix_hosts(zabbix_client: ZabbixAPIClient, 
+                     howru_client: HowruAPIClient,
+                     group_id: str) -> None:
+    """Main synchronization function"""
+    try:
+        # Fetch data from HOWRU API
+        servers_and_jobs = howru_client.get_servers_and_jobs()
+        
+        # Process each server
+        for server_name, jobs in servers_and_jobs.items():
+            host_exists = False
+            host_id = None
+            
+            # Check if host exists
+            try:
+                result = zabbix_client._api_request(
+                    "host.get",
+                    {
+                        "filter": {"host": [server_name]},
+                        "output": ["hostid"]
+                    }
+                )
+                if result["result"]:
+                    host_id = result["result"][0]["hostid"]
+                    host_exists = True
+                    logging.info(f"Found existing host: {server_name}")
+                    
+            except ZabbixSyncError as e:
+                logging.warning(f"Host lookup failed: {str(e)}")
+            
+            # Create hostgroup
+            group_lookup = zabbix_client._api_request("hostgroup.get", {
+                "filter": {"name": ["Almond servers"]},
+                "output": ["groupid"]
+            })
+            print("Hostgroup.get response:", group_lookup)
+            if isinstance(group_lookup.get("result"), list) and group_lookup["result"]:
+                group_id = group_lookup["result"][0]["groupid"]
+            else:
+                group_create = zabbix_client._api_request("hostgroup.create", {
+                    "name": "Almond servers"
+                })
+                print("hostgroup.create response:", group_create)
+                if "groupids" in group_create["result"]:
+                    group_id = group_create["result"]["groupids"][0]
+                else:
+                    raise Exception("Failed to create host group 'Almond servers'")
+
+            # Create host if it doesn't exist
+            if not host_exists:
+                create_params = {
+                    "host": server_name,
+                    "interfaces": [{
+                        "type": 1,
+                        "main": 1,
+                        "useip": 1,
+                        "ip": "127.0.0.1",
+                        "dns": "",
+                        "port": "10050"
+                    }],
+                    "groups": [{"groupid": group_id}],
+                    "inventory_mode": 1
+                }
+                result = zabbix_client._api_request("host.create", create_params)
+                host_id = result["result"]["hostids"][0]
+                logging.info(f"Created new host: {server_name}")
+            
+            # Sync items for each job
+            for job in jobs:
+                plugin_name = job["name"]
+                description = job["description"]
+                
+                # Create item with all required parameters
+                create_item_params = {
+                    "name": f"{description} ({plugin_name})",
+                    "key_": f"check_howru_api.sh[{howru_client.base_url},{description},{server_name}]",
+                    "hostid": host_id,
+                    "type": 10,  # External check
+                    "value_type": 3,  # Numeric (unsigned) 1 is text 
+                    "interfaceid": 0,
+                    "delay": "30s",  # Required parameter
+                    "status": 0,     # Required parameter
+                    "description": f"External check for {plugin_name} on {server_name}"
+                }
+                
+                try:
+                    # Check if item exists
+                    result = zabbix_client._api_request(
+                        "item.get",
+                        {
+                            "hostid": host_id,
+                            "filter": {"key_": create_item_params["key_"]}
+                        }
+                    )
+                    
+                    if not result["result"]:
+                        # Create new item
+                        zabbix_client._api_request("item.create", create_item_params)
+                        logging.info(f"Created item: {description} on {server_name}")
+                        # Add trigger for the item
+                        #trigger_expression = f'{{{host_name}:check_howru_api.sh[{howru_client.base_url},{description},{server_name}].find("CRITICAL")}}>0'
+                        trigger_expression = (f'{{{host_name}:check_howru_api.sh[{howru_client.base_url},{description},{server_name}].last()}}=2')
+
+                        create_trigger_params = {
+                            "description": f"Trigger for {plugin_name} on {server_name}",
+                            "expression": trigger_expression,
+                            "priority": 4,  # High severity
+                            "status": 0,    # Enabled
+                            "hostid": host_id
+                        }
+                        try:
+                            trigger_result = zabbix_client._api_request(
+                                "trigger.get",
+                                {
+                                    "hostid": host_id,
+                                    "search": {"description": create_trigger_params["description"]}
+                                }
+                            )
+                            if not trigger_result["result"]:
+                                zabbix_client._api_request("trigger.create", create_trigger_params)
+                                logging.info(f"Created trigger: {plugin_name} on {server_name}")
+                            else:
+                                logging.info(f"Trigger exists: {plugin_name} on {server_name}")
+                        except ZabbixSyncError as e:
+                            logging.error(f"Failed to sync trigger {plugin_name}: {str(e)}")
+
+                    else:
+                        logging.info(f"Item exists: {description} on {server_name}")
+                        
+                except ZabbixSyncError as e:
+                    logging.error(f"Failed to sync item {plugin_name}: {str(e)}")
+        
+    except Exception as e:
+        logging.error(f"Sync failed: {str(e)}")
+        raise
+
+#def sync_zabbix_hosts(zabbix_client: ZabbixAPIClient, 
+#                     howru_client: HowruAPIClient,
+#                     group_id: str) -> None:
+#    """Main synchronization function"""
+#    try:
+#        # Fetch data from HOWRU API
+#        servers_and_jobs = howru_client.get_servers_and_jobs()
+#        
+#        # Process each server
+#        for server_name, jobs in servers_and_jobs.items():
+#            host_exists = False
+#            host_id = None
+#            
+#            # Check if host exists
+#            try:
+#                result = zabbix_client._api_request(
+#                    "host.get",
+#                    {
+#                        "filter": {"host": [server_name]},
+#                        "output": ["hostid"]
+#                    }
+#                )
+#                if result["result"]:
+#                    host_id = result["result"][0]["hostid"]
+#                    host_exists = True
+#                    logging.info(f"Found existing host: {server_name}")
+#                    
+#            except ZabbixSyncError as e:
+#                logging.warning(f"Host lookup failed: {str(e)}")
+#            
+#            # Create host if it doesn't exist
+#            if not host_exists:
+#                create_params = {
+#                    "host": server_name,
+#                    "interfaces": [{
+#                        "type": 1,
+#                        "main": 1,
+#                        "useip": 1,
+#                        "ip": "127.0.0.1",
+#                        "dns": "",
+#                        "port": "10050"
+#                    }],
+#                    "groups": [{"groupid": group_id}]
+#                }
+#                result = zabbix_client._api_request("host.create", create_params)
+#                host_id = result["result"]["hostids"][0]
+#                logging.info(f"Created new host: {server_name}")
+#            
+#            # Sync items for each job
+#            for job in jobs:
+#                plugin_name = job["name"]
+#                description = job["description"]
+#                item_key = f'check_howru_api.sh["{howru_client.base_url}", "{plugin_name}", "{server_name}"]'
+#                
+#                try:
+#                    # Check if item exists
+#                    result = zabbix_client._api_request(
+#                        "item.get",
+#                        {
+#                            "hostid": host_id,
+#                            "filter": {"key_": item_key}
+#                        }
+#                    )
+#                    
+#                    if not result["result"]:
+#                        # Create new item
+#                        create_item_params = {
+#                            "name": f"{description} ({plugin_name})",
+#                            "key_": item_key,
+#                            "hostid": host_id,
+#                            "type": 10,  # External check
+#                            "value_type": 1,  # Text
+#                            "interfaceid": 0
+#                        }
+#                        zabbix_client._api_request("item.create", create_item_params)
+#                        logging.info(f"Created item: {description} on {server_name}")
+#                    else:
+#                        logging.info(f"Item exists: {description} on {server_name}")
+#                        
+#                except ZabbixSyncError as e:
+#                    logging.error(f"Failed to sync item {plugin_name}: {str(e)}")
+#        
+#    except Exception as e:
+#        logging.error(f"Sync failed: {str(e)}")
+#        raise
+
+def main():
+    """Main entry point"""
+    config = {
+        "ZABBIX_URL": "http://zabbix-web:8888",
+        "ZABBIX_USER": "Admin",
+        "ZABBIX_PASS": "zabbix",
+        "HOWRU_API_ADDRESS": "http://host.docker.internal:8085",
+        "ZABBIX_GROUP_ID": "2"
+    }
+
+    try:
+        # Initialize clients
+        zabbix_client = ZabbixAPIClient(
+            base_url=config["ZABBIX_URL"],
+            username=config["ZABBIX_USER"],
+            password=config["ZABBIX_PASS"]
+        )
+        
+        howru_client = HowruAPIClient(base_url=config["HOWRU_API_ADDRESS"])
+        
+        # Login to Zabbix
+        zabbix_client.login()
+        
+        # Perform synchronization
+        sync_zabbix_hosts(zabbix_client, howru_client, config["ZABBIX_GROUP_ID"])
+        
+    except Exception as e:
+        logging.error(f"Synchronization failed: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()

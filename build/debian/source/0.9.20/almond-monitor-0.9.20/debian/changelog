@@ -1,0 +1,6 @@
+almond-monitor (0.9.20-1) unstable; urgency=medium
+
+  * Updated templates
+  * New monitoring API:s
+
+ -- Andreas Lindell <andreas.lindell@almondmonitor.com>  Wed, 10 Dec 2025 14:35:00 +0200

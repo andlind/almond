@@ -1,0 +1,6 @@
+almond-monitor (0.9.21-1) unstable; urgency=medium
+
+  * Code refactor
+  * Update scheduler
+
+ -- Andreas Lindell <andreas.lindell@almondmonitor.com>  Mon, 19 Jan 2026 11:17:00 +0200

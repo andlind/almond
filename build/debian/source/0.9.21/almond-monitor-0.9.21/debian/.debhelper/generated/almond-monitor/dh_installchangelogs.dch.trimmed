@@ -1,0 +1,6 @@
+almond-monitor (0.9.15-1) unstable; urgency=medium
+
+  * New build structure
+  * Buggfix Almond API
+
+ -- Andreas Lindell <andreas.lindell@almondmonitor.com>  Wed, 24 Sep 2025 09:00:00 +0200

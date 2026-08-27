@@ -1,0 +1,231 @@
+FROM rockylinux/rockylinux:10
+
+SHELL ["/bin/bash", "-c"]
+
+ENV HOME=/root
+ENV PKG_CONFIG_PATH=/usr/lib64/pkgconfig
+
+# ------------------------------------------------------------
+# Base development tools
+# ------------------------------------------------------------
+RUN dnf -y update && \
+    dnf -y groupinstall "Development Tools" && \
+    dnf -y install \
+        git wget curl tar gzip \
+        cmake autoconf automake libtool \
+        pkgconfig openssl-devel zlib-devel libcurl-devel \
+        cyrus-sasl-devel \
+        rpmdevtools rpm-build
+
+# ------------------------------------------------------------
+# Prepare rpmbuild tree
+# ------------------------------------------------------------
+RUN rpmdev-setuptree
+
+# ------------------------------------------------------------
+# Build json-c RPM (using Fedora SPEC)
+# ------------------------------------------------------------
+# ------------------------------------------------------------
+# Build json-c RPM (Rocky Linux 10 compatible)
+# ------------------------------------------------------------
+RUN wget https://github.com/json-c/json-c/archive/json-c-0.17.tar.gz \
+        -O /root/rpmbuild/SOURCES/json-c-0.17.tar.gz
+
+# Write a Rocky-compatible SPEC file directly inside Dockerfile
+RUN cat > /root/rpmbuild/SPECS/json-c.spec << 'EOF'
+Name:           json-c
+Version:        0.17
+Release:        1%{?dist}
+Summary:        JSON implementation in C
+License:        MIT
+URL:            https://github.com/json-c/json-c
+Source0:        json-c-%{version}.tar.gz
+
+BuildRequires:  gcc
+BuildRequires:  make
+BuildRequires:  cmake
+BuildRequires:  pkgconfig
+
+%description
+A JSON implementation in C.
+
+%prep
+%setup -q -n json-c-json-c-%{version}
+
+%build
+mkdir build
+cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr
+make -j%{_smp_build_ncpus}
+
+%install
+cd build
+make DESTDIR=%{buildroot} install
+
+%files
+/usr/lib64/libjson-c.so.*
+/usr/lib64/libjson-c.so
+/usr/lib64/libjson-c.a
+/usr/lib64/pkgconfig/json-c.pc
+/usr/include/json-c/*
+/usr/lib64/cmake/json-c/json-c-config.cmake
+/usr/lib64/cmake/json-c/json-c-targets.cmake
+/usr/lib64/cmake/json-c/json-c-targets-debug.cmake
+%changelog
+* Thu Apr 30 2026 Docker Build <andreas.lindell@almondmonitor.com> - 0.17-1
+- Initial build for Rocky Linux 10
+EOF
+
+RUN rpmbuild -ba /root/rpmbuild/SPECS/json-c.spec && \
+     dnf -y install /root/rpmbuild/RPMS/x86_64/json-c-*.rpm
+#    dnf -y install /root/rpmbuild/RPMS/x86_64/json-c-devel*.rpm
+
+# ------------------------------------------------------------
+# Build Snappy RPM (using Fedora SPEC)
+# ------------------------------------------------------------
+RUN wget https://github.com/google/snappy/archive/refs/tags/1.1.10.tar.gz \
+        -O /root/rpmbuild/SOURCES/snappy-1.1.10.tar.gz
+RUN cat > /root/rpmbuild/SPECS/snappy.spec << 'EOF'
+Name:           snappy
+Version:        1.1.10
+Release:        1%{?dist}
+Summary:        Fast compression and decompression library
+License:        BSD
+URL:            https://github.com/google/snappy
+Source0:        snappy-%{version}.tar.gz
+
+BuildRequires:  gcc
+BuildRequires:  make
+BuildRequires:  cmake
+
+%description
+Snappy is a fast compressor/decompressor library.
+
+%prep
+%setup -q -n snappy-%{version}
+
+%build
+mkdir build
+cd build
+cmake .. \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DSNAPPY_BUILD_TESTS=OFF \
+    -DSNAPPY_BUILD_BENCHMARKS=OFF \
+    -DBUILD_SHARED_LIBS=ON 
+make -j%{_smp_build_ncpus}
+
+%install
+cd build
+make DESTDIR=%{buildroot} install
+
+# Runtime package
+%files
+/usr/lib64/libsnappy.so
+/usr/lib64/libsnappy.so.1
+/usr/lib64/libsnappy.so.1.1.10
+#/usr/lib64/libsnappy.a
+
+# Development package
+%package devel
+Summary: Development files for snappy
+Requires: snappy%{?_isa} = %{version}-%{release}
+
+%description devel
+Development headers and libraries for snappy.
+
+%files devel
+/usr/include/snappy*.h
+/usr/lib64/cmake/Snappy/*
+
+%changelog
+* Thu Apr 30 2026 Docker Build <andreas.lindell@almondmonitor.com> - 1.1.10-1
+- Initial build for Rocky Linux 10
+EOF
+
+RUN rpmbuild -ba /root/rpmbuild/SPECS/snappy.spec && \
+    dnf -y install /root/rpmbuild/RPMS/x86_64/snappy-*.rpm
+
+# ------------------------------------------------------------
+# Build librdkafka RPM (using upstream SPEC)
+# ------------------------------------------------------------
+#RUN git clone https://github.com/confluentinc/librdkafka.git /tmp/librdkafka && \
+#    cd /tmp/librdkafka && \
+#    VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//') && \
+#    git archive --format=tar.gz --prefix=librdkafka-$VERSION/ HEAD > \
+#        ~/rpmbuild/SOURCES/librdkafka-$VERSION.tar.gz && \
+#    cd packaging/rpm && \
+#    sed -i "s/%{__version}/$VERSION/" librdkafka.spec && \
+#    cp *.spec ~/rpmbuild/SPECS/ && \
+#    rpmbuild -ba ~/rpmbuild/SPECS/librdkafka.spec
+RUN git clone https://github.com/confluentinc/librdkafka.git /tmp/librdkafka && \
+    cd /tmp/librdkafka && \
+    VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//') && \
+    git archive --format=tar.gz --prefix=librdkafka-$VERSION/ HEAD > \
+        ~/rpmbuild/SOURCES/librdkafka-$VERSION.tar.gz && \
+    cd packaging/rpm && \
+    # Patch spec: disable tests and annobin
+    sed -i 's/^%check/# %check disabled/' librdkafka.spec && \
+    sed -i 's/^%global _annotated_build.*/%global _annotated_build 0/' librdkafka.spec && \
+    sed -i "s/%{__version}/$VERSION/g" librdkafka.spec && \
+    cp *.spec ~/rpmbuild/SPECS/ && \
+    rpmbuild -ba --nocheck ~/rpmbuild/SPECS/librdkafka.spec && \
+    dnf -y install ~/rpmbuild/RPMS/x86_64/librdkafka-devel*.rpm && \
+    rm -rf /tmp/librdkafka
+
+# ------------------------------------------------------------
+# Build libserdes RPM (create simple SPEC)
+# ------------------------------------------------------------
+RUN cat > ~/rpmbuild/SPECS/libserdes.spec << 'EOF'
+Name: libserdes
+Version: 1.0
+Release: 1%{?dist}
+Summary: Serdes library for Avro + Kafka
+License: BSD
+URL: https://github.com/confluentinc/libserdes
+Source0: libserdes.tar.gz
+BuildRequires: librdkafka-devel
+BuildRequires: json-c-devel
+BuildRequires: snappy-devel
+
+%description
+Library for schema-based serialization/deserialization.
+
+%prep
+%setup -q -n libserdes
+
+%build
+./bootstrap.sh
+./configure --prefix=/usr
+make -j$(nproc)
+
+%install
+make DESTDIR=%{buildroot} install
+
+%files
+/usr/lib64/*
+/usr/include/*
+EOF
+
+RUN git clone https://github.com/confluentinc/libserdes.git /tmp/libserdes && \
+    cd /tmp/libserdes && \
+    git archive --format=tar.gz --prefix=libserdes/ HEAD > ~/rpmbuild/SOURCES/libserdes.tar.gz && \
+    rpmbuild -ba ~/rpmbuild/SPECS/libserdes.spec && \
+    dnf -y install ~/rpmbuild/RPMS/x86_64/libserdes*.rpm && \
+    rm -rf /tmp/libserdes
+
+# ------------------------------------------------------------
+# Build Avro-C RPM (using Fedora SPEC)
+# ------------------------------------------------------------
+RUN wget https://github.com/apache/avro/archive/refs/tags/release-1.11.3.tar.gz \
+        -O ~/rpmbuild/SOURCES/avro-1.11.3.tar.gz && \
+    wget https://src.fedoraproject.org/rpms/avro/raw/rawhide/f/avro.spec \
+        -O ~/rpmbuild/SPECS/avro.spec && \
+    rpmbuild -ba ~/rpmbuild/SPECS/avro.spec && \
+    dnf -y install ~/rpmbuild/RPMS/x86_64/avro-c-devel*.rpm
+
+# ------------------------------------------------------------
+# Ready for building almond-monitor RPM
+# ------------------------------------------------------------
+WORKDIR /workspace
+CMD ["/bin/bash"]
+

@@ -1,0 +1,19 @@
+[Unit]
+Description=HowRU api Service
+After=multi-user.target network.target
+Conflicts=getty@tty1.service
+
+[Service]
+User=root
+Group=almond
+WorkingDirectory=/opt/almond/www/api
+Environment="HOWRU_FERNET_KEY=TAWXNna1CaFfIAZNb0iujeZczqRf9qrvOlgEpALkl28="
+ExecStart=/usr/local/bin/gunicorn --user almond --bind 0.0.0.0:80 --chdir=/opt/almond/www/api --log-file /var/log/almond/gunicorn.log --log-level info wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+StandardInput=tty-force
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,69 @@
+import requests
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.sdk.resources import Resource
+
+OTLP_ENDPOINT = "http://localhost:4318"
+
+# ---------------------------
+# Metrics Exporter
+# ---------------------------
+metric_exporter = OTLPMetricExporter(
+    endpoint=f"{OTLP_ENDPOINT}/v1/metrics",
+)
+
+metric_reader = PeriodicExportingMetricReader(metric_exporter)
+
+meter_provider = MeterProvider(
+    resource=Resource.create({"service.name": "nagios-converter"}),
+    metric_readers=[metric_reader],
+)
+
+def export_logs_via_http(logs):
+    """
+    logs = list of OTEL log records from your converter
+    """
+    payload = {
+        "resourceLogs": [
+            {
+                "resource": {"attributes": []},
+                "scopeLogs": [
+                    {
+                        "logRecords": logs
+                    }
+                ]
+            }
+        ]
+    }
+
+    requests.post(
+        f"{OTLP_ENDPOINT}/v1/logs",
+        json=payload,
+        timeout=5
+    )
+
+def export_otel_data(otel_objects):
+    """
+    otel_objects = list of dicts returned by nagios_to_otel()
+    """
+
+    # Export metrics
+    meter = meter_provider.get_meter("nagios-meter")
+
+    for obj in otel_objects:
+        for metric in obj["metrics"]:
+            dp = metric["gauge"]["dataPoints"][0]
+            value = dp["asDouble"]
+
+            meter.create_observable_gauge(
+                name=metric["name"],
+                callbacks=[lambda: [value]],
+            )
+
+    # Export logs (manual HTTP)
+    all_logs = []
+    for obj in otel_objects:
+        all_logs.extend(obj["logs"])
+
+    export_logs_via_http(all_logs)

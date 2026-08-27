@@ -1,0 +1,13 @@
+--- librdkafka.spec.orig
++++ librdkafka.spec
+@@
+-BuildRequires:  openssl-devel >= 1.0.2
++BuildRequires:  openssl-devel >= 3.0.0
+
+@@
+ %build
+ %configure \
+     --disable-static \
++    --with-openssl \
++    --with-libbcrypto \
++    --with-libbssl
