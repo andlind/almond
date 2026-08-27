@@ -1,0 +1,93 @@
+FROM rockylinux:9
+
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:/usr/lib64/pkgconfig
+
+# Force bash to avoid QEMU /bin/sh issues
+SHELL ["/bin/bash", "-c"]
+
+# Install EPEL, build tools, RPM tools, automake, and dependencies
+RUN dnf -y update && \
+    dnf -y install epel-release && \
+    dnf -y groupinstall "Development Tools" && \
+    dnf -y groupinstall "RPM Development Tools" && \
+    dnf -y install \
+        autoconf \
+        automake \
+        libtool \
+	pkgconfig \
+        cmake \
+        json-c \
+        wget \
+        git \
+        zlib \
+        openssl-devel \
+        zlib-devel \
+        cyrus-sasl-devel \
+        libcurl-devel \
+        which \
+        tar \
+        gzip && \
+    dnf clean all
+
+# Install json-c
+# Build json-c from source (Rocky Linux 9 does not ship json-c-devel)
+RUN git clone --depth 1 https://github.com/json-c/json-c.git /tmp/json-c && \
+    cd /tmp/json-c && \
+    mkdir build && cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    rm -rf /tmp/json-c
+
+# Install librdkafka from source
+RUN git clone --depth 1 https://github.com/confluentinc/librdkafka.git /tmp/librdkafka && \
+    cd /tmp/librdkafka && \
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    rm -rf /tmp/librdkafka
+
+# Build jansson from source (required for Avro C)
+RUN git clone --depth 1 https://github.com/akheron/jansson.git /tmp/jansson && \
+    cd /tmp/jansson && \
+    autoreconf -fi && \
+    ./configure \
+        --prefix=/usr/local \
+        --libdir=/usr/local/lib64 \
+        --includedir=/usr/local/include && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    ls -R /usr/local/lib64/pkgconfig && \
+    rm -rf /tmp/jansson
+
+# Build Snappy from source (optional but recommended for Avro)
+RUN git clone --depth 1 https://github.com/google/snappy.git /tmp/snappy && \
+    cd /tmp/snappy && \
+    mkdir build && cd build && \
+    cmake .. -DSNAPPY_BUILD_TESTS=OFF -DSNAPPY_BUILD_BENCHMARKS=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    rm -rf /tmp/snappy
+
+RUN echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && pkg-config --list-all | grep -i jansson || echo "jansson NOT FOUND"
+RUN pkg-config --modversion jansson
+
+# Install Apache Avro C library from source
+RUN git clone --depth 1 https://github.com/apache/avro.git /tmp/avro && \
+    cd /tmp/avro/lang/c && \
+    mkdir build && cd build && \
+    cmake .. \
+      -DCMAKE_PREFIX_PATH=/usr/local \
+      -DCMAKE_LIBRARY_PATH=/usr/local/lib \
+      -DCMAKE_INCLUDE_PATH=/usr/local/include \
+      -DPKG_CONFIG_EXECUTABLE=/usr/bin/pkg-config && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    rm -rf /tmp/avro
+
+WORKDIR /workspace

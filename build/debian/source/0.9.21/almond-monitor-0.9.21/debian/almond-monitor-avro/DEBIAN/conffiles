@@ -1,0 +1,7 @@
+/etc/almond/aliases.conf
+/etc/almond/almond.conf
+/etc/almond/auth2fa.enc
+/etc/almond/memalloc.conf
+/etc/almond/plugins.conf
+/etc/almond/tokens
+/etc/almond/users.conf

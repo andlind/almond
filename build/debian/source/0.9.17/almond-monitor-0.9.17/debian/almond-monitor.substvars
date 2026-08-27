@@ -1,0 +1,4 @@
+perl:Depends=perl:any
+shlibs:Depends=libc6 (>= 2.38), libcurl4t64 (>= 7.16.2), libdbi1t64 (>= 0.9.0), libjson-c5 (>= 0.15), libldap2 (>= 2.6.2), libmysqlclient21 (>= 8.0.11), libpq5, libradcli4 (>= 1.2.11), librdkafka1 (>= 0.9.4), libssl3t64 (>= 3.0.0), liburiparser1 (>= 0.6.0), zlib1g (>= 1:1.1.4)
+misc:Depends=
+misc:Pre-Depends=

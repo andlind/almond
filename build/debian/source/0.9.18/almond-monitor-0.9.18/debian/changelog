@@ -1,0 +1,6 @@
+almond-monitor (0.9.18-1) unstable; urgency=medium
+
+  * New HowRU APi call
+  * Buggfixes
+
+ -- Andreas Lindell <andreas.lindell@almondmonitor.com>  Tue, 04 Nov 2025 09:45:00 +0200

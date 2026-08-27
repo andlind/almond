@@ -1,0 +1,7 @@
+INFO
+Build will create three packages with different binaries.
+- almond-monitor		Standard Almond binary	HTML, Metrics, API, Kafka
+- almond-monitor-avro		Almond binary as standard but with additional support for Avro schemas
+- almond-monitor-minimal	Almond binary without support for Kafka.
+
+Only one of the three packages should be deployed on the same server.

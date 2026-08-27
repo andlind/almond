@@ -1,0 +1,14 @@
+[Unit]
+Description=Almond Service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=almond
+WorkingDirectory=/opt/almond/
+ExecStart=/opt/almond/almond
+StandardInput=tty-force
+
+[Install]
+WantedBy=multi-user.target

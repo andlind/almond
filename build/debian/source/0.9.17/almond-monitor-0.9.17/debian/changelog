@@ -1,0 +1,6 @@
+almond-monitor (0.9.17-2) unstable; urgency=medium
+
+  * Refactor configs to boolean
+  * Buggfix Almond API
+
+ -- Andreas Lindell <andreas.lindell@almondmonitor.com>  Tue, 07 Oct 2025 14:00:00 +0200
