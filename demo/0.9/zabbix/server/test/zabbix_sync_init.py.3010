@@ -1,0 +1,350 @@
+import re
+import sys
+import requests
+import json
+import logging
+import traceback
+import urllib.parse
+from typing import Dict, List, Optional
+from urllib.parse import urljoin
+#from pyzabbix import ZabbixAPI
+
+class ZabbixSyncError(Exception):
+    """Custom exception for Zabbix sync errors"""
+    pass
+
+#class TriggerClient(ZabbixAPI):
+#    def __init__(self, base_url, session, auth_token):
+#        #super().__init__(base_url)
+#        self.url = base_url
+#        self.session = session
+#        self._session = session
+#        self.auth = auth_token
+#        self.id = 0
+#        self.timeout = 10
+#        self.user = self
+
+class ZabbixAPIClient:
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url.rstrip('/')
+        self.username = username
+        self.password = password
+        self.session = requests.Session()
+        self.auth_token = None
+        
+        # Configure logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+
+    def login(self) -> None:
+        """Authenticate with Zabbix API using modern Bearer token approach"""
+        try:
+            response = self._api_request(
+                "user.login",
+                {"username": self.username, "password": self.password}
+            )
+            self.auth_token = response["result"]
+            self.logger.info("Successfully authenticated with Zabbix API")
+        except Exception as e:
+            print("Zabbix API error:", result["error"])
+            raise ZabbixSyncError(f"Authentication failed: {str(e)}")
+
+    def _api_request(self, method: str, params: Dict) -> Dict:
+        """Make a request to the Zabbix API"""
+        headers = {
+            "Content-Type": "application/json-rpc",
+            "Authorization": f"Bearer {self.auth_token}" if self.auth_token else ""
+        }
+        
+        payload = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": 1
+        }
+
+        try:
+            response = self.session.post(
+                urljoin(self.base_url, "api_jsonrpc.php"),
+                json=payload,
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            if "error" in result:
+                print("Zabbix API error:", result["error"])
+                raise ZabbixSyncError(result["error"]["message"])
+                
+            return result
+            
+        except requests.RequestException as e:
+            print("Zabbix API error:", result["error"])
+            raise ZabbixSyncError(f"API request failed: {str(e)}")
+
+class HowruAPIClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip('/')
+        self.session = requests.Session()
+
+    def get_servers_and_jobs(self) -> Dict[str, List[Dict]]:
+        """Fetch servers and jobs from HOWRU API"""
+        try:
+            servers_response = self._get("/api/listservers")
+            jobs_response = self._get("/api/listjobs")
+            
+            # Combine server and job data
+            combined_data = {}
+            for job_entry in jobs_response:
+                server = job_entry["server"]
+                if server not in combined_data:
+                    combined_data[server] = []
+                combined_data[server].extend(job_entry["jobs"])
+                
+            return combined_data
+            
+        except Exception as e:
+            raise ZabbixSyncError(f"Failed to fetch HOWRU API data: {str(e)}")
+
+    def _get(self, endpoint: str) -> Dict:
+        """Make GET request to HOWRU API"""
+        response = self.session.get(urljoin(self.base_url, endpoint))
+        response.raise_for_status()
+        return response.json()
+
+def escape_zabbix_key_param(value: str) -> str:
+    return value.replace("\\", "\\\\").replace(",", "\\,").replace(" ", "\\s")
+
+def escape_key_params(key: str) -> str:
+    # Escape commas inside the first [...] pair of a Zabbix item key
+    idx1 = key.find("[")
+    idx2 = key.rfind("]")
+    if idx1 == -1 or idx2 == -1 or idx2 < idx1:
+        return key
+    base = key[:idx1]
+    params = key[idx1+1:idx2]
+    parts = params.split(",")
+    escaped_parts = [escape_zabbix_key_param(p) for p in parts]
+    # join then escape commas for trigger expression
+    escaped_params = ",".join(escaped_parts).replace(",", r"\,")
+    return f"{base}[{escaped_params}]"
+
+def slugify(s):
+    s = s.lower()
+    s = re.sub(r'[^a-z0-9_-]+', '_', s)
+    s = re.sub(r'_+', '_', s).strip('_')
+    return s or 'item'
+
+def normalize_expression_single_backslash(expr: str) -> str:
+    i1 = expr.find('[')
+    i2 = expr.find(']')
+    if i1 == -1 or i2 == -1 or i2 < i1:
+        return expr
+    before = expr[:i1+1]
+    inside = expr[i1+1:i2]
+    after = expr[i2:]
+    # Replace any sequence of backslashes before comma with a single backslash+comma
+    inside = re.sub(r'\\+,', r'\\,', inside)
+    # Also ensure commas that are not escaped are escaped (if needed)
+    inside = inside.replace(',', r'\,')
+    return before + inside + after
+
+def sync_zabbix_hosts(zabbix_client: ZabbixAPIClient, 
+                     howru_client: HowruAPIClient,
+                     group_id: str) -> None:
+    """Main synchronization function"""
+    try:
+        # Fetch data from HOWRU API
+        servers_and_jobs = howru_client.get_servers_and_jobs()
+        
+        # Process each server
+        for server_name, jobs in servers_and_jobs.items():
+            host_exists = False
+            host_id = None
+            
+            # Check if host exists
+            try:
+                result = zabbix_client._api_request(
+                    "host.get",
+                    {
+                        "filter": {"host": [server_name]},
+                        "output": ["hostid"]
+                    }
+                )
+                if result["result"]:
+                    host_id = result["result"][0]["hostid"]
+                    host_exists = True
+                    logging.info(f"Found existing host: {server_name}")
+                    
+            except ZabbixSyncError as e:
+                logging.warning(f"Host lookup failed: {str(e)}")
+            
+            # Create hostgroup
+            group_lookup = zabbix_client._api_request("hostgroup.get", {
+                "filter": {"name": ["Almond servers"]},
+                "output": ["groupid"]
+            })
+            print("Hostgroup.get response:", group_lookup)
+            if isinstance(group_lookup.get("result"), list) and group_lookup["result"]:
+                group_id = group_lookup["result"][0]["groupid"]
+            else:
+                group_create = zabbix_client._api_request("hostgroup.create", {
+                    "name": "Almond servers"
+                })
+                print("hostgroup.create response:", group_create)
+                if "groupids" in group_create["result"]:
+                    group_id = group_create["result"]["groupids"][0]
+                else:
+                    raise Exception("Failed to create host group 'Almond servers'")
+
+            # Create host if it doesn't exist
+            if not host_exists:
+                create_params = {
+                    "host": server_name,
+                    "interfaces": [{
+                        "type": 1,
+                        "main": 1,
+                        "useip": 1,
+                        "ip": "127.0.0.1",
+                        "dns": "",
+                        "port": "10050"
+                    }],
+                    "groups": [{"groupid": group_id}],
+                    "inventory_mode": 1
+                }
+                result = zabbix_client._api_request("host.create", create_params)
+                host_id = result["result"]["hostids"][0]
+                logging.info(f"Created new host: {server_name}")
+            
+            # Sync items for each job
+            #trigger_client = TriggerClient(zabbix_client.base_url, zabbix_client.session, zabbix_client.auth_token)
+            for job in jobs:
+                plugin_name = job.get("name", "unknown_plugin")
+                description = job.get("description", "No description")
+                
+                # Create item with all required parameters
+                item_name = f"{description} ({plugin_name})"
+                create_item_params = {
+                    "name": f"{description} ({plugin_name})",
+                    "key_": f"check_howru_api.sh[{howru_client.base_url},{plugin_name},{server_name}]",
+                    "hostid": host_id,
+                    "type": 10,  # External check
+                    "value_type": 1,  # Numeric (unsigned) is 3, 1 is text 
+                    "interfaceid": 0,
+                    "delay": "30s",  # Required parameter
+                    "status": 0,     # Required parameter
+                    "description": f"External check for {plugin_name} on {server_name}"
+                }
+                
+                try:
+                    # Check if item exists
+                    result = zabbix_client._api_request(
+                        "item.get",
+                        {
+                            "hostid": host_id,
+                            "filter": {"key_": create_item_params["key_"]}
+                        }
+                    )
+                    
+                    if not result["result"]:
+                        # Create new item
+                        zabbix_client._api_request("item.create", create_item_params)
+                        logging.info(f"Created item: {description} on {server_name}")
+                        item_result =  zabbix_client._api_request("item.get", {
+                            "hostids": host_id,
+                            "search": {"name": item_name},   # or filter/search on key_
+                            "output": ["itemid", "key_"]
+                        })
+                        print("DEBUG: item_result:", item_result)
+                        raw_key = create_item_params['key_'] 
+                        escaped_key = escape_key_params(raw_key) 
+                        # Add trigger for the item
+                        try:
+                            # Create trigger for the new item
+                            trigger_expression =  f"{{{server_name}:{escaped_key}.str()}}=0"
+                            trigger_description = f"{description} failure on {server_name}"
+                            trigger_params = {
+                                "description": trigger_description,
+                                "expression": trigger_expression,
+                                "priority": 4,
+                                "status": 0,
+                                "type": 0
+                            }
+                            try:
+                                #trigger_client.trigger.create(
+                                #     description=trigger_description,
+                                #     expression=trigger_expression,
+                                #     priority=4,  # High severity
+                                #     status=0,    # Enabled
+                                #     type=0       # Single event
+                                #)
+                                logging.info("trigger_expression repr: %r", trigger_expression)
+                                payload = {
+                                    "jsonrpc": "2.0",
+                                    "method": "trigger.create",
+                                    "params": {
+                                        "description": trigger_description,
+                                        "expression": trigger_expression,
+                                        "priority": 4,
+                                        "status": 0,
+                                        "type": 0
+                                    },
+                                    "auth": zabbix_client.auth_token,   # or however you store the token
+                                    "id": 1
+                                }
+                                logging.info("json payload that will be sent: %s", json.dumps(payload, ensure_ascii=False))
+                                normalized = normalize_expression_single_backslash(trigger_expression)
+                                logging.info("normalized repr: %r", normalized)
+                                resp = zabbix_client._api_request("trigger.create", trigger_params)
+                                #logging.info(f"Created trigger for item: {description} on {server_name}")
+                                logging.info("Created trigger: %s", resp)
+                            except Exception as e:
+                                logging.error("Failed to create trigger for %s: %s", description, str(e))
+                                logging.info("Trigger expression: %s", trigger_expression)
+                                logging.info(traceback.format_exc())
+                                #logging.error(f"Failed to create trigger for {description}: {str(e)}")
+                                #exc_type, exc_value, exc_tb = sys.exc_info()
+                                #logging.info("Traceback:\n" + "".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+                        except Exception as e:
+                            logging.error(f"Failed to create trigger for {description}: {str(e)}")
+                            print ("DEBUG: trigger_expression = ", trigger_expression)
+
+                except ZabbixSyncError as e:
+                    logging.error(f"Failed to sync item {plugin_name}: {str(e)}")
+        
+    except Exception as e:
+        logging.error(f"Sync failed: {str(e)}")
+        raise
+
+def main():
+    """Main entry point"""
+    config = {
+        "ZABBIX_URL": "http://zabbix-web:8888",
+        "ZABBIX_USER": "Admin",
+        "ZABBIX_PASS": "zabbix",
+        "HOWRU_API_ADDRESS": "http://host.docker.internal:8085",
+        "ZABBIX_GROUP_ID": "2"
+    }
+
+    try:
+        # Initialize clients
+        zabbix_client = ZabbixAPIClient(
+            base_url=config["ZABBIX_URL"],
+            username=config["ZABBIX_USER"],
+            password=config["ZABBIX_PASS"]
+        )
+        
+        howru_client = HowruAPIClient(base_url=config["HOWRU_API_ADDRESS"])
+        
+        # Login to Zabbix
+        zabbix_client.login()
+        
+        # Perform synchronization
+        sync_zabbix_hosts(zabbix_client, howru_client, config["ZABBIX_GROUP_ID"])
+        
+    except Exception as e:
+        logging.error(f"Synchronization failed: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()

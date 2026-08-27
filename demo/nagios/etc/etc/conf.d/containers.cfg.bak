@@ -1,0 +1,929 @@
+##############################################################################
+# HOWRU.CFG - CREATED BY ALMOND HOWRU API TO NAGIOS INTEGRATION
+#
+#
+##############################################################################
+#
+## HOST DEFINITION
+#
+#
+###############################################################################
+###############################################################################
+
+# Define a hosts for the local machine
+
+
+define host{
+	use                     linux-server            ; Name of host template to use
+	host_name               almond01.demo.com
+	alias                   almond01.demo.com
+	address                 127.0.0.1
+}
+
+define host{
+	use                     linux-server            ; Name of host template to use
+	host_name               app01.demo.com
+	alias                   app01.demo.com
+	address                 127.0.0.1
+}
+
+define host{
+	use                     linux-server            ; Name of host template to use
+	host_name               grafana01.demo.com
+	alias                   grafana01.demo.com
+	address                 127.0.0.1
+}
+
+define host{
+	use                     linux-server            ; Name of host template to use
+	host_name               redis01.demo.com
+	alias                   redis01.demo.com
+	address                 127.0.0.1
+}
+
+define host{
+	use                     linux-server            ; Name of host template to use
+	host_name               redpanda10.demo.com
+	alias                   redpanda10.demo.com
+	address                 127.0.0.1
+}
+
+define host{
+	use                     linux-server            ; Name of host template to use
+	host_name               rpconsole10.demo.com
+	alias                   rpconsole10.demo.com
+	address                 127.0.0.1
+}
+
+define host{
+	use                     linux-server            ; Name of host template to use
+	host_name               webapp01.demo.com
+	alias                   webapp01.demo.com
+	address                 127.0.0.1
+}
+
+
+###############################################################################
+###############################################################################
+#
+# HOST GROUP DEFINITION
+#
+###############################################################################
+###############################################################################
+
+# Define an optional hostgroup for machines imported by Almond integration
+
+define hostgroup{
+	hostgroup_name  almond-servers ; The name of the hostgroup
+	alias           Almond Servers ; Long name of the group
+	members         almond01.demo.com,app01.demo.com,grafana01.demo.com,redis01.demo.com,redpanda10.demo.com,rpconsole10.demo.com,webapp01.demo.com; Comma separated list of hosts that belong to this group
+}
+
+###############################################################################
+###############################################################################
+#
+# SERVICE DEFINITIONS
+#
+###############################################################################
+###############################################################################
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Its alive
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!1!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check load
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!2!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check /home
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!3!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check /opt
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!4!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check /usr
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!5!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check /var
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!6!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!7!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check /var/log
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!8!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check users
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!9!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check uptime
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!10!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             CPU Statistics
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!11!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check all processes
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!12!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check open files
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!13!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check memory usage
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!14!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check Almond scheduler
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!15!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redis01.demo.com
+	service_description             Check Redis
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!16!redis01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Its alive
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!1!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check load
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!2!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check /home
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!3!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check /opt
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!4!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check /usr
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!5!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check /var
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!6!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!7!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check /var/log
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!8!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check users
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!9!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check uptime
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!10!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             CPU Statistics
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!11!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check all processes
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!12!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check open files
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!13!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check memory usage
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!14!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check httpd
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!15!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check webapp requests
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!16!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       webapp01.demo.com
+	service_description             Check Almond scheduler
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!17!webapp01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Its alive
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!1!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check load
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!2!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check /home
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!3!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check /opt
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!4!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check /usr
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!5!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!6!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!7!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check /var/log
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!8!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check users
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!9!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check uptime
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!10!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check CPU
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!11!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check all processes
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!12!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check open files
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!13!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check memory usage
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!14!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check Almond process
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!15!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check Grafana service
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!16!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check Grafana http
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!17!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       grafana01.demo.com
+	service_description             Check Grafana tcp connection
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!18!grafana01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Its alive
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!1!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check load
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!2!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check /home
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!3!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check /opt
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!4!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check /usr
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!5!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!6!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!7!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check /var/log
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!8!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check users
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!9!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check uptime
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!10!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check CPU
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!11!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check all processes
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!12!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check open files
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!13!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check memory usage
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!14!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check Almond process
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!15!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check Redpanda console
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!16!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check Console http
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!17!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       rpconsole10.demo.com
+	service_description             Check Console tcp connection
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!18!rpconsole10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Its alive
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!1!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check load
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!2!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check /home
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!3!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check /opt
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!4!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check /usr
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!5!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check /var
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!6!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!7!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check /var/log
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!8!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check users
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!9!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check uptime
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!10!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             CPU Statistics
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!11!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check all processes
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!12!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check open files
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!13!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check memory usage
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!14!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check Almond scheduler
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!15!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       almond01.demo.com
+	service_description             Check HowRU API process
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!16!almond01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Its alive
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!1!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check load
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!2!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check /home
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!3!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check /opt
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!4!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check /usr
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!5!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check /var
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!6!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!7!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check /var/log
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!8!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check users
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!9!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check uptime
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!10!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             CPU Statistics
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!11!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check all processes
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!12!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check open files
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!13!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check memory usage
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!14!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check custom application
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!15!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       app01.demo.com
+	service_description             Check Almond scheduler
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!16!app01.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Its alive
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!1!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check load
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!2!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check /boot
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!3!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check /home
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!4!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check /opt
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!5!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check /usr
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!6!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!7!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check /
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!8!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check /var/log
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!9!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check users
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!10!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check uptime
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!11!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             CPU Statistics
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!12!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check all processes
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!13!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check open files
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!14!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check memory usage
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!15!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check Almond process
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!16!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check Redpanda process
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!17!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check Almond topic
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!18!redpanda10.demo.com
+}
+
+define service{
+	use                             local-service,graphed-service         ; Name of service template to use
+	host_name                       redpanda10.demo.com
+	service_description             Check APT upgrades
+	check_command                   check_howru_service_by_id!host.docker.internal!8085!plugin!19!redpanda10.demo.com
+}
+

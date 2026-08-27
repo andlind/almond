@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp-demo
+  template:
+    metadata:
+      labels:
+        app: webapp-demo
+    spec:
+      containers:
+        - name: webapp
+          image: webapp
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: almond-data
+              mountPath: /opt/almond/data
+      volumes:
+        - name: almond-data
+          hostPath:
+            path: YOURUSERHOME/alEond_demo/data
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp
+spec:
+  type: NodePort
+  selector:
+    app: webapp-demo
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
