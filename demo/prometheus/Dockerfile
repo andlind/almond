@@ -23,7 +23,7 @@ RUN mkdir -p /etc/almond /var/log/almond \
    && chown -R nobody:nogroup /var/log/almond && chmod -R 755 /var/log/almond
 
 # Install Almond
-RUN apt-get update && apt-get install -y /tmp/almond-minimal_26.1.0_amd64.deb && rm /tmp/almond-minimal_26.1.0_amd64.deb
+RUN apt-get update && apt-get install -y /tmp/almond-minimal_0.9.23-1_amd64.deb && rm /tmp/almond-minimal_0.9.23-1_amd64.deb
 
 # Create Almond extra directories
 RUN mkdir -p /opt/almond/api_cmd \
