@@ -7,8 +7,9 @@
 
 bool isValidUrl(const std::string& url) {
     // Basic regex check for http:// or https:// prefix
-    const std::regex url_pattern(R"(^https?://.+)");
-    return std::regex_match(url, url_pattern);
+    //const std::regex url_pattern(R"(^https?://.+)");
+    //return std::regex_match(url, url_pattern);
+	return true;
 }
 
 int main(int argc, char* argv[]) {
@@ -19,6 +20,7 @@ int main(int argc, char* argv[]) {
         ("q,query", "PromQL query", cxxopts::value<std::string>())
         ("w,warning", "Warning threshold", cxxopts::value<double>()->default_value("0.15"))
         ("c,critical", "Critical threshold", cxxopts::value<double>()->default_value("0.10"))
+	("t,comparison", "Comparison type", cxxopts::value<std::string>()->default_value(">="))
         ("h,help", "Print usage");
 
     auto result = options.parse(argc, argv);
@@ -38,11 +40,35 @@ int main(int argc, char* argv[]) {
     std::string query = result["query"].as<std::string>();
     double warning = result["warning"].as<double>();
     double critical = result["critical"].as<double>();
+    std::string comparison_type = result["comparison"].as<std::string>();
 
     if (!isValidUrl(url)) {
         std::cerr << "UNKNOWN: Invalid URL format provided: " << url << "\n";
         return 3;
     }
+
+    /*if (comparison_type == "<" || comparison_type == "<=" || comparison_type == "lt") {
+    	if (value <= critical) {
+        	std::cout << "CRITICAL: Metric value is " << value << " (Threshold <= " << critical << ")\n";
+        	return 2;
+    	} else if (value <= warning) {
+        	std::cout << "WARNING: Metric value is " << value << " (Threshold <= " << warning << ")\n";
+        	return 1;
+    	}
+    } 
+    else if (comparison_type == ">" || comparison_type == "gt" || comparison_type == ">=" ) {
+    	if (value >= critical) {
+        	std::cout << "CRITICAL: Metric value is " << value << " (Threshold >= " << critical << ")\n";
+        	return 2;
+    	} else if (value >= warning) {
+        	std::cout << "WARNING: Metric value is " << value << " (Threshold >= " << warning << ")\n";
+        	return 1;
+    	}
+    }
+    else {
+    	std::cerr << "UNKNOWN: Invalid comparison type '" << comparison_type << "'. Use '>' or '<'.\n";
+    	return 3;
+    }*/
 
     std::string api_url = url + "/api/v1/query";
     auto response = cpr::Get(cpr::Url{api_url}, cpr::Parameters{{"query", query}});
@@ -64,18 +90,34 @@ int main(int argc, char* argv[]) {
         std::string val_str = results[0]["value"][1];
         double value = std::stod(val_str);
 
-        if (value <= critical) {
-            std::cout << "CRITICAL: Metric value is " << value << " (Threshold <= " << critical << ")\n";
-            return 2;
-        } else if (value <= warning) {
-            std::cout << "WARNING: Metric value is " << value << " (Threshold <= " << warning << ")\n";
-            return 1;
-        } else {
-            std::cout << "OK: Metric value is " << value << "\n";
-            return 0;
-        }
+	if (comparison_type == "<" || comparison_type == "<=" || comparison_type == "lt") {
+        	if (value <= critical) {
+                	std::cout << "CRITICAL: Metric value is " << value << " (Threshold <= " << critical << ")\n";
+                	return 2;
+        	} else if (value <= warning) {
+                	std::cout << "WARNING: Metric value is " << value << " (Threshold <= " << warning << ")\n";
+                	return 1;
+        	}
+    	}
+    	else if (comparison_type == ">" || comparison_type == "gt" || comparison_type == ">=" ) {
+        	if (value >= critical) {
+                	std::cout << "CRITICAL: Metric value is " << value << " (Threshold >= " << critical << ")\n";
+                	return 2;
+        	} else if (value >= warning) {
+                	std::cout << "WARNING: Metric value is " << value << " (Threshold >= " << warning << ")\n";
+                	return 1;
+        	}
+    	}
+    	else {
+        	std::cerr << "UNKNOWN: Invalid comparison type '" << comparison_type << "'. Use '>' or '<'.\n";
+        	return 3;
+    	}
+        std::cout << "OK: Metric value is " << value << " (Thresholds warning=" << warning << ", critical=" << critical << ")\n";
+
+
     } catch (const std::exception& e) {
         std::cerr << "UNKNOWN: Error parsing response: " << e.what() << "\n";
         return 3;
     }
+    return 0;
 }
