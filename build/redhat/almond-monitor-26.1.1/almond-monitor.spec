@@ -10,7 +10,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        %{?with_avro:1.avro}%{!?with_avro:1}%{?dist}
+Release:        %{?with_avro:2.avro}%{!?with_avro:2}%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -59,6 +59,7 @@ install -m 0644 -D users.conf %{buildroot}/etc/almond/users.conf
 install -m 0644 -D memalloc.conf %{buildroot}/etc/almond/memalloc.conf
 install -m 0644 -D kafka.conf.example %{buildroot}/etc/almond/kafka.conf.example
 install -m 0644 -D alerting.conf %{buildroot}/etc/almond/alerting.conf
+install -m 0644 -D proxyalert.conf %{buildroot}/etc/almond/proxyalert.conf
 install -m 0644 -D alerts.conf.template %{buildroot}/etc/almond/alerting.conf.template
 install -m 0600 -D auth2fa.enc %{buildroot}/etc/almond/auth2fa.enc
 install -m 0644 -D tokens %{buildroot}/etc/almond/tokens
@@ -109,6 +110,7 @@ fi
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/plugins.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/alerting.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/alerting.conf.template
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/proxyalert.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/memalloc.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/aliases.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/kafka.conf.example
@@ -145,6 +147,9 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Thu Sep 03 2026 26.1.1-2
+<anddreas.lindell@almondmonitor.com>
+- Adding alerting to HowRU proxy
 * Mon Aug 31 2026 26.1.1
 <andreas.lindell@almondmonitor.com>
 - Adding alert module to Almond

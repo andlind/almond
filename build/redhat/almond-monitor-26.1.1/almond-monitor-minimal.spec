@@ -10,7 +10,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        1.minimal%{?dist}
+Release:        2.minimal%{?dist}
 Summary:        Almond monitoring
 
 Group:          Applications/System
@@ -55,6 +55,7 @@ install -m 0644 -D plugins.conf %{buildroot}/etc/almond/plugins.conf
 install -m 0644 -D aliases.conf %{buildroot}/etc/almond/aliases.conf
 install -m 0644 -D users.conf %{buildroot}/etc/almond/users.conf
 install -m 0644 -D alerting.conf %{buildroot}/etc/almond/alerting.conf
+install -m 0644 -D proxyalert.conf %{buildroot}/etc/almond/proxyalert.conf
 install -m 0644 -D alerts.conf.template %{buildroot}/etc/almond/alerts.conf.template
 install -m 0644 -D memalloc.conf %{buildroot}/etc/almond/memalloc.conf
 install -m 0644 -D kafka.conf.example %{buildroot}/etc/almond/kafka.conf.example
@@ -107,6 +108,7 @@ fi
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/users.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/plugins.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/alerting.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/proxyalert.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/alerts.conf.template
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/memalloc.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/aliases.conf
@@ -144,6 +146,9 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
+* Thu Sep 03 2026 26.1.1-2
+<andreas.lindell@almondmonitor.com>
+- Adding alerting to HowRU when used as proxy
 * Mon Aug 31 2026 26.1.1
 <andreas.lindell@almondmonitor.com>
 - Adding alert module to Almond
