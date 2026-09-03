@@ -5,5 +5,9 @@ Build requirements
 You need to install jsoncpp and libcurl headers to compile the source
  
 BUILD
-g++ -Wall main.cpp -o check_almond -I /usr/include/jsoncpp/ -lcurl -ljsoncpp
-
+g++
+    g++ -Wall main.cpp -o check_almond -I /usr/include/jsoncpp/ -lcurl -ljsoncpp
+cmake
+mkdir build && build
+cmake ..
+cmake --build .

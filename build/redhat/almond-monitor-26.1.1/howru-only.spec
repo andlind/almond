@@ -40,6 +40,7 @@ install -d %{buildroot}/usr/lib/systemd/system
 # Config files
 install -m 0644 almond.conf %{buildroot}/etc/almond/almond.conf
 install -m 0644 aliases.conf %{buildroot}/etc/almond/aliases.conf
+install -m 0644 proxyalert.conf %{buildroot}/etc/almond/proxyalert.conf
 install -m 0644 users.conf %{buildroot}/etc/almond/users.conf
 install -m 0600 auth2fa.enc %{buildroot}/etc/almond/auth2fa.enc
 
@@ -77,6 +78,7 @@ install -m 0750 www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/ena
 %attr(0750,almond,almond) /opt/almond/www/api/mods/enabled/modyaml.py
 
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/almond.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/proxyalert.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/users.conf
 %config(noreplace) %attr(0644,almond,almond) /etc/almond/aliases.conf
 %config(noreplace) %attr(0600,almond,almond) /etc/almond/auth2fa.enc
@@ -106,9 +108,9 @@ if [ $1 -eq 0 ]; then
 fi
 
 %changelog
-* Thu Aug 27 2026
-<andreas.lindell@almondmonior.com>
-- HowRU recv with chunks
+* Thu Sep 03 2026 26.1.1-2
+<andreas.lindell@almondmonitor.com>
+- Adding HowRU proxy alerting
 * Thu Jul 16 2026 0.9.30-2
 <andreaslindell@almondmonitor.com>
 - HowRU API for labels

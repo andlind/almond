@@ -10,7 +10,7 @@
 
 Name:           %{name}
 Version:        %{version}
-Release:        %{?with_avro:1.avro}%{!?with_avro:1}%{?dist}
+Release:        %{?with_avro:2.avro}%{!?with_avro:2}%{?dist}
 Summary:        Almond monitor
 
 Group:          Applications/System
@@ -103,7 +103,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Mon AUg 31 2026 26.1.1
+* Mon Aug 31 2026 26.1.1
 <andreas.lindell@almondmonitor.com>
 - Adding alerting module to Almond
 * Thu Aug 27 2026 26.1.0
