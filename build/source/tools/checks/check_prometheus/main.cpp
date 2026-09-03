@@ -14,6 +14,7 @@ bool isValidUrl(const std::string& url) {
 
 int main(int argc, char* argv[]) {
     cxxopts::Options options("check_prometheus", "Prometheus metric status checker");
+    options.allow_unrecognised_options();
 
     options.add_options()
         ("H,url", "Prometheus URL", cxxopts::value<std::string>()->default_value("http://localhost:9090"))
