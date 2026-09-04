@@ -127,6 +127,7 @@ fi
 %attr(0755,almond,almond) /opt/almond/utilities/almond-token-generator
 %attr(0755,almond,almond) /opt/almond/utilities/almond-collector
 %attr(0755,almond,almond) /opt/almond/utilities/check_almond
+%attr(0755,almond,almond) /opt/almond/utilities/ncpa2almond
 %attr(0750,almond,almond) /opt/almond/utilities/howru-user-admin.py
 %attr(0750,almond,almond) /opt/almond/utilities/token-to-user.py
 %attr(0644,almond,almond) /opt/almond/templates/metrics.template
@@ -150,6 +151,7 @@ fi
 * Thu Sep 03 2026 26.1.1-2
 <anddreas.lindell@almondmonitor.com>
 - Adding alerting to HowRU proxy
+- Adding tool and check 
 * Mon Aug 31 2026 26.1.1
 <andreas.lindell@almondmonitor.com>
 - Adding alert module to Almond
