@@ -1,5 +1,4 @@
 COMPILE
 
-mkdir build && cd build
-cmake -DCMAKE_SKIP_RPATH=ON ..
-cmake --build .
+cmake -B build
+cmake --build build -j$(nproc)
