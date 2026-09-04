@@ -9,6 +9,8 @@ set(CMAKE_SKIP_RPATH TRUE)
 set(CMAKE_SKIP_BUILD_RPATH TRUE)
 set(CMAKE_SKIP_INSTALL_RPATH TRUE)
 set(CMAKE_BUILD_RPATH_USE_ORIGIN FALSE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries" FORCE)
+set(CPR_FORCE_USE_SYSTEM_CURL OFF CACHE BOOL "" FORCE)
 
 # Optional but recommended for Nagios plugins: 
 # Force static linking so CPR/cURL don't generate shared object (.so) dependencies at all.
