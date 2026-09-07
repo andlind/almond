@@ -145,7 +145,9 @@ fi
 %doc
 
 %postun
-/usr/sbin/userdel almond 
+if [ "$1" -eq 0 ]; then
+    /usr/sbin/userdel almond
+fi
 
 %changelog
 * Thu Sep 03 2026 26.1.1-2

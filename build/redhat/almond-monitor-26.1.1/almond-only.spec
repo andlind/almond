@@ -101,7 +101,9 @@ if ! /usr/bin/getent passwd almond >/dev/null ; then
 fi
 
 %postun
-/usr/sbin/userdel almond 
+if [ "$1" -eq 0 ]; then
+    /usr/sbin/userdel almond
+fi
 
 %changelog
 * Fri Sep 04 2026 26.1.1-2
