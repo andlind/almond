@@ -81,14 +81,25 @@ int main(int argc, char* argv[]) {
 
     try {
         auto json_data = nlohmann::json::parse(response.text);
+ 	
+	if (!json_data.contains("data") || !json_data["data"].contains("result")) {
+        	std::cout << "UNKNOWN: Invalid Prometheus response structure.\n";
+        	return 3;
+    	}
         auto results = json_data["data"]["result"];
         
-        if (results.empty()) {
+        if (!results.is_array() || results.empty()) {
             std::cout << "UNKNOWN: Query returned no results.\n";
             return 3;
         }
 
-        std::string val_str = results[0]["value"][1];
+        if (!results[0].contains("value") || !results[0]["value"].is_array() || results[0]["value"].size() < 2) {
+        	std::cout << "UNKNOWN: Missing metric value array in result.\n";
+        	return 3;
+        }
+
+        //std::string val_str = results[0]["value"][1];
+        std::string val_str = results[0]["value"][1].get<std::string>();
         double value = std::stod(val_str);
 
 	if (comparison_type == "<" || comparison_type == "<=" || comparison_type == "lt") {
