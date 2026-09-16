@@ -1,3 +1,0 @@
-almond-monitor:
-  dir-or-file-in-opt opt/almond/   Vendored bundle directory
-  dir-or-file-in-opt opt/almond/almond   Vendored binary in /opt
