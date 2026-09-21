@@ -26,6 +26,10 @@ def parse_json(jsonObject, api, ac):
     except json.decoder.JSONDecodeError:
         return_message = "UNKNOWN: Could not load json. Wrong parameters?"
         return_code = 3
+    #print ("DEBUG")
+    #print (jsonObject)
+    #print (api)
+    #print (ac)
     current_time = datetime.datetime.now()
     non_active_checks = 0
     if (api == 'criticals' or api == 'ok' or api == 'warnings'):
@@ -224,32 +228,22 @@ def parse_json(jsonObject, api, ac):
         return_message = "INFO: This api call is not implemented yet for this service check."
 
     elif (api == 'plugin'):
-        # Here is work to be done. Not working in multimode
-        is_multi_server = False
-        try:
-            server_name = json_object[0]['name']
-        except:
-             is_multi_server = True
-        if (is_multi_server):
-            print (json_object)
-            return_message = "Under construction"
+        #print (json_object)
+        if len(json_object) == 0:
             return_code = 3
+            return_message = "UNKNOWN: '" + check_name + "' not found."
+            return
+        item = json_object[0]
+        output = item['pluginOutput']
+        return_code = int(item['pluginStatusCode'])
+        if (return_code == 0):
+            return_message = "OK: " + output
+        elif (return_code == 1):
+            return_message = "WARNING: " + output
+        elif (return_code == 2):
+            return_message = "CRITICAL: " + output
         else:
-            #print (server_name)
-            if (len(json_object) == 1):
-                return_code = 3
-                return_message = "UNKNOWN: '" + check_name + "' not found."
-                return
-            output = json_object[1]['pluginOutput']
-            return_code = int(json_object[1]['pluginStatusCode'])
-            if (return_code == 0):
-                return_message = "OK: " + output
-            elif (return_code == 1):
-                return_message = "WARNING: " + output
-            elif (return_code == 2):
-                return_message = "CRITICAL: " + output
-            else:
-                return_code = "UNKNOWN: " + output
+            return_code = "UNKNOWN: " + output
 
     elif (api == 'json'):
         # use this to parse the oldest timestamp?
@@ -263,6 +257,10 @@ def main():
     global return_code
     global return_message
     global check_name
+
+    return_code = 3
+    return_message = "UNKNOWN: No message generated"
+
     parser = argparse.ArgumentParser(description='Check howru.')
     parser.add_argument('-H', '--host', type=str, required=True, help='Server to query (required)')
     parser.add_argument('-A', '--api', type=str, required=True, help='Api to call (required)')
@@ -289,7 +287,7 @@ def main():
     else:
         latency = accepted_latency
 
-    url = 'http://' + api_server + ":" + str(port) + '/howru/monitoring/' + api_call
+    url = 'http://' + api_server + ":" + str(port) + '/api/v1/' + api_call
     
     if (check_id == 0):
         if (check_name == 'None'):
@@ -319,14 +317,14 @@ def main():
     #print (url)
     return_code = 0
     try:
-    	f = urllib.request.urlopen(url)
+        f = urllib.request.urlopen(url)
     except:
         return_code = 3
         return_message = "UNKNOWN: " + api_call + " not recognized on " + api_server
 
     if (return_code == 0):
-    	jblob = f.read().decode('utf-8')
-    	parse_json(jblob, api_call, latency) 
+        jblob = f.read().decode('utf-8')
+        parse_json(jblob, api_call, latency) 
 
     print (return_message)
     sys.exit(return_code)
