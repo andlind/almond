@@ -108,7 +108,7 @@ if [ $1 -eq 0 ]; then
 fi
 
 %changelog
-* Mon Oct 05 2025 26.2.0
+* Mon Oct 05 2026 26.2.0
 <andreas.lindell@almondmonitor.com>
 - admin_page update for labels
 - Buggfixes

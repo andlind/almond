@@ -106,7 +106,7 @@ fi
 /usr/sbin/userdel almond 
 
 %changelog
-* Mon Oct 05 2025 26.2.0
+* Mon Oct 05 2026 26.2.0
 <andreas.lindell@almondmonitor.com>
 - Collector API calls for Almond
 - Improved data handling for check states
