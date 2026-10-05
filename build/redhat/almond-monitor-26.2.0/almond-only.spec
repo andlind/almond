@@ -4,37 +4,40 @@
 %global _lto_cflags -flto -fno-fat-lto-objects
 %global optflags -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong -fPIE
 
-%define name almond-monitor
+%define name almond
 %define version 26.2.0
 %define _build_id_links none
 
 Name:           %{name}
 Version:        %{version}
-Release:        1.minimal%{?dist}
-Summary:        Almond monitoring
+Release:        %{?with_avro:1.avro}%{!?with_avro:1}%{?dist}
+Summary:        Almond monitor
 
 Group:          Applications/System
 License:        GPL
-URL:            https://github.com/andlind/howru
-Source0:        %{name}-%{version}.tar.gz
+URL:            https://github.com/andlind/almondu
+Source0:        %{name}-monitor-%{version}.tar.gz
 
 BuildRequires:  gcc
-BuildRequires:  make, json-c-devel, openssl-devel, zlib-devel
-Requires:       python3, python3-yaml, python3-simplejson, python3-flask, python3-gunicorn, python3-cryptography, python3-jose, ksh, sysstat, json-c, libjwt
+BuildRequires:  make, json-c-devel, openssl-devel, zlib-devel, libcurl-devel
+# BuildRequires: librdkafka-devel
+BuildRequires: %{_includedir}/librdkafka/rdkafka.h
+BuildRequires: %{_libdir}/librdkafka.so
+# Conditional BuildRequires
+%{?with_avro:BuildRequires: libserdes}
+Requires:       ksh, sysstat, json-c, librdkafka, zlib, libcurl, libjwt
 Requires(pre):  shadow-utils
-Requires(pre):  /usr/sbin/useradd, /usr/bin/getent, /usr/sbin/groupadd
-Requires(postun): /usr/sbin/userdel
 
 %description
-Almond scheduler and Howru API, compatible with Nagios plugins
+Almond scheduler and API, compatible with Nagios plugins
 
 %global debug_package %{nil}
 
 %prep
-%setup -q
+%setup -q -n %{name}-monitor-%{version}
 
 %build
-%configure --prefix /opt/almond --disable-kafka
+%configure %{?with_avro:--enable-avro} --prefix=/opt/almond
 make %{?_smp_mflags}
 
 %install
@@ -43,44 +46,54 @@ mkdir -p %{buildroot}/etc/almond/
 mkdir -p %{buildroot}/var/log/almond/
 mkdir -p %{buildroot}/opt/almond/
 mkdir -p %{buildroot}/opt/almond/plugins/
-mkdir -p %{buildroot}/opt/almond/scripts/
 mkdir -p %{buildroot}/opt/almond/templates/
 mkdir -p %{buildroot}/opt/almond/utilities/
-mkdir -p %{buildroot}/opt/almond/www
 mkdir -p %{buildroot}/opt/almond/api_cmd/
 mkdir -p %{buildroot}/lib/systemd/system/
 install -m 0750 %{buildroot}/usr/bin/almond %{buildroot}/opt/almond/
 rm -f %{buildroot}/usr/bin/almond
 install -m 0644 -D almond.conf %{buildroot}/etc/almond/almond.conf
 install -m 0644 -D plugins.conf %{buildroot}/etc/almond/plugins.conf
-install -m 0644 -D aliases.conf %{buildroot}/etc/almond/aliases.conf
-install -m 0644 -D users.conf %{buildroot}/etc/almond/users.conf
 install -m 0644 -D alerting.conf %{buildroot}/etc/almond/alerting.conf
-install -m 0644 -D proxyalert.conf %{buildroot}/etc/almond/proxyalert.conf
 install -m 0644 -D alerts.conf.template %{buildroot}/etc/almond/alerts.conf.template
 install -m 0644 -D memalloc.conf %{buildroot}/etc/almond/memalloc.conf
 install -m 0644 -D kafka.conf.example %{buildroot}/etc/almond/kafka.conf.example
 install -m 0644 -D heal.conf.example %{buildroot}/etc/almond/heal.conf.example
-install -m 0600 -D auth2fa.enc %{buildroot}/etc/almond/auth2fa.enc
 install -m 0644 -D tokens %{buildroot}/etc/almond/tokens
 install -m 0755 -D gardener.py %{buildroot}/opt/almond/gardener.py
 install -m 0644 -D metrics.template %{buildroot}/opt/almond/templates/metrics.template
-install -m 0755 -D howru %{buildroot}/opt/almond/howru
 install -m 0600 -D apicmd.inf %{buildroot}/opt/almond/api_cmd/apicmd.inf
-cp -r www/* %{buildroot}/opt/almond/www/
-cp rs.sh %{buildroot}/opt/almond/www/api/
-cp -r system/* %{buildroot}/lib/systemd/system/
+cp -r system/almond.service %{buildroot}/lib/systemd/system/
 cp -a plugins/* %{buildroot}/opt/almond/plugins/
 cp -r utilities/* %{buildroot}/opt/almond/utilities/
-cp scripts/HEAL %{buildroot}/opt/almond/scripts/
-# Remove executable bit from library files and documentation
-find %{buildroot}/opt/almond/www -type f -name "*.py" -exec chmod 0640 {} +
-find %{buildroot}/opt/almond/www -type f -name "*.html*" -exec chmod 0640 {} +
-chmod 0640 %{buildroot}/opt/almond/www/api/mods/README
 
-#Enable mods
-cp -p www/api/mods/modxml.py %{buildroot}/opt/almond/www/api/mods/enabled/modxml.py
-cp -p www/api/mods/modyaml.py %{buildroot}/opt/almond/www/api/mods/enabled/modyaml.py
+%files
+%global default_attr 0640 almond almond
+%defattr(755,almond,almond,755)
+
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/almond.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/plugins.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/alerting.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/alerts.conf.template
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/memalloc.conf
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/kafka.conf.example
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/heal.conf.example
+%config(noreplace) %attr(0644,almond,almond) /etc/almond/tokens
+%attr(0750, almond, almond) /opt/almond/almond
+%attr(0600, almond, almond) /opt/almond/api_cmd/apicmd.inf
+%attr(0755,almond,almond) /opt/almond/gardener.py
+%attr(0755,almond,almond) /opt/almond/utilities/almond-token-generator
+%attr(0755,almond,almond) /opt/almond/utilities/almond-collector
+%attr(0755,almond,almond) /opt/almond/utilities/check_almond
+%attr(0755,almond,almond) /opt/almond/utilities/ncpa2almond
+%attr(0750,almond,almond) /opt/almond/utilities/howru-user-admin.py
+%attr(0750,almond,almond) /opt/almond/utilities/token-to-user.py
+%attr(0644,almond,almond) /opt/almond/templates/metrics.template
+%attr(0755,almond,almond) /var/log/almond/
+%attr(-,almond,almond) /opt/almond/plugins/*
+%attr(0644,root,root) /lib/systemd/system/almond.service
+
+%doc
 
 %pre
 /usr/bin/getent group almond >/dev/null || /usr/sbin/groupadd -r almond
@@ -89,69 +102,8 @@ if ! /usr/bin/getent passwd almond >/dev/null ; then
 
 fi
 
-%files
-%global default_attr 0640 almond almond
-%defattr(755,almond,almond,755)
-
-# --- WEB FILES ---
-# We include the directory, but exclude the specific files we want to
-# give unique permissions to later.
-/opt/almond/www/
-%exclude /opt/almond/www/api/rs.sh
-%exclude /opt/almond/www/api/mods/enabled/modxml.py
-%exclude /opt/almond/www/api/mods/enabled/modyaml.py
-
-# Now we "re-add" them with their specific attributes
-%attr(0755,almond,almond) /opt/almond/www/api/rs.sh
-%attr(0750,almond,almond) /opt/almond/www/api/mods/enabled/modxml.py
-%attr(0750,almond,almond) /opt/almond/www/api/mods/enabled/modyaml.py
-
-# --- CONFIG FILES ---
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/almond.conf
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/users.conf
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/plugins.conf
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/alerting.conf
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/proxyalert.conf
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/alerts.conf.template
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/memalloc.conf
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/aliases.conf
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/kafka.conf.example
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/heal.conf.example
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/auth2fa.enc
-%config(noreplace) %attr(0644,almond,almond) /etc/almond/tokens
-
-# --- BINARIES & SCRIPTS ---
-%attr(0750, almond, almond) /opt/almond/almond
-%attr(0750, almond, almond) /opt/almond/howru
-%attr(0600, almond, almond) /opt/almond/api_cmd/apicmd.inf
-%attr(0755, almond, almond) /opt/almond/gardener.py
-%attr(0755, almond, almond) /opt/almond/scripts/HEAL
-
-# --- UTILITIES ---
-%attr(0755,almond,almond) /opt/almond/utilities/almond-token-generator
-%attr(0755,almond,almond) /opt/almond/utilities/almond-collector
-%attr(0755,almond,almond) /opt/almond/utilities/check_almond
-%attr(0755,almond,almond) /opt/almond/utilities/ncpa2almond
-%attr(0750,almond,almond) /opt/almond/utilities/howru-user-admin.py
-%attr(0750,almond,almond) /opt/almond/utilities/token-to-user.py
-%attr(0644,almond,almond) /opt/almond/templates/metrics.template
-
-# --- LOGS & SYSTEMD ---
-%attr(0755,almond,almond) /var/log/almond/
-%attr(0644,root,root) /lib/systemd/system/almond.service
-%attr(0644,root,root) /lib/systemd/system/howru.service
-
-# --- PLUGINS ---
-# Instead of listing 50 files, we use a wildcard.
-# This automatically includes check_apt and any others!
-%attr(-,almond,almond) /opt/almond/plugins/*
-
-%doc
-
 %postun
-if [ "$1" -eq 0 ]; then
-	/usr/sbin/userdel almond 
-fi
+/usr/sbin/userdel almond 
 
 %changelog
 * Mon Oct 05 2026 26.2.0
@@ -159,26 +111,19 @@ fi
 - Collector API calls for Almond
 - Improved data handling for check states
 - Heal module
-- HowRU GUI support for labels
 - Buggfixes
 * Wed Sep 16 2026 26.1.2
 <andreas.lindell@almondmonitor.com>
-- Update admin_page and templates
-* Thu Sep 03 2026 26.1.1-2
+- Minor change plugincommand size
+* Fri Sep 04 2026 26.1.1-2
 <andreas.lindell@almondmonitor.com>
-- Adding alerting to HowRU when used as proxy
-- Adding tool and check
+- Adding new check and ncpa2almond
 * Mon Aug 31 2026 26.1.1
 <andreas.lindell@almondmonitor.com>
-- Adding alert module to Almond
+- Adding alerting module to Almond
 * Thu Aug 27 2026 26.1.0
 <andreas.lindell@almondmonitor.com>
 - New versioning
-- Buggfix
-* Thu Jul 16 2026 0.9.30-2
-<andreaslindell@almondmonitor.com>
-- HowRU API for labels
-- Updated templates
 * Tue Jun 02 2026 0.9.30
 <andreas.lindell@almondmonitor.com>
 - Almond labels
@@ -187,20 +132,20 @@ fi
 <andreas.lindell@almondmonitor.com>
 - Almond API iam enhanced
 - Almond some code refactoring
-- Updated look howru
-- HowRU iam and roles
 - Minor buffixes
 * Tue Mar 24 2026 0.9.26
 <andreas.lindell@almondmonitor.com>
-- HowRU otel implementation
 - Almond push function with API
+- Buggfix Kafka producer function
 * Mon Mar 16 2026 0.9.25
 <andreas.lindell@almondmonitor.com>
-- Fix HowRU api action
 - Implementing reload hard API call
 * Fri Feb 13 2026 0.9.24
 <andreas.lindell@almondmonitor.com>
 - Adding api commands for monitoring
+* Thu Jan 29 2026 0.9.23-1
+<andreas.lindell@almondmonitor.com>
+- Almond only installation
 * Tue Jan 27 2026 0.9.23
 <andreas.lindell@almondmonitor.com>
 - Code break out and modulization
@@ -208,8 +153,8 @@ fi
 - Added metric to Almond API (0.9.22)
 * Mon Jan 19 2026 0.9.21
 <andreas.lindell@almondmonitor.com>
+- Buggfixes, scheduler update
 - Code refactoring
-- Buggfixes, update scheduler
 * Wed Jan 14 2026 0.9.20-3
 <andreas.lindell@almondmonitor.com>
 - Buggfix update_plugins
@@ -226,14 +171,20 @@ fi
 <andreaslindell@almondmonitor.com>
 - New parameter for HowRU plugin API call
 - Buggfixes
-* Thu Oct 9 2025 0.9.17
+* Thu Oct 09 2025 0.9.17-3
 <andreas.lindell@almondmonitor.com>
-- Refactor some config to booleans
-- Buggfixes
+- Buggfix enableKafkaSSL
+* Tue Oct 07 2025 0.9.17
+<andreas.lindell@almondmonitor.com>
+- Buggfix API Kafka topic
+- Refactor configs to booleans where applicable
+* Thu Oct 02 2025 0.9.16
+<andreas.lindell@almondmonitor.com>
+- Enhanced options for Kafka producer
 * Tue Sep 23 2025 0.9.15
 <andreas.lindell@almondmonitor.com>
 - Buggfix Almond API calls
-- Improved build
+- Improved build flow
 * Wed Sep 17 2025 0.9.14
 <andreas.lindell@almondmonitor.com>
 - Rewritten data structure

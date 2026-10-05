@@ -155,11 +155,13 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %changelog
-* Thu Sep 17 2026 26.2.0
+* Mon Oct 05 2026 26.2.0
 <andreas.lindell@almondmonitor.com>
 - New collector API calls for Almond
 - Improved check state data structure
 - New heal trigger module
+- HowRU GUI label option
+- Buggfixes
 * Wed Sep 16 2026 26.1.2
 <andreas.lindell@almondmonitor.com>
 - Update admin_page and templates
