@@ -1,0 +1,65 @@
+#!/bin/bash
+set -euo pipefail
+
+pid_file="${TMPDIR:-/tmp}/almond-demo-redpanda-port-forwards.pids"
+ps -axo pid=,command= |
+  awk '$0 ~ /port-forward .*service\/(redpanda|redpanda-console|webapp|webapp2|customapp|redis|howru-api|nagios|prometheus|grafana)( |$)/ {print $1}' |
+  while read -r pid; do
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+      kill "$pid"
+    fi
+  done
+rm -f "$pid_file"
+
+kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n microservice \
+  deployment/redis deployment/customapp deployment/webapp deployment/webapp2 \
+  service/redis service/customapp service/webapp service/webapp2 service/redpanda-10
+kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n redpanda \
+  service/redpanda-headless service/redpanda statefulset/redpanda \
+  service/redpanda-console deployment/redpanda-console
+kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n howru-proxy \
+  service/howru-api deployment/howru-api
+kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n nagios \
+  service/nagios deployment/nagios configmap/nagios-plugins configmap/nagios-integration
+kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n prometheus \
+  service/prometheus deployment/prometheus configmap/prometheus-config
+kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n grafana \
+  service/grafana deployment/grafana configmap/grafana-datasource
+
+kubectl delete namespace --ignore-not-found=true --wait=true --timeout=180s \
+  grafana howru-proxy microservice nagios prometheus redpanda 
+
+remove_image() {
+  local image="$1"
+  local output
+
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    return
+  fi
+
+  for attempt in 1 2 3 4 5 6; do
+    if output="$(docker image rm "$image" 2>&1)"; then
+      printf '%s\n' "$output"
+      return
+    fi
+    if (( attempt < 6 )); then
+      sleep 5
+    fi
+  done
+
+  printf '%s\n' "$output" >&2
+  echo "Failed to remove image ${image} after waiting for its containers to stop." >&2
+  return 1
+}
+
+remove_image redisdemo:local
+remove_image custapplication:local
+remove_image webapp:local
+remove_image custapplication-k8s-base:local
+remove_image webapp-k8s-base:local
+remove_image howruapi:local
+remove_image nagios:local
+remove_image my-prometheus-k8s:local
+remove_image my-prometheus-k8s-base:local
+remove_image webapp2-k8s:local
+remove_image webapp2-k8s-base:local

@@ -1,0 +1,213 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: redpanda
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-headless
+  namespace: redpanda
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: redpanda
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: kafka-internal
+    - name: rpc
+      port: 33145
+      targetPort: rpc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: redpanda
+spec:
+  selector:
+    app: redpanda
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: kafka-internal
+    - name: kafka-external
+      port: 19092
+      targetPort: kafka-external
+    - name: schema-registry
+      port: 8081
+      targetPort: schema-registry
+    - name: pandaproxy
+      port: 8082
+      targetPort: pandaproxy
+    - name: schema-registry-external
+      port: 18081
+      targetPort: schema-ext
+    - name: pandaproxy-external
+      port: 18082
+      targetPort: proxy-ext
+    - name: admin
+      port: 9644
+      targetPort: admin
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+  namespace: redpanda
+spec:
+  serviceName: redpanda-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v25.2.7
+          args:
+            - redpanda
+            - start
+            - --mode=dev-container
+            - --smp=1
+            - --memory=1G
+            - --default-log-level=info
+          env:
+            - name: REDPANDA_KAFKA_ADDRESS
+              value: internal://0.0.0.0:9092,external://0.0.0.0:19092
+            - name: REDPANDA_ADVERTISE_KAFKA_ADDRESS
+              value: internal://redpanda.redpanda.svc.cluster.local:9092,external://localhost:19092
+            - name: REDPANDA_PANDAPROXY_ADDRESS
+              value: internal://0.0.0.0:8082,external://0.0.0.0:18082
+            - name: REDPANDA_ADVERTISE_PANDAPROXY_ADDRESS
+              value: internal://redpanda:8082,external://localhost:18082
+            - name: REDPANDA_SCHEMA_REGISTRY_ADDRESS
+              value: internal://0.0.0.0:8081,external://0.0.0.0:18081
+            - name: REDPANDA_RPC_ADDRESS
+              value: 0.0.0.0:33145
+            - name: REDPANDA_ADVERTISE_RPC_ADDRESS
+              value: redpanda-0.redpanda-headless:33145
+          ports:
+            - name: kafka-internal
+              containerPort: 9092
+            - name: kafka-external
+              containerPort: 19092
+            - name: schema-registry
+              containerPort: 8081
+            - name: pandaproxy
+              containerPort: 8082
+            - name: schema-ext
+              containerPort: 18081
+            - name: proxy-ext
+              containerPort: 18082
+            - name: admin
+              containerPort: 9644
+            - name: rpc
+              containerPort: 33145
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1.5Gi
+            limits:
+              memory: 2Gi
+          startupProbe:
+            tcpSocket:
+              port: kafka-internal
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket:
+              port: kafka-internal
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: kafka-internal
+            periodSeconds: 10
+          volumeMounts:
+            - name: redpanda-data
+              mountPath: /var/lib/redpanda/data
+            - name: almond-data
+              mountPath: /opt/almond/data
+          securityContext:
+            runAsUser: 0
+      volumes:
+        - name: almond-data
+          hostPath:
+            path: /var/lib/almond-demo/data
+            type: DirectoryOrCreate
+  volumeClaimTemplates:
+    - metadata:
+        name: redpanda-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-console
+  namespace: redpanda
+spec:
+  selector:
+    app: redpanda-console
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda-console
+  namespace: redpanda
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda-console
+  template:
+    metadata:
+      labels:
+        app: redpanda-console
+    spec:
+      containers:
+        - name: console
+          image: docker.redpanda.com/redpandadata/console:v3.2.2
+          command: ["/bin/sh", "-c"]
+          args:
+            - printf '%s\n' "$CONSOLE_CONFIG_FILE" > /tmp/config.yml && exec /app/console
+          env:
+            - name: CONFIG_FILEPATH
+              value: /tmp/config.yml
+            - name: CONSOLE_CONFIG_FILE
+              value: |
+                kafka:
+                  brokers: ["redpanda:9092"]
+                schemaRegistry:
+                  enabled: true
+                  urls: ["http://redpanda:8081"]
+                redpanda:
+                  adminApi:
+                    enabled: true
+                    urls: ["http://redpanda:9644"]
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: almond-data
+              mountPath: /opt/almond/data
+          securityContext:
+            runAsUser: 0
+      volumes:
+        - name: almond-data
+          hostPath:
+            path: /var/lib/almond-demo/data
+            type: DirectoryOrCreate

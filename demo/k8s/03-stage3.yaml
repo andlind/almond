@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nagios
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nagios
+  namespace: nagios
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nagios
+  template:
+    metadata:
+      labels:
+        app: nagios
+    spec:
+      containers:
+        - name: nagios
+          image: nagios:local
+          imagePullPolicy: Never
+          command: ["/usr/bin/supervisord"]
+          ports:
+            - name: http
+              containerPort: 80
+          volumeMounts:
+            - name: nagios-plugins
+              mountPath: /opt/Custom-Nagios-Plugins
+              readOnly: true
+            - name: howru-endpoint
+              mountPath: /etc/almond/integration/nagiosurls.conf
+              subPath: nagiosurls.conf
+              readOnly: true
+      volumes:
+        - name: nagios-plugins
+          configMap:
+            name: nagios-plugins
+            defaultMode: 365
+        - name: howru-endpoint
+          configMap:
+            name: nagios-integration
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nagios
+  namespace: nagios
+spec:
+  selector:
+    app: nagios
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
