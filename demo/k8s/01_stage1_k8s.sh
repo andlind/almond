@@ -8,7 +8,7 @@ log_prefix="${TMPDIR:-/tmp}/almond-demo-microservice-port-forward"
 
 stop_existing_port_forwards() {
   ps -axo pid=,command= |
-    awk '$0 ~ /port-forward .*service\/(webapp|customapp|redis)( |$)/ {print $1}' |
+    awk '$0 ~ /port-forward .*service\/(webapp-access|webapp|customapp|redis)( |$)/ {print $1}' |
     while read -r pid; do
       if [[ "$pid" =~ ^[0-9]+$ ]]; then
         kill "$pid"
@@ -62,6 +62,8 @@ docker buildx build --platform linux/amd64 --load \
   --build-arg BASE_IMAGE=webapp-k8s-base:local \
   -f "$script_dir/overlays/webapp/Dockerfile" \
   -t webapp:local "$script_dir/overlays/webapp"
+docker buildx build --platform linux/arm64 --load \
+  -t webapp-proxy-k8s:local "$script_dir/overlays/webapp-proxy"
 
 kubectl rollout status -n redpanda statefulset/redpanda --timeout=180s
 kubectl apply -f "$script_dir/01-stage1.yaml"
@@ -69,12 +71,13 @@ kubectl rollout restart -n microservice deployment/customapp
 kubectl rollout status -n microservice deployment/redis --timeout=180s
 kubectl rollout status -n microservice deployment/customapp --timeout=180s
 kubectl rollout status -n microservice deployment/webapp --timeout=180s
+kubectl rollout status -n microservice deployment/webapp-proxy --timeout=180s
 
-start_port_forward webapp microservice service/webapp 8075:80
+start_port_forward webapp microservice service/webapp-access 8070:8070
 start_port_forward customapp microservice service/customapp 8076:8099 9909:9909
 start_port_forward redis microservice service/redis 6379:6379
 
-echo "Web app:      http://localhost:8075"
+echo "Load-balanced web app: http://localhost:8070"
 echo "Custom app:   http://localhost:8076"
 echo "Almond API:   localhost:9909"
 echo "Redis:        localhost:6379"

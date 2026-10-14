@@ -20,7 +20,8 @@ spec:
     spec:
       containers:
         - name: grafana
-          image: grafana/grafana-oss:latest
+          image: grafana-almond-k8s:local
+          imagePullPolicy: Never
           ports:
             - name: http
               containerPort: 3000
@@ -29,10 +30,16 @@ spec:
               mountPath: /etc/grafana/provisioning/datasources/prometheus.yaml
               subPath: prometheus.yaml
               readOnly: true
+            - name: almond-data
+              mountPath: /opt/almond/data
       volumes:
         - name: datasource
           configMap:
             name: grafana-datasource
+        - name: almond-data
+          hostPath:
+            path: /var/lib/almond-demo/data
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service

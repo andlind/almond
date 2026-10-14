@@ -3,7 +3,7 @@ set -euo pipefail
 
 pid_file="${TMPDIR:-/tmp}/almond-demo-redpanda-port-forwards.pids"
 ps -axo pid=,command= |
-  awk '$0 ~ /port-forward .*service\/(redpanda|redpanda-console|webapp|webapp2|customapp|redis|howru-api|nagios|prometheus|grafana)( |$)/ {print $1}' |
+  awk '$0 ~ /port-forward .*service\/(redpanda|redpanda-console|webapp-access|webapp|webapp2|customapp|redis|howru-api|nagios|prometheus|grafana)( |$)/ {print $1}' |
   while read -r pid; do
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
       kill "$pid"
@@ -11,9 +11,18 @@ ps -axo pid=,command= |
   done
 rm -f "$pid_file"
 
+if kubectl get deployment/webapp2 -n microservice >/dev/null 2>&1; then
+  kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s \
+    deployment/webapp2 -n microservice
+  if kubectl get deployment/redis -n microservice >/dev/null 2>&1; then
+    kubectl exec -n microservice deployment/redis -- rm -f /opt/almond/data/webapp02.json
+    echo "Removed stale Almond snapshot for webapp2."
+  fi
+fi
+
 kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n microservice \
-  deployment/redis deployment/customapp deployment/webapp deployment/webapp2 \
-  service/redis service/customapp service/webapp service/webapp2 service/redpanda-10
+  deployment/redis deployment/customapp deployment/webapp deployment/webapp2 deployment/webapp-proxy \
+  service/redis service/customapp service/webapp service/webapp-access service/webapp2 service/redpanda-10
 kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeout=180s -n redpanda \
   service/redpanda-headless service/redpanda statefulset/redpanda \
   service/redpanda-console deployment/redpanda-console
@@ -55,11 +64,13 @@ remove_image() {
 remove_image redisdemo:local
 remove_image custapplication:local
 remove_image webapp:local
+remove_image webapp-proxy-k8s:local
 remove_image custapplication-k8s-base:local
 remove_image webapp-k8s-base:local
 remove_image howruapi:local
 remove_image nagios:local
 remove_image my-prometheus-k8s:local
 remove_image my-prometheus-k8s-base:local
+remove_image grafana-almond-k8s:local
 remove_image webapp2-k8s:local
 remove_image webapp2-k8s-base:local

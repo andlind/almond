@@ -2,6 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+demo_dir="$(cd -- "$script_dir/.." && pwd)"
 log_file="${TMPDIR:-/tmp}/almond-demo-grafana-port-forward.log"
 
 if ! kubectl get service prometheus -n prometheus >/dev/null 2>&1; then
@@ -17,6 +18,11 @@ ps -axo pid=,command= |
       kill "$pid"
     fi
   done
+
+docker buildx build --platform linux/arm64 --load \
+  -t grafana-almond-k8s:local \
+  -f "$script_dir/overlays/grafana/Dockerfile" \
+  "$demo_dir"
 
 kubectl apply -f "$script_dir/05-stage5.yaml"
 kubectl create configmap grafana-datasource \
@@ -36,7 +42,7 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
     exit 1
   fi
   if grep -q "Forwarding from 127.0.0.1" "$log_file"; then
-    echo "Grafana: http://localhost:3000"
+    echo "Grafana with Almond: http://localhost:3000"
     exit 0
   fi
   sleep 1

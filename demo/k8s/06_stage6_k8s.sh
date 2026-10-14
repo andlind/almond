@@ -35,5 +35,5 @@ kubectl apply -f "$script_dir/06-stage6.yaml"
 kubectl rollout status -n microservice deployment/webapp2 --timeout=180s
 
 echo "Second web app pod is now behind service/webapp in namespace microservice."
-echo "In-cluster clients to service/webapp:80 can be load-balanced across both app pods."
-echo "Use http://localhost:8075 for the existing local port-forward; kubectl port-forward selects a pod rather than load-balancing."
+echo "In-cluster clients to service/webapp:8070 can be load-balanced across both app pods."
+echo "Load-balanced web app: http://localhost:8070"

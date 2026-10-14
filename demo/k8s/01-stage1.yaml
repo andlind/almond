@@ -144,8 +144,44 @@ spec:
   selector:
     app: webapp
   ports:
-    - port: 80
+    - port: 8070
       targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-proxy
+  namespace: microservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp-proxy
+  template:
+    metadata:
+      labels:
+        app: webapp-proxy
+    spec:
+      containers:
+        - name: nginx
+          image: webapp-proxy-k8s:local
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8070
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-access
+  namespace: microservice
+spec:
+  selector:
+    app: webapp-proxy
+  ports:
+    - name: http
+      port: 8070
+      targetPort: http
 ---
 apiVersion: v1
 kind: Service

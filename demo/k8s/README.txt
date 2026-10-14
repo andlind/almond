@@ -7,10 +7,11 @@
     It does not start or restart the other stages. The Redpanda, microservice, and HowRU workload manifests mount the same
     /var/lib/almond-demo/data directory at /opt/almond/data. The runtime Almond installation is lost if Redpanda or Console
     pods are recreated; rerun the script to restore it.
-  - ./01_stage1_k8s.sh builds and deploys Redis, the backend, and the web app to the microservice namespace; a service alias there
+  - ./01_stage1_k8s.sh builds and deploys Redis, the backend, the web app, and a local-access proxy to the microservice namespace; a service alias there
     keeps the existing Redpanda hostname working, while Redpanda advertises its cross-namespace DNS name to Kafka clients.
     These applications mount the Rancher Desktop node directory /var/lib/almond-demo/data. Kubernetes-specific app overrides
-    are kept under k8s/overlays so the original Docker demo application sources remain unchanged.
+    are kept under k8s/overlays so the original Docker demo application sources remain unchanged. The local proxy forwards
+    to the load-balanced webapp Service.
   - ./02_stage2_k8s.sh builds and deploys the HowRU API to the howru-proxy namespace, after applying the stage 1 manifest
     so both namespaces mount /var/lib/almond-demo/data at /opt/almond/data. It restarts port-forwards for stage 1 and starts
     a port-forward for HowRU at http://localhost:8085.
@@ -20,29 +21,33 @@
     It requires stage 2 and configures the integration to call
     howru-api.howru-proxy.svc.cluster.local:80. Kubernetes namespace names use hyphens, so the existing namespace is
     howru-proxy (not howru_proxy). Nagios plugins are loaded from demo/nagios/plugins into a ConfigMap.
-  - ./04_stage4_k8s.sh builds and deploys Prometheus with Almond in the prometheus namespace. Prometheus scrapes HowRU
-    through howru-api.howru-proxy.svc.cluster.local:80/metrics and is available at http://localhost:9090.
-    Almond data uses the shared /var/lib/almond-demo/data hostPath; Prometheus time-series data is stored separately at
-    /var/lib/almond-demo/prometheus. Its init container makes those hostPath directories writable by the non-root
-    Prometheus process; this permission setup is intended only for the local demo.
-  - ./05_stage5_k8s.sh deploys Grafana in the grafana namespace and provisions the Prometheus datasource using
+  - ./04_stage4_k8s.sh builds and deploys Prometheus with Almond in the prometheus namespace. The existing Prometheus
+    image installs and starts Almond, and shares /opt/almond/data through the Rancher Desktop node hostPath. Prometheus
+    scrapes HowRU through howru-api.howru-proxy.svc.cluster.local:80/metrics and is available at http://localhost:9090.
+    Prometheus time-series data is stored separately at /var/lib/almond-demo/prometheus. Its init container makes those
+    hostPath directories writable by the non-root Prometheus process; this permission setup is intended only for the local demo.
+  - ./05_stage5_k8s.sh builds and deploys Grafana with Almond in the grafana namespace and provisions the Prometheus datasource using
     http://prometheus.prometheus.svc.cluster.local:9090. This is the URL to use in Grafana's Prometheus datasource:
     Grafana reaches Prometheus through Kubernetes Service DNS across namespaces, rather than Docker's http://prometheus:9090
     alias. Grafana is available in your browser at http://localhost:3000 (default credentials: admin/admin; Grafana may
-    require a password change on first login).
+    require a password change on first login). The Almond image uses the bundled Alpine ARM64 package and therefore
+    targets linux/arm64.
   - ./06_stage6_k8s.sh adds a second web app pod through its own Deployment in the microservice namespace. Its pod joins
-    the existing webapp Service, so in-cluster requests to webapp:80 (or webapp.microservice.svc.cluster.local:80 from
+    the existing webapp Service, so in-cluster requests to webapp:8070 (or webapp.microservice.svc.cluster.local:8070 from
     another namespace) can be load-balanced across both app pods. It uses the same shared Almond data directory and
     Redis Service, while its Almond config keeps separate webapp02.json and webapp02.metrics files alongside the first
     instance's webapp01 files. It requires stage 1.
-    The existing local port-forward remains http://localhost:8075; kubectl port-forward selects a pod and does not
-    demonstrate Service load balancing.
-  - Stage 1 starts background forwards for webapp port 8075,
+    Open http://localhost:8070 to access the in-cluster proxy, which forwards requests through the webapp Service to either
+    pod. A direct kubectl port-forward to a Service selects a single pod, so the proxy is used to retain load balancing
+    for local browser requests.
+  - Stage 1 starts background forwards for webapp port 8070,
     customapp port 8076, Almond API port 9909, and Redis port 6379, then exits.
-  - Run the stage scripts in order after stage 1: stage 2, then stages 3–6 as needed. Open http://localhost:8075 in a browser.
+  - Run the stage scripts in order after stage 1: stage 2, then stages 3–6 as needed. Open http://localhost:8070 in a browser.
     Use ./07_stop_k8s.sh to remove the demo workloads and stop the forwards.
     It removes the demo namespaces (including redpanda and its PVC/data) and removes the demo Docker images after Kubernetes
-    has finished deleting the workloads. Image removal is retried briefly if the container runtime is still releasing them.
+    has finished deleting the workloads. It also removes webapp2's persisted Almond snapshot so Nagios does not briefly
+    rediscover that optional instance on the next startup. Other Almond data on the shared hostPath is retained. Image
+    removal is retried briefly if the container runtime is still releasing them.
   - To stop only Redpanda and Console while retaining their data, run:
     kubectl delete --ignore-not-found=true -n redpanda service/redpanda-headless service/redpanda statefulset/redpanda service/redpanda-console deployment/redpanda-console
     This command retains the Redpanda data PVC. The full ./07_stop_k8s.sh teardown deletes the redpanda namespace and its PVC,
