@@ -9,6 +9,7 @@ docker buildx build --platform linux/amd64 --load \
   -t quickpizza-almond:local "$script_dir/overlays/almond"
 
 kubectl apply -f "$script_dir/07-stage7.yaml"
+kubectl -n quick-pizza rollout restart deployment/quickpizza
 kubectl -n quick-pizza rollout status deployment/quickpizza
 
 nohup kubectl -n quick-pizza port-forward svc/quickpizza 3333:3333 \

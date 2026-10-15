@@ -59,12 +59,13 @@ def format_metric_name(metric):
     if not labels:
         return name
 
-    formatted_labels = ",".join(
-        f'{key}="{value}"'
+    # Almond's legacy perfdata parser splits on commas and whitespace; encode
+    # labels into the metric name instead of emitting Prometheus label syntax.
+    encoded_labels = "_".join(
+        f"{key.encode('utf-8').hex()}_{value.encode('utf-8').hex()}"
         for key, value in sorted(labels.items())
     )
-
-    return f"{name}{{{formatted_labels}}}"
+    return f"{name}_labels_{encoded_labels}"
 
 def fetch_metrics(url):
     """Fetch metrics from the URL and check the HTTP response."""
