@@ -3,7 +3,7 @@ set -euo pipefail
 
 pid_file="${TMPDIR:-/tmp}/almond-demo-redpanda-port-forwards.pids"
 ps -axo pid=,command= |
-  awk '$0 ~ /port-forward .*service\/(redpanda|redpanda-console|webapp-access|webapp|webapp2|customapp|redis|howru-api|nagios|prometheus|grafana)( |$)/ {print $1}' |
+  awk '$0 ~ /port-forward .*service\/(redpanda|redpanda-console|webapp-access|webapp|webapp2|customapp|redis|howru-api|nagios|prometheus|grafana|quickpizza)( |$)/ {print $1}' |
   while read -r pid; do
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
       kill "$pid"
@@ -36,7 +36,7 @@ kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeou
   service/grafana deployment/grafana configmap/grafana-datasource
 
 kubectl delete namespace --ignore-not-found=true --wait=true --timeout=180s \
-  grafana howru-proxy microservice nagios prometheus redpanda 
+  grafana howru-proxy microservice nagios prometheus quick-pizza redpanda
 
 remove_image() {
   local image="$1"
@@ -74,3 +74,4 @@ remove_image my-prometheus-k8s-base:local
 remove_image grafana-almond-k8s:local
 remove_image webapp2-k8s:local
 remove_image webapp2-k8s-base:local
+remove_image quickpizza-almond:local
