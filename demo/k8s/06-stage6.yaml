@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp2
+  namespace: microservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app-webapp-instance: webapp2
+  template:
+    metadata:
+      labels:
+        app: webapp
+        app-webapp-instance: webapp2
+    spec:
+      containers:
+        - name: webapp2
+          image: webapp2-k8s:local
+          imagePullPolicy: Never
+          env:
+            - name: REDIS_HOST
+              value: redis
+          ports:
+            - name: http
+              containerPort: 80
+          volumeMounts:
+            - name: almond-data
+              mountPath: /opt/almond/data
+      volumes:
+        - name: almond-data
+          hostPath:
+            path: /var/lib/almond-demo/data
+            type: DirectoryOrCreate

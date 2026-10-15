@@ -1,0 +1,52 @@
+metrics:
+  redis_latency_percentiles_usec:
+    - labels:
+        cmd: "slowlog|len"
+        quantile: "50"
+      type: above 
+      thresholds:
+        warning: 100
+        critical: 200
+
+    - labels:
+        cmd: "slowlog|len"
+        quantile: "99"
+      type: above
+      thresholds:
+        warning: 300
+        critical: 500
+
+    - labels:
+        cmd: "slowlog|len"
+        quantile: "99.9"
+      type: above
+      thresholds:
+        warning: 500
+        critical: 1000
+
+  exporter_healthy:
+    type: not_equal
+    thresholds:
+      critical: 1
+
+  process_cpu_seconds_total:
+    type: above
+    thresholds:
+      warning: 0.5
+      critical: 10
+
+  request_latency_seconds:
+    type: outside
+    thresholds:
+      warning:
+        min: 0.01
+        max: 2
+      critical:
+        min: 0.001
+        max: 5
+
+  process_open_fds:
+    type: above
+    thresholds:
+      warning: 100
+      critical: 200
