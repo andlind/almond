@@ -40,14 +40,18 @@
     Open http://localhost:8070 to access the in-cluster proxy, which forwards requests through the webapp Service to either
     pod. A direct kubectl port-forward to a Service selects a single pod, so the proxy is used to retain load balancing
     for local browser requests.
+  - ./07_stage7_k8s.sh starts QuickPizza with an Almond sidecar in the quick-pizza namespace. The sidecar pushes JSON data
+    every 60 seconds to HowRU at howru-api.howru-proxy.svc.cluster.local:80/receive; HowRU listens on port 80 and has
+    file receiving enabled. Run stage 2 first so the HowRU Service is available.
   - Stage 1 starts background forwards for webapp port 8070,
     customapp port 8076, Almond API port 9909, and Redis port 6379, then exits.
-  - Run the stage scripts in order after stage 1: stage 2, then stages 3–6 as needed. Open http://localhost:8070 in a browser.
+  - Run stage 2 after stage 1, then stages 3–7 as needed. Open http://localhost:8070 in a browser.
     Use ./07_stop_k8s.sh to remove the demo workloads and stop the forwards.
-    It removes the demo namespaces (including redpanda and its PVC/data) and removes the demo Docker images after Kubernetes
+    It removes the demo namespaces (including redpanda and its PVC/data), clears all contents from the shared Almond data
+    directory and Prometheus data directory inside the Kubernetes node, and removes the demo Docker images after Kubernetes
     has finished deleting the workloads. It also removes webapp2's persisted Almond snapshot so Nagios does not briefly
-    rediscover that optional instance on the next startup. Other Almond data on the shared hostPath is retained. Image
-    removal is retried briefly if the container runtime is still releasing them.
+    rediscover that optional instance on the next startup. Image removal is retried briefly if the container runtime is
+    still releasing them.
   - To stop only Redpanda and Console while retaining their data, run:
     kubectl delete --ignore-not-found=true -n redpanda service/redpanda-headless service/redpanda statefulset/redpanda service/redpanda-console deployment/redpanda-console
     This command retains the Redpanda data PVC. The full ./07_stop_k8s.sh teardown deletes the redpanda namespace and its PVC,

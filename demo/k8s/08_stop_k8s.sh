@@ -3,7 +3,7 @@ set -euo pipefail
 
 pid_file="${TMPDIR:-/tmp}/almond-demo-redpanda-port-forwards.pids"
 ps -axo pid=,command= |
-  awk '$0 ~ /port-forward .*service\/(redpanda|redpanda-console|webapp-access|webapp|webapp2|customapp|redis|howru-api|nagios|prometheus|grafana)( |$)/ {print $1}' |
+  awk '$0 ~ /port-forward .*service\/(redpanda|redpanda-console|webapp-access|webapp|webapp2|customapp|redis|howru-api|nagios|prometheus|grafana|quickpizza)( |$)/ {print $1}' |
   while read -r pid; do
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
       kill "$pid"
@@ -36,7 +36,55 @@ kubectl delete --ignore-not-found=true --wait=true --cascade=foreground --timeou
   service/grafana deployment/grafana configmap/grafana-datasource
 
 kubectl delete namespace --ignore-not-found=true --wait=true --timeout=180s \
-  grafana howru-proxy microservice nagios prometheus redpanda 
+  grafana howru-proxy microservice nagios prometheus quick-pizza redpanda
+
+cleanup_pod="almond-demo-data-cleanup"
+kubectl delete pod "$cleanup_pod" --ignore-not-found=true --wait=true
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: almond-demo-data-cleanup
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: cleanup
+      image: busybox:1.36
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          find /almond-data -mindepth 1 -maxdepth 1 -exec rm -rf {} \;
+          find /prometheus-data -mindepth 1 -maxdepth 1 -exec rm -rf {} \;
+      securityContext:
+        runAsUser: 0
+      volumeMounts:
+        - name: almond-data
+          mountPath: /almond-data
+        - name: prometheus-data
+          mountPath: /prometheus-data
+  volumes:
+    - name: almond-data
+      hostPath:
+        path: /var/lib/almond-demo/data
+        type: DirectoryOrCreate
+    - name: prometheus-data
+      hostPath:
+        path: /var/lib/almond-demo/prometheus
+        type: DirectoryOrCreate
+EOF
+
+if ! kubectl wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$cleanup_pod" --timeout=180s; then
+  kubectl logs "$cleanup_pod" >&2 || true
+  kubectl describe pod "$cleanup_pod" >&2 || true
+  kubectl delete pod "$cleanup_pod" --ignore-not-found=true --wait=true
+  echo "Failed to remove the persisted Almond and Prometheus data." >&2
+  exit 1
+fi
+kubectl delete pod "$cleanup_pod" --wait=true
+echo "Removed persisted Almond and Prometheus data."
 
 remove_image() {
   local image="$1"
@@ -74,3 +122,4 @@ remove_image my-prometheus-k8s-base:local
 remove_image grafana-almond-k8s:local
 remove_image webapp2-k8s:local
 remove_image webapp2-k8s-base:local
+remove_image quickpizza-almond:local

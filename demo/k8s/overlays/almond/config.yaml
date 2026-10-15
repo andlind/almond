@@ -1,0 +1,28 @@
+metrics:
+  quickpizza_server_http_request_duration_seconds_gauge:
+    - labels:
+        method: "POST"
+        path: "/api/pizza"
+        status: "200"
+      type: above
+      thresholds:
+        warning: 0.5
+        critical: 2
+
+  process_resident_memory_bytes:
+    type: above
+    thresholds:
+      warning: 268435456
+      critical: 536870912
+
+  process_open_fds:
+    type: above
+    thresholds:
+      warning: 1000
+      critical: 5000
+
+  quickpizza_server_ws_connections_active:
+    type: above
+    thresholds:
+      warning: 100
+      critical: 500
