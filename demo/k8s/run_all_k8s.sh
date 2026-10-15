@@ -14,4 +14,4 @@ sleep 5
 sleep 5
 ./05_stage5_k8s.sh
 echo "Demo started."
-echo "Run ./07_stop_all_k8s.sh to shutdown"
+echo "Run ./08_stop_all_k8s.sh to shutdown"
