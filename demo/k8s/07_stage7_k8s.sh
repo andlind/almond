@@ -12,6 +12,14 @@ kubectl apply -f "$script_dir/07-stage7.yaml"
 kubectl -n quick-pizza rollout restart deployment/quickpizza
 kubectl -n quick-pizza rollout status deployment/quickpizza
 
+ps -axo pid=,command= |
+  awk '$0 ~ /port-forward .*service\/quickpizza( |$)/ {print $1}' |
+  while read -r existing_pid; do
+    if [[ "$existing_pid" =~ ^[0-9]+$ ]]; then
+      kill "$existing_pid"
+    fi
+  done
+
 nohup kubectl -n quick-pizza port-forward svc/quickpizza 3333:3333 \
   >"$log_file" 2>&1 </dev/null &
 pid=$!
