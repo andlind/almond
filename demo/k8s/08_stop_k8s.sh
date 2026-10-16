@@ -113,6 +113,8 @@ remove_image redisdemo:local
 remove_image custapplication:local
 remove_image webapp:local
 remove_image webapp-proxy-k8s:local
+remove_image almond-sidecar:local
+remove_image webapp-proxy-almond:local
 remove_image custapplication-k8s-base:local
 remove_image webapp-k8s-base:local
 remove_image howruapi:local

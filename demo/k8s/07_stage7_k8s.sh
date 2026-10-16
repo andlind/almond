@@ -6,19 +6,46 @@ pid_file="${TMPDIR:-/tmp}/almond-demo-redpanda-port-forwards.pids"
 log_file="${TMPDIR:-/tmp}/almond-demo-stage7-port-forward.log"
 
 docker buildx build --platform linux/amd64 --load \
-  -t quickpizza-almond:local "$script_dir/overlays/almond"
+  -f "$script_dir/overlays/almond-base/Dockerfile" \
+  -t almond-sidecar:local "$script_dir/overlays"
 
 kubectl apply -f "$script_dir/07-stage7.yaml"
+kubectl create configmap quickpizza-almond-config \
+  --from-file=config.yaml="$script_dir/overlays/almond/config.yaml" \
+  --from-file=plugins.conf="$script_dir/overlays/almond/plugins.conf" \
+  -n quick-pizza \
+  --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n quick-pizza rollout restart deployment/quickpizza
 kubectl -n quick-pizza rollout status deployment/quickpizza
 
-ps -axo pid=,command= |
-  awk '$0 ~ /port-forward .*service\/quickpizza( |$)/ {print $1}' |
+stop_existing_quickpizza_port_forward() {
+  local pids
+  pids="$(ps -axo pid=,command= |
+    awk '$0 ~ /port-forward (svc|service)\/quickpizza 3333:3333( |$)/ {print $1}')"
+
+  if [[ -z "$pids" ]]; then
+    return
+  fi
+
   while read -r existing_pid; do
     if [[ "$existing_pid" =~ ^[0-9]+$ ]]; then
       kill "$existing_pid"
     fi
+  done <<< "$pids"
+
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if ! ps -axo pid=,command= |
+      awk '$0 ~ /port-forward (svc|service)\/quickpizza 3333:3333( |$)/ {found=1} END {exit !found}'; then
+      return
+    fi
+    sleep 1
   done
+
+  echo "Timed out stopping the existing QuickPizza port-forward on port 3333." >&2
+  return 1
+}
+
+stop_existing_quickpizza_port_forward
 
 nohup kubectl -n quick-pizza port-forward svc/quickpizza 3333:3333 \
   >"$log_file" 2>&1 </dev/null &

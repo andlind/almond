@@ -169,6 +169,29 @@ spec:
           ports:
             - name: http
               containerPort: 8070
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+        - name: almond-monitor
+          image: almond-sidecar:local
+          imagePullPolicy: Never
+          env:
+            - name: ALMOND_HOST_NAME
+              value: webproxy01.demo.com
+            - name: ALMOND_DATA_PREFIX
+              value: webproxy
+          volumeMounts:
+            - name: almond-config
+              mountPath: /etc/almond/plugins.conf
+              subPath: plugins.conf
+              readOnly: true
+      volumes:
+        - name: almond-config
+          configMap:
+            name: webapp-proxy-almond-config
 ---
 apiVersion: v1
 kind: Service

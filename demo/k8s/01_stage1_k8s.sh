@@ -64,10 +64,18 @@ docker buildx build --platform linux/amd64 --load \
   -t webapp:local "$script_dir/overlays/webapp"
 docker buildx build --platform linux/arm64 --load \
   -t webapp-proxy-k8s:local "$script_dir/overlays/webapp-proxy"
+docker buildx build --platform linux/amd64 --load \
+  -f "$script_dir/overlays/almond-base/Dockerfile" \
+  -t almond-sidecar:local "$script_dir/overlays"
 
 kubectl rollout status -n redpanda statefulset/redpanda --timeout=180s
 kubectl apply -f "$script_dir/01-stage1.yaml"
+kubectl create configmap webapp-proxy-almond-config \
+  --from-file=plugins.conf="$script_dir/overlays/webapp-proxy-almond/plugins.conf" \
+  -n microservice \
+  --dry-run=client -o yaml | kubectl apply -f -
 kubectl rollout restart -n microservice deployment/customapp
+kubectl rollout restart -n microservice deployment/webapp-proxy
 kubectl rollout status -n microservice deployment/redis --timeout=180s
 kubectl rollout status -n microservice deployment/customapp --timeout=180s
 kubectl rollout status -n microservice deployment/webapp --timeout=180s
