@@ -1,5 +1,5 @@
 almond.api=false
-almond.enableCollector=false
+almond.enableCollector=true
 almond.enableIamAud=false
 almond.enforeIAMRoles=false
 almond.iamIssuer=None
