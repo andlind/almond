@@ -7,11 +7,14 @@
     It does not start or restart the other stages. The Redpanda, microservice, and HowRU workload manifests mount the same
     /var/lib/almond-demo/data directory at /opt/almond/data. The runtime Almond installation is lost if Redpanda or Console
     pods are recreated; rerun the script to restore it.
-  - ./01_stage1_k8s.sh builds and deploys Redis, the backend, the web app, and a local-access proxy to the microservice namespace; a service alias there
+  - ./01_stage1_k8s.sh builds and deploys Redis, the backend, the web app, and a local-access proxy with an Almond monitoring sidecar to the microservice namespace; a service alias there
     keeps the existing Redpanda hostname working, while Redpanda advertises its cross-namespace DNS name to Kafka clients.
     These applications mount the Rancher Desktop node directory /var/lib/almond-demo/data. Kubernetes-specific app overrides
     are kept under k8s/overlays so the original Docker demo application sources remain unchanged. The local proxy forwards
-    to the load-balanced webapp Service.
+    to the load-balanced webapp Service. Almond reads NGINX's localhost-only stub_status endpoint and pushes selected
+    connection and request metrics to HowRU for Prometheus and Nagios; Prometheus does not scrape NGINX directly.
+    Metric collection starts once stage 2's HowRU API is available. Stage 1 and stage 7 share the same Almond sidecar image;
+    each supplies its own plugin list, hostname, and data-file prefix.
   - ./02_stage2_k8s.sh builds and deploys the HowRU API to the howru-proxy namespace, after applying the stage 1 manifest
     so both namespaces mount /var/lib/almond-demo/data at /opt/almond/data. It restarts port-forwards for stage 1 and starts
     a port-forward for HowRU at http://localhost:8085.
@@ -40,7 +43,8 @@
     Open http://localhost:8070 to access the in-cluster proxy, which forwards requests through the webapp Service to either
     pod. A direct kubectl port-forward to a Service selects a single pod, so the proxy is used to retain load balancing
     for local browser requests.
-  - ./07_stage7_k8s.sh starts QuickPizza with an Almond sidecar in the quick-pizza namespace. The sidecar pushes JSON data
+  - ./07_stage7_k8s.sh starts QuickPizza with an Almond sidecar in the quick-pizza namespace, using the same shared image as stage 1.
+    The sidecar pushes JSON data
     every 60 seconds to HowRU at howru-api.howru-proxy.svc.cluster.local:80/receive; HowRU listens on port 80 and has
     file receiving enabled. Run stage 2 first so the HowRU Service is available.
   - Stage 1 starts background forwards for webapp port 8070,

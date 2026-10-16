@@ -6,9 +6,15 @@ pid_file="${TMPDIR:-/tmp}/almond-demo-redpanda-port-forwards.pids"
 log_file="${TMPDIR:-/tmp}/almond-demo-stage7-port-forward.log"
 
 docker buildx build --platform linux/amd64 --load \
-  -t quickpizza-almond:local "$script_dir/overlays/almond"
+  -f "$script_dir/overlays/almond-base/Dockerfile" \
+  -t almond-sidecar:local "$script_dir/overlays"
 
 kubectl apply -f "$script_dir/07-stage7.yaml"
+kubectl create configmap quickpizza-almond-config \
+  --from-file=config.yaml="$script_dir/overlays/almond/config.yaml" \
+  --from-file=plugins.conf="$script_dir/overlays/almond/plugins.conf" \
+  -n quick-pizza \
+  --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n quick-pizza rollout restart deployment/quickpizza
 kubectl -n quick-pizza rollout status deployment/quickpizza
 

@@ -31,15 +31,27 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
         - name: almond-monitor
-          image: quickpizza-almond:local
+          image: almond-sidecar:local
           imagePullPolicy: IfNotPresent
+          env:
+            - name: ALMOND_HOST_NAME
+              value: quickpizza01.demo.com
+            - name: ALMOND_DATA_PREFIX
+              value: quickpizza
           volumeMounts:
             - name: exporter-config
               mountPath: /etc/almond/check_exporter/config.yaml
               subPath: config.yaml
               readOnly: true
+            - name: almond-config
+              mountPath: /etc/almond/plugins.conf
+              subPath: plugins.conf
+              readOnly: true
       volumes:
         - name: exporter-config
+          configMap:
+            name: quickpizza-almond-config
+        - name: almond-config
           configMap:
             name: quickpizza-almond-config
 ---
