@@ -39,7 +39,8 @@
     the existing webapp Service, so in-cluster requests to webapp:8070 (or webapp.microservice.svc.cluster.local:8070 from
     another namespace) can be load-balanced across both app pods. It uses the same shared Almond data directory and
     Redis Service, while its Almond config keeps separate webapp02.json and webapp02.metrics files alongside the first
-    instance's webapp01 files. It requires stage 1.
+    instance's webapp01 files. It requires stage 1 and ensures there is one local port-forward to webapp-access on port
+    8070 after deployment.
     Open http://localhost:8070 to access the in-cluster proxy, which forwards requests through the webapp Service to either
     pod. A direct kubectl port-forward to a Service selects a single pod, so the proxy is used to retain load balancing
     for local browser requests.
