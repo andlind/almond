@@ -1,0 +1,19 @@
+*************************************
+***      BUILD WITH CMAKE        ****
+*************************************
+- Move to build directory
+  cd build
+- Build the plugin
+  cmake ..
+  make
+*************************************
+***       BUILD WITH GCC         ****
+*************************************
+- Make sure you have g++ and the
+  required curl dependency, then
+  run the following:
+
+  g++ -std=c++11 main.cpp \
+     -o check_almond_ps -lcurl
+
+_____________________________________
