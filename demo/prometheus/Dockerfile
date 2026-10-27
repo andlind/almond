@@ -17,16 +17,17 @@ RUN apt-get update && apt-get install -y \
 
 #COPY almond/almond-monitor-minimal_0.9.30_amd64.deb /tmp
 #COPY almond/almond-minimal_0.9.23-1_amd64.deb /tmp
-#COPY almond/almond-monitor-minimal_26.1.0_amd64.deb /tmp
-RUN wget https://raw.githubusercontent.com/andlind/almond/main/packages/ubuntu/noble/almond-monitor-minimal_26.2.0-3_amd64.deb -P /tmp/
+COPY almond/almond-monitor-minimal_26.2.1_amd64.deb /tmp
+#COPY almond/almond-monitor-minimal_26.2.0-3_amd64.deb /tmp
+#RUN wget https://raw.githubusercontent.com/andlind/almond/main/packages/ubuntu/noble/almond-monitor-minimal_26.2.0-3_amd64.deb -P /tmp/
 # Create Almond directories
 RUN mkdir -p /etc/almond /var/log/almond \ 
    && chown -R nobody:nogroup /var/log/almond && chmod -R 755 /var/log/almond
 
 # Install Almond
 #RUN apt-get update && apt-get install -y /tmp/almond-monitor-minimal_26.2.0_amd64.deb && rm /tmp/almond-monitor-minimal_26.2.0_amd64.deb
-RUN dpkg -i /tmp/almond-monitor-minimal_26.2.0-3_amd64.deb || apt-get update && apt-get install -f -y \
-    && rm /tmp/almond-monitor-minimal_26.2.0-3_amd64.deb \
+RUN dpkg -i /tmp/almond-monitor-minimal_26.2.1_amd64.deb || apt-get update && apt-get install -f -y \
+    && rm /tmp/almond-monitor-minimal_26.2.1_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
 
 # Create Almond extra directories
