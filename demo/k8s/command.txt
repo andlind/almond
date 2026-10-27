@@ -1,0 +1,1 @@
+kubectl get pod quickpizza-d559964c6-4x5sl -n quick-pizza -o custom-columns="CONTAINER:.spec.containers[*].name,IMAGE:.spec.containers[*].image"
