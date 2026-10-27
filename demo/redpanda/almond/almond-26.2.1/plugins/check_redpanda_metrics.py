@@ -60,11 +60,11 @@ for c in collect_metrics:
 			c_request_bytes = c.split(" ")[1]
 			metricsString += " consumer_request_bytes=" + c_request_bytes	
 if (return_code == 0):
-	returnString = "Almond topic is fine"
+	returnString = "OK. Almond topic is fine"
 elif (return_code == 1):
-	returnString = "Almond has heartbeat request errors"
+	returnString = "WARNING. Almond has heartbeat request errors"
 elif (return_code == 2):
-	returnString = "Almond is underreplicated"
+	returnString = "CRITICAL. Almond is underreplicated"
 else:
 	returnString = "Something is wrong..."
 print (returnString + " |" + metricsString)
