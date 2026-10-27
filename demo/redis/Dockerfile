@@ -19,12 +19,12 @@ COPY apps.conf /etc/supervisord/conf.d/apps.conf
 COPY plugins/* /opt/almond/plugins
 COPY plugin_status.avsc /opt/almond/plugin_status.avsc
 RUN chmod +x /opt/almond/plugin_status.avsc
-RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/26.2.0/almond-26.2.0.tar.gz
-RUN tar xfvz almond-26.2.0.tar.gz 
-RUN sed -i 's|./configure --prefix=/opt/almond|./configure --prefix=/opt/almond --enable-avro|' almond-26.2.0/install_almond.sh
-RUN chmod +x almond-26.2.0/install_almond.sh
-RUN cd almond-26.2.0 && ./install_almond.sh
-RUN rm -rf almond-26.2.0 
+RUN wget https://raw.githubusercontent.com/andlind/almond/refs/heads/main/build/source/linux-version/26.2.1/almond-26.2.1.tar.gz
+RUN tar xfvz almond-26.2.1.tar.gz 
+RUN sed -i 's|./configure --prefix=/opt/almond|./configure --prefix=/opt/almond --enable-avro|' almond-26.2.1/install_almond.sh
+RUN chmod +x almond-26.2.1/install_almond.sh
+RUN cd almond-26.2.1 && ./install_almond.sh
+RUN rm -rf almond-26.2.1 
 RUN mkdir -p /var/log/redis
 COPY plugins.conf /etc/almond/plugins.conf
 COPY almond.conf /etc/almond/almond.conf
