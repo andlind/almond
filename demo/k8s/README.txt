@@ -26,10 +26,11 @@
     howru-api.howru-proxy.svc.cluster.local:80. Kubernetes namespace names use hyphens, so the existing namespace is
     howru-proxy (not howru_proxy). Nagios plugins are loaded from demo/nagios/plugins into a ConfigMap.
   - ./04_stage4_k8s.sh builds and deploys Prometheus with Almond in the prometheus namespace. The existing Prometheus
-    image installs and starts Almond, and shares /opt/almond/data through the Rancher Desktop node hostPath. Prometheus
-    scrapes HowRU through howru-api.howru-proxy.svc.cluster.local:80/metrics and is available at http://localhost:9090.
-    Prometheus time-series data is stored separately at /var/lib/almond-demo/prometheus. Its init container makes those
-    hostPath directories writable by the non-root Prometheus process; this permission setup is intended only for the local demo.
+    image installs and starts Almond, and shares /opt/almond/data through the Rancher Desktop node hostPath. A root init container
+    makes existing files and directories in the shared Almond and Prometheus storage writable by the non-root Prometheus process.
+    Prometheus scrapes HowRU through howru-api.howru-proxy.svc.cluster.local:80/metrics and is available at http://localhost:9090.
+    Prometheus time-series data is stored separately at /var/lib/almond-demo/prometheus; the permission setup is intended only
+    for the local demo.
   - ./05_stage5_k8s.sh builds and deploys Grafana with Almond in the grafana namespace and provisions the Prometheus datasource using
     http://prometheus.prometheus.svc.cluster.local:9090. This is the URL to use in Grafana's Prometheus datasource:
     Grafana reaches Prometheus through Kubernetes Service DNS across namespaces, rather than Docker's http://prometheus:9090

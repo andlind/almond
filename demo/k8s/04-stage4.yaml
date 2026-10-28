@@ -22,8 +22,8 @@ spec:
         - name: prepare-data-directories
           image: my-prometheus-k8s:local
           imagePullPolicy: Never
-          command: ["/usr/bin/chmod"]
-          args: ["0777", "/opt/almond/data", "/prometheus"]
+          command: ["/bin/sh", "-c"]
+          args: ["chmod -R a+rwX /opt/almond/data /prometheus"]
           securityContext:
             runAsUser: 0
           volumeMounts:
