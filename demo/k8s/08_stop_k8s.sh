@@ -109,6 +109,22 @@ remove_image() {
   return 1
 }
 
+remove_sidecar_build_images() {
+  local images
+  local image
+
+  if ! images="$(docker image ls --format '{{.Repository}}:{{.Tag}}' |
+    awk '$0 ~ /^almond-sidecar:local-[[:xdigit:]]+$/')"; then
+    return 0
+  fi
+
+  if [[ -n "$images" ]]; then
+    while IFS= read -r image; do
+      remove_image "$image"
+    done <<< "$images"
+  fi
+}
+
 remove_image redisdemo:local
 remove_image custapplication:local
 remove_image webapp:local
@@ -125,3 +141,4 @@ remove_image grafana-almond-k8s:local
 remove_image webapp2-k8s:local
 remove_image webapp2-k8s-base:local
 remove_image quickpizza-almond:local
+remove_sidecar_build_images

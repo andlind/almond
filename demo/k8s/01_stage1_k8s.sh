@@ -6,6 +6,8 @@ demo_dir="$(cd -- "$script_dir/.." && pwd)"
 pid_file="${TMPDIR:-/tmp}/almond-demo-redpanda-port-forwards.pids"
 log_prefix="${TMPDIR:-/tmp}/almond-demo-microservice-port-forward"
 
+source "$script_dir/build_almond_sidecar.sh"
+
 stop_existing_port_forwards() {
   ps -axo pid=,command= |
     awk '$0 ~ /port-forward .*service\/(webapp-access|webapp|customapp|redis)( |$)/ {print $1}' |
@@ -64,9 +66,7 @@ docker buildx build --platform linux/amd64 --load \
   -t webapp:local "$script_dir/overlays/webapp"
 docker buildx build --platform linux/arm64 --load \
   -t webapp-proxy-k8s:local "$script_dir/overlays/webapp-proxy"
-docker buildx build --platform linux/amd64 --load \
-  -f "$script_dir/overlays/almond-base/Dockerfile" \
-  -t almond-sidecar:local "$script_dir/overlays"
+build_almond_sidecar "$script_dir/overlays"
 
 kubectl rollout status -n redpanda statefulset/redpanda --timeout=180s
 kubectl apply -f "$script_dir/01-stage1.yaml"
@@ -74,6 +74,8 @@ kubectl create configmap webapp-proxy-almond-config \
   --from-file=plugins.conf="$script_dir/overlays/webapp-proxy-almond/plugins.conf" \
   -n microservice \
   --dry-run=client -o yaml | kubectl apply -f -
+kubectl set image -n microservice deployment/webapp-proxy \
+  almond-monitor="$ALMOND_SIDECAR_IMAGE"
 kubectl rollout restart -n microservice deployment/customapp
 kubectl rollout restart -n microservice deployment/webapp-proxy
 kubectl rollout status -n microservice deployment/redis --timeout=180s

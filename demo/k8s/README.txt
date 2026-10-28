@@ -14,7 +14,8 @@
     to the load-balanced webapp Service. Almond reads NGINX's localhost-only stub_status endpoint and pushes selected
     connection and request metrics to HowRU for Prometheus and Nagios; Prometheus does not scrape NGINX directly.
     Metric collection starts once stage 2's HowRU API is available. Stage 1 and stage 7 share the same Almond sidecar image;
-    each supplies its own plugin list, hostname, and data-file prefix.
+    each supplies its own plugin list, hostname, and data-file prefix. Each build uses its immutable image ID as its Kubernetes
+    tag so a rebuild cannot accidentally reuse a cached sidecar with the same local tag.
   - ./02_stage2_k8s.sh builds and deploys the HowRU API to the howru-proxy namespace, after applying the stage 1 manifest
     so both namespaces mount /var/lib/almond-demo/data at /opt/almond/data. It restarts port-forwards for stage 1 and starts
     a port-forward for HowRU at http://localhost:8085.
