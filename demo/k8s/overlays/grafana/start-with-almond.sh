@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+ln -s /usr/lib/libjwt.so.2.11.2 /usr/lib/libjwt.so.2
+
 /opt/almond/start_almond.sh &
 almond_pid=$!
 sleep 1

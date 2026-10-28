@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-prometheus-client \
     && rm -rf /var/lib/apt/lists/*
 
-COPY almond/src/almond-26.2.0.tar.gz /tmp/almond.tar.gz
+COPY almond/src/almond-26.2.1.tar.gz /tmp/almond.tar.gz
 
 RUN mkdir -p /usr/src/almond \
     && tar -xzf /tmp/almond.tar.gz \
