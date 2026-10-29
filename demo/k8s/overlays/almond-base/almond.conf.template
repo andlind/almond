@@ -11,6 +11,7 @@ almond.pushInterval=60
 almond.saveInventory=true
 almond.standalone=false
 almond.tryToHeal=false
+almond.useFilePush=true
 almond.useMetricsPush=true
 almond.usePush=true
 almond.useSSL=false
