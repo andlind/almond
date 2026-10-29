@@ -163,8 +163,8 @@ int main(int argc, char* argv[]) {
               << "heap_alloc=" << heap_alloc << "B;;;0;" << heap_total << " "
               << "threads=" << threads << ";;;0; "
 	      << std::setprecision(2)
-              << "cpu_user=" << cpu_user << "c;;;0; "
-              << "cpu_sys=" << cpu_sys << "c;;;0; "
+              << "cpu_user=" << cpu_user << ";;;0; "
+              << "cpu_sys=" << cpu_sys << ";;;0; "
               << std::setprecision(0)
               << "io_read=" << io_read << "c;;;0; "
               << "io_write=" << io_write << "c;;;0;" 
