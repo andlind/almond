@@ -14,8 +14,8 @@
   - 02_stage2					Starts a HowRU API to connect all sbove containers running on port 8180
   - 03_stage3					Starts Nagios Core runnnin on port 8180
   - 04_stage4					Starts Prometheus running on port 9090
-  - 05_stage5_alternative_with_almond		Starts Grafana on port 3000. This option also installs Almond on the Grafana container.
-  - 05_stage4_alternative_without_almond	As above but without Almond. Note! You use either of the script starting 05_. Do not execute both.
+  - 05_stage5_alternative_with_almond		Starts Grafana on port 3000, provisions the Prometheus data source, and installs Almond on the Grafana container.
+  - 05_stage5_alternative_without_almond	Starts Grafana on port 3000 with the Prometheus data source but without Almond. Use only one of the 05_ scripts.
   - 06_stage6					Starts an extra webb application
   - 07_stop					This script stops all containers started in the above script.
 
