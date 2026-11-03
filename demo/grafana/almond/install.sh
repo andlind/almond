@@ -11,8 +11,8 @@ docker exec -u 0 almond_grafana apk add --no-cache jansson openssl musl libc6-co
 docker exec -u 0 almond_grafana tar xfvz /tmp/almond-26.3.0.alpine.aarch64.tar.gz
 echo "Installing precompiled Almond"
 docker exec -u 0 almond_grafana /bin/bash -c "pwd && cd almond-26.3.0.alpine.aarch64 && ./install.sh"
-docker cp almond/plugins.conf almond_grafana:/etc/almond/plugins.conf
-docker cp almond/almond.conf almond_grafana:/etc/almond/almond.conf
+#docker cp almond/plugins.conf almond_grafana:/etc/almond/plugins.conf
+#docker cp almond/almond.conf almond_grafana:/etc/almond/almond.conf
 echo "Installation finished"
 echo "Copy configuration files"
 docker cp almond.conf almond_grafana:/etc/almond/almond.conf
