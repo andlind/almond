@@ -35,6 +35,7 @@ kubectl exec -n "$namespace" "$console_pod" -- apk add --no-cache perl sysstat b
 kubectl exec -n "$namespace" "$console_pod" -- tar xfvz /tmp/almond-26.3.0.alpine.aarch64.tar.gz
 echo "Installing precompiled Almond"
 kubectl exec -n "$namespace" "$console_pod" -- /bin/sh -c "cd almond-26.3.0.alpine.aarch64 && ./install.sh"
+kubectl cp -n "$namespace" "$script_dir/console_plugins.conf" "${console_pod}:/etc/almond/plugins.conf"
 echo "Installation finished"
 echo "Start Almond"
 kubectl exec -n "$namespace" "$console_pod" -- /bin/sh -c "/opt/almond/start_almond.sh &"
