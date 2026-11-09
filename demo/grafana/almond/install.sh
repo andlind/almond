@@ -18,5 +18,6 @@ echo "Copy configuration files"
 docker cp almond.conf almond_grafana:/etc/almond/almond.conf
 docker cp plugins.conf almond_grafana:/etc/almond/plugins.conf
 echo "Start Almond"
-docker exec -u 0 almond_grafana /bin/bash -c "/opt/almond/start_almond.sh &"
+#docker exec -u 0 almond_grafana /bin/bash -c "/opt/almond/start_almond.sh &"
+docker exec -d -u 0 almond_grafana /opt/almond/start_almond.sh
 echo "Done"
