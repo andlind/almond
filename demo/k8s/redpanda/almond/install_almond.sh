@@ -13,14 +13,14 @@ fi
 
 echo "Installing Almond on pod ${redpanda_pod}"
 echo "Installing dependencies"
-kubectl cp -n "$namespace" "$script_dir/almond-26.3.0" "${redpanda_pod}:/root"
+kubectl cp -n "$namespace" "$script_dir/almond-26.3.1" "${redpanda_pod}:/root"
 kubectl exec -n "$namespace" "$redpanda_pod" -- apt update -y
 kubectl exec -n "$namespace" "$redpanda_pod" -- apt install gcc make automake -y
 kubectl exec -n "$namespace" "$redpanda_pod" -- apt install libjson-c-dev libcurl4-openssl-dev libjwt-dev librdkafka-dev autoconf zlib1g-dev -y
 kubectl exec -n "$namespace" "$redpanda_pod" -- apt install libssl-dev sysstat ksh python3-psutil iputils-ping procps sudo -y
 kubectl exec -n "$namespace" "$redpanda_pod" -- apt upgrade -y
 echo "Installing Almond from source"
-kubectl exec -n "$namespace" "$redpanda_pod" -- /bin/sh -c "cd /root/almond-26.3.0 && autoreconf -fi && ./install_almond.sh"
+kubectl exec -n "$namespace" "$redpanda_pod" -- /bin/sh -c "cd /root/almond-26.3.1 && autoreconf -fi && ./install_almond.sh"
 echo "Installation finished"
 echo "Start Almond"
 kubectl exec -n "$namespace" "$redpanda_pod" -- /bin/sh -c "/opt/almond/start_almond.sh &"
