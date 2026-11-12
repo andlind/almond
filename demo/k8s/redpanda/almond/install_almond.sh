@@ -29,12 +29,12 @@ echo "Installing dependencies"
 kubectl cp -n "$namespace" "$demo_dir/alpine/libjwt/libjwt.so.2.11.2" "${console_pod}:/usr/lib/libjwt.so.2.11.2"
 kubectl exec -n "$namespace" "$console_pod" -- ln -sf /usr/lib/libjwt.so.2.11.2 /usr/lib/libjwt.so.2
 kubectl exec -n "$namespace" "$console_pod" -- ln -sf /usr/lib/libjwt.so.2.11.2 /usr/lib/libjwt.so.14
-kubectl cp -n "$namespace" "$demo_dir/alpine/almond/almond-26.3.0.alpine.aarch64.tar.gz" "${console_pod}:/tmp/almond-26.3.0.alpine.aarch64.tar.gz"
+kubectl cp -n "$namespace" "$demo_dir/alpine/almond/almond-26.3.1.alpine.aarch64.tar.gz" "${console_pod}:/tmp/almond-26.3.1.alpine.aarch64.tar.gz"
 kubectl exec -n "$namespace" "$console_pod" -- apk update
 kubectl exec -n "$namespace" "$console_pod" -- apk add --no-cache perl sysstat bash openssl musl libc6-compat python3 py3-psutil procps busybox iputils json-c librdkafka jansson
-kubectl exec -n "$namespace" "$console_pod" -- tar xfvz /tmp/almond-26.3.0.alpine.aarch64.tar.gz
+kubectl exec -n "$namespace" "$console_pod" -- tar xfvz /tmp/almond-26.3.1.alpine.aarch64.tar.gz
 echo "Installing precompiled Almond"
-kubectl exec -n "$namespace" "$console_pod" -- /bin/sh -c "cd almond-26.3.0.alpine.aarch64 && ./install.sh"
+kubectl exec -n "$namespace" "$console_pod" -- /bin/sh -c "cd almond-26.3.1.alpine.aarch64 && ./install.sh"
 kubectl cp -n "$namespace" "$script_dir/console_plugins.conf" "${console_pod}:/etc/almond/plugins.conf"
 echo "Installation finished"
 echo "Start Almond"
