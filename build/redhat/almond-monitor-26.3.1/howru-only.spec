@@ -6,7 +6,7 @@
 
 Name:           %{pkgname}
 Version:        %{pkgver}
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Howru API, proxy and frontend for Almond Monitor
 License:        MIT
 Source0:        almond-monitor-%{version}.tar.gz
